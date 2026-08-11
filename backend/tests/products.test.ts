@@ -8,6 +8,7 @@ const app = createApp();
 
 async function resetDb() {
   await prisma.auditLog.deleteMany();
+  await prisma.stockMovement.deleteMany();
   await prisma.inventory.deleteMany();
   await prisma.product.deleteMany();
   await prisma.productCategory.deleteMany();

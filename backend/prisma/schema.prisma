@@ -23,6 +23,7 @@ model Business {
   productCategories ProductCategory[]
   products          Product[]
   inventories       Inventory[]
+  stockMovements    StockMovement[]
 
   @@index([name])
   @@index([isActive])
@@ -41,9 +42,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  business  Business   @relation(fields: [businessId], references: [id])
-  roles     UserRole[]
-  auditLogs AuditLog[] @relation("AuditActor")
+  business       Business        @relation(fields: [businessId], references: [id])
+  roles          UserRole[]
+  auditLogs      AuditLog[]      @relation("AuditActor")
+  stockMovements StockMovement[]
 
   @@index([email])
   @@index([businessId])
@@ -167,9 +169,36 @@ model Inventory {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  business Business @relation(fields: [businessId], references: [id])
-  product  Product  @relation(fields: [productId], references: [id])
+  business   Business        @relation(fields: [businessId], references: [id])
+  product    Product         @relation(fields: [productId], references: [id])
+  movements  StockMovement[]
 
   @@index([businessId])
   @@index([businessId, quantity])
+}
+
+model StockMovement {
+  id              String   @id @default(cuid())
+  businessId      String
+  inventoryId     String
+  productId       String
+  actorId         String?
+  type            String
+  quantityChange  Int
+  quantityBefore  Int
+  quantityAfter   Int
+  reason          String?
+  referenceType   String?
+  referenceId     String?
+  createdAt       DateTime @default(now())
+
+  business  Business  @relation(fields: [businessId], references: [id])
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
+  actor     User?     @relation(fields: [actorId], references: [id])
+
+  @@index([businessId, createdAt])
+  @@index([businessId, productId])
+  @@index([businessId, type])
+  @@index([inventoryId, createdAt])
+  @@index([actorId])
 }

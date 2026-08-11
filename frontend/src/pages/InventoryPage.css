@@ -1,0 +1,65 @@
+.inventory-toolbar {
+  display: grid;
+  grid-template-columns: 2fr auto;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.inventory-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.85rem 0.2rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.inventory-muted {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.inventory-actions {
+  display: flex;
+  gap: 0.2rem;
+  flex-wrap: wrap;
+}
+
+.inventory-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.inventory-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.inventory-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.inventory-help {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.inventory-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+@media (max-width: 720px) {
+  .inventory-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
