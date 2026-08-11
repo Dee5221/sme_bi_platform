@@ -12,6 +12,7 @@ async function resetDb() {
   await prisma.inventory.deleteMany();
   await prisma.product.deleteMany();
   await prisma.productCategory.deleteMany();
+  await prisma.customer.deleteMany();
   await prisma.userRole.deleteMany();
   await prisma.rolePermission.deleteMany();
   await prisma.user.deleteMany();

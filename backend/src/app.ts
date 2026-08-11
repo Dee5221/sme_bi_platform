@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/authRoutes';
 import { categoryRouter } from './routes/categoryRoutes';
+import { customerRouter } from './routes/customerRoutes';
 import { inventoryRouter } from './routes/inventoryRoutes';
 import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/product-categories', categoryRouter);
   app.use('/api/products', productRouter);
   app.use('/api/inventory', inventoryRouter);
+  app.use('/api/customers', customerRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
