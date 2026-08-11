@@ -1,0 +1,33 @@
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.ui-badge--neutral {
+  background: #e8eef8;
+  color: #4b5b76;
+}
+
+.ui-badge--blue {
+  background: #dcecff;
+  color: #245ea8;
+}
+
+.ui-badge--green {
+  background: #d9f5e6;
+  color: #1f7a4d;
+}
+
+.ui-badge--orange {
+  background: #ffe8cc;
+  color: #9a5b10;
+}
+
+.ui-badge--red {
+  background: #ffdcdc;
+  color: #a13232;
+}

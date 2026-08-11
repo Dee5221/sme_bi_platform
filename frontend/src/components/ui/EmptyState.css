@@ -1,0 +1,14 @@
+.ui-empty {
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  color: var(--text-secondary);
+}
+
+.ui-empty h3 {
+  margin: 0 0 0.5rem;
+  color: var(--text-primary);
+}
+
+.ui-empty p {
+  margin: 0 0 1rem;
+}

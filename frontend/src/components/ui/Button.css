@@ -1,0 +1,40 @@
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.15rem;
+  font-weight: 700;
+  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+}
+
+.ui-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ui-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.ui-btn--primary {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+.ui-btn--secondary {
+  background: var(--bg-muted);
+  color: var(--text-primary);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ui-btn--danger {
+  background: var(--danger);
+  color: #fff;
+}

@@ -1,0 +1,23 @@
+.ui-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.ui-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 0.25rem;
+}
+
+.ui-card__header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.ui-card__body {
+  padding: 1.25rem;
+}

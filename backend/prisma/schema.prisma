@@ -1,0 +1,114 @@
+// SQLite for local development; schema designed for MySQL migration.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Business {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?  @unique
+  phone       String?
+  address     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users     User[]
+  auditLogs AuditLog[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+model User {
+  id           String    @id @default(cuid())
+  businessId   String
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business  Business   @relation(fields: [businessId], references: [id])
+  roles     UserRole[]
+  auditLogs AuditLog[] @relation("AuditActor")
+
+  @@index([email])
+  @@index([businessId])
+  @@index([businessId, isActive])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@index([name])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@index([key])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  businessId String
+  actorId    String?
+  action     String
+  entity     String
+  entityId   String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  actor    User?    @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([businessId, createdAt])
+  @@index([businessId, entity])
+  @@index([actorId])
+  @@index([action])
+}

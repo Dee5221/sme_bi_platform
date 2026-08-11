@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+frontend/dist/
+backend/dist/
+
+# Environment / secrets
+.env
+backend/.env
+frontend/.env
+
+# Databases
+*.db
+*.db-journal
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Logs / coverage
+*.log
+coverage/
