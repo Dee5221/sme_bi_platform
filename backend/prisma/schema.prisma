@@ -26,6 +26,7 @@ model Business {
   stockMovements    StockMovement[]
   customers         Customer[]
   suppliers         Supplier[]
+  sales             Sale[]
 
   @@index([name])
   @@index([isActive])
@@ -48,6 +49,7 @@ model User {
   roles          UserRole[]
   auditLogs      AuditLog[]      @relation("AuditActor")
   stockMovements StockMovement[]
+  salesCreated   Sale[]          @relation("SaleCreatedBy")
 
   @@index([email])
   @@index([businessId])
@@ -153,6 +155,7 @@ model Product {
   business  Business         @relation(fields: [businessId], references: [id])
   category  ProductCategory? @relation(fields: [categoryId], references: [id])
   inventory Inventory?
+  saleItems SaleItem[]
 
   @@unique([businessId, sku])
   @@index([businessId])
@@ -218,6 +221,7 @@ model Customer {
   updatedAt   DateTime @updatedAt
 
   business Business @relation(fields: [businessId], references: [id])
+  sales    Sale[]
 
   @@index([businessId])
   @@index([businessId, status])
@@ -247,4 +251,48 @@ model Supplier {
   @@index([businessId, email])
   @@index([businessId, phone])
   @@index([businessId, createdAt])
+}
+
+model Sale {
+  id          String   @id @default(cuid())
+  businessId  String
+  customerId  String?
+  createdById String?
+  saleNumber  String
+  status      String   @default("COMPLETED")
+  subtotal    Decimal
+  total       Decimal
+  notes       String?
+  soldAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business  Business  @relation(fields: [businessId], references: [id])
+  customer  Customer? @relation(fields: [customerId], references: [id])
+  createdBy User?     @relation("SaleCreatedBy", fields: [createdById], references: [id])
+  items     SaleItem[]
+
+  @@unique([businessId, saleNumber])
+  @@index([businessId])
+  @@index([businessId, soldAt])
+  @@index([businessId, customerId])
+  @@index([businessId, status])
+  @@index([createdById])
+}
+
+model SaleItem {
+  id                 String  @id @default(cuid())
+  saleId             String
+  productId          String
+  productName        String
+  productSku         String
+  unitPrice          Decimal
+  quantity           Int
+  lineTotal          Decimal
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+  @@index([productId])
 }
