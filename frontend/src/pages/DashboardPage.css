@@ -1,0 +1,244 @@
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.dashboard-main,
+.dashboard-side {
+  display: grid;
+  gap: 1rem;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.kpi-card {
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.15rem;
+  color: #fff;
+  min-height: 132px;
+  box-shadow: var(--shadow-card);
+}
+
+.kpi-card h2 {
+  margin: 0.35rem 0 0.45rem;
+  font-size: clamp(1.35rem, 2vw, 1.75rem);
+  letter-spacing: -0.03em;
+}
+
+.kpi-card__label,
+.kpi-card__meta {
+  margin: 0;
+  opacity: 0.92;
+}
+
+.kpi-card__label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-card__meta {
+  font-size: 0.82rem;
+}
+
+.kpi-card--red {
+  background: linear-gradient(145deg, #e85d5d, #d64545);
+}
+
+.kpi-card--blue {
+  background: linear-gradient(145deg, #4d89e8, #3b7ddd);
+}
+
+.kpi-card--orange {
+  background: linear-gradient(145deg, #f0a04b, #e28b2c);
+}
+
+.kpi-card--teal {
+  background: linear-gradient(145deg, #45c7be, #3db9b0);
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.shortcut-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 1.1rem 0.9rem;
+  font-weight: 700;
+  text-align: center;
+  transition: transform 0.15s ease;
+}
+
+.shortcut-card:hover {
+  transform: translateY(-2px);
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.recent-list__item {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.55rem 0.2rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.recent-list__item:last-child {
+  border-bottom: none;
+}
+
+.recent-list__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #eaf2ff;
+  color: var(--accent-blue);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.recent-list__body {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.recent-list__body span,
+.recent-list__meta span {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.recent-list__meta {
+  display: grid;
+  gap: 0.15rem;
+  text-align: right;
+}
+
+.dash-cta {
+  display: grid;
+  gap: 0.25rem;
+  justify-items: center;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border: 2px dashed #9bbcff;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--shadow-card);
+}
+
+.dash-cta__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #eaf2ff;
+  color: var(--accent-blue);
+  display: grid;
+  place-items: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.dash-cta span:last-child {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.health-block {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.health-block__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.health-bar {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: #e6edf8;
+  overflow: hidden;
+}
+
+.health-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3db9b0, #2f9e6b);
+}
+
+.chip-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.stock-chip {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: var(--radius-md);
+  background: #ffe8cc;
+}
+
+.stock-chip span {
+  color: #8a5a16;
+  font-size: 0.8rem;
+}
+
+.side-link {
+  margin-top: 0.85rem;
+}
+
+.side-link a {
+  color: var(--accent-blue);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-grid,
+  .shortcut-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-grid,
+  .shortcut-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recent-list__item {
+    grid-template-columns: 42px 1fr;
+  }
+
+  .recent-list__meta {
+    grid-column: 2;
+    text-align: left;
+  }
+}

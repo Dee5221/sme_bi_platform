@@ -6,7 +6,7 @@ import { useToast } from '../ui/Toast';
 import './Sidebar.css';
 
 const navItems = [
-  { to: '/app', label: 'Home', end: true, icon: '⌂' },
+  { to: '/app', label: 'Dashboard', end: true, icon: '⌂' },
   { to: '/app/sales', label: 'Sales', end: false, icon: '$' },
   { to: '/app/expenses', label: 'Expenses', end: false, icon: '−' },
   { to: '/app/products', label: 'Products', end: false, icon: '▦' },

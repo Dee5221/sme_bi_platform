@@ -7,6 +7,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/authRoutes';
 import { categoryRouter } from './routes/categoryRoutes';
 import { customerRouter } from './routes/customerRoutes';
+import { dashboardRouter } from './routes/dashboardRoutes';
 import { expenseRouter } from './routes/expenseRoutes';
 import { inventoryRouter } from './routes/inventoryRoutes';
 import { productRouter } from './routes/productRoutes';
@@ -36,6 +37,7 @@ export function createApp() {
 
   app.use('/api/auth', authRouter);
   app.use('/api/profile', profileRouter);
+  app.use('/api/dashboard', dashboardRouter);
   app.use('/api/product-categories', categoryRouter);
   app.use('/api/products', productRouter);
   app.use('/api/inventory', inventoryRouter);

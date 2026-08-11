@@ -3,8 +3,8 @@ import { AppShell } from './components/layout/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PublicOnlyRoute } from './components/PublicOnlyRoute';
 import { CustomersPage } from './pages/CustomersPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
-import { HomePage } from './pages/HomePage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProductsPage } from './pages/ProductsPage';
@@ -23,7 +23,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppShell />}>
-          <Route index element={<HomePage />} />
+          <Route index element={<DashboardPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
           <Route path="products" element={<ProductsPage />} />
