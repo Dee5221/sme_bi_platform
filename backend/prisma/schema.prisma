@@ -18,8 +18,11 @@ model Business {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users     User[]
-  auditLogs AuditLog[]
+  users             User[]
+  auditLogs         AuditLog[]
+  productCategories ProductCategory[]
+  products          Product[]
+  inventories       Inventory[]
 
   @@index([name])
   @@index([isActive])
@@ -111,4 +114,62 @@ model AuditLog {
   @@index([businessId, entity])
   @@index([actorId])
   @@index([action])
+}
+
+model ProductCategory {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id])
+  products Product[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([businessId, isActive])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  businessId  String
+  categoryId  String?
+  name        String
+  sku         String
+  description String?
+  unit        String?
+  price       Decimal
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business  Business         @relation(fields: [businessId], references: [id])
+  category  ProductCategory? @relation(fields: [categoryId], references: [id])
+  inventory Inventory?
+
+  @@unique([businessId, sku])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, categoryId])
+  @@index([businessId, name])
+  @@index([businessId, createdAt])
+}
+
+model Inventory {
+  id                String   @id @default(cuid())
+  businessId        String
+  productId         String   @unique
+  quantity          Int      @default(0)
+  lowStockThreshold Int      @default(5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, quantity])
 }

@@ -7,6 +7,7 @@ import './Sidebar.css';
 
 const navItems = [
   { to: '/app', label: 'Home', end: true, icon: '⌂' },
+  { to: '/app/products', label: 'Products', end: false, icon: '▦' },
   { to: '/app/profile', label: 'Profile', end: false, icon: '☺' },
 ];
 

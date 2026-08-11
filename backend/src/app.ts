@@ -5,6 +5,8 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/authRoutes';
+import { categoryRouter } from './routes/categoryRoutes';
+import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
 import { sendSuccess } from './lib/apiResponse';
 
@@ -29,6 +31,8 @@ export function createApp() {
 
   app.use('/api/auth', authRouter);
   app.use('/api/profile', profileRouter);
+  app.use('/api/product-categories', categoryRouter);
+  app.use('/api/products', productRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
