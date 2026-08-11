@@ -7,6 +7,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { authRouter } from './routes/authRoutes';
 import { categoryRouter } from './routes/categoryRoutes';
 import { customerRouter } from './routes/customerRoutes';
+import { expenseRouter } from './routes/expenseRoutes';
 import { inventoryRouter } from './routes/inventoryRoutes';
 import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
@@ -41,6 +42,7 @@ export function createApp() {
   app.use('/api/customers', customerRouter);
   app.use('/api/suppliers', supplierRouter);
   app.use('/api/sales', saleRouter);
+  app.use('/api/expenses', expenseRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

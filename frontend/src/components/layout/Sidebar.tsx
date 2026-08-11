@@ -8,6 +8,7 @@ import './Sidebar.css';
 const navItems = [
   { to: '/app', label: 'Home', end: true, icon: '⌂' },
   { to: '/app/sales', label: 'Sales', end: false, icon: '$' },
+  { to: '/app/expenses', label: 'Expenses', end: false, icon: '−' },
   { to: '/app/products', label: 'Products', end: false, icon: '▦' },
   { to: '/app/inventory', label: 'Inventory', end: false, icon: '▤' },
   { to: '/app/customers', label: 'Customers', end: false, icon: '◉' },

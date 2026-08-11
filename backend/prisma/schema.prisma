@@ -27,6 +27,8 @@ model Business {
   customers         Customer[]
   suppliers         Supplier[]
   sales             Sale[]
+  expenseCategories ExpenseCategory[]
+  expenses          Expense[]
 
   @@index([name])
   @@index([isActive])
@@ -50,6 +52,7 @@ model User {
   auditLogs      AuditLog[]      @relation("AuditActor")
   stockMovements StockMovement[]
   salesCreated   Sale[]          @relation("SaleCreatedBy")
+  expensesCreated Expense[]      @relation("ExpenseCreatedBy")
 
   @@index([email])
   @@index([businessId])
@@ -295,4 +298,45 @@ model SaleItem {
 
   @@index([saleId])
   @@index([productId])
+}
+
+model ExpenseCategory {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business  @relation(fields: [businessId], references: [id])
+  expenses Expense[]
+
+  @@unique([businessId, name])
+  @@index([businessId])
+  @@index([businessId, isActive])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  businessId  String
+  categoryId  String?
+  createdById String?
+  title       String
+  amount      Decimal
+  expenseDate DateTime
+  notes       String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business  Business         @relation(fields: [businessId], references: [id])
+  category  ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  createdBy User?            @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, expenseDate])
+  @@index([businessId, categoryId])
+  @@index([createdById])
 }
