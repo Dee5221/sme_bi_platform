@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
+import { SuppliersPage } from './pages/SuppliersPage';
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="customers" element={<CustomersPage />} />
+          <Route path="suppliers" element={<SuppliersPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Route>

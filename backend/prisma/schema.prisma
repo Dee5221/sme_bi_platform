@@ -25,6 +25,7 @@ model Business {
   inventories       Inventory[]
   stockMovements    StockMovement[]
   customers         Customer[]
+  suppliers         Supplier[]
 
   @@index([name])
   @@index([isActive])
@@ -205,6 +206,28 @@ model StockMovement {
 }
 
 model Customer {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  notes       String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, name])
+  @@index([businessId, email])
+  @@index([businessId, phone])
+  @@index([businessId, createdAt])
+}
+
+model Supplier {
   id          String   @id @default(cuid())
   businessId  String
   name        String

@@ -10,6 +10,7 @@ const navItems = [
   { to: '/app/products', label: 'Products', end: false, icon: '▦' },
   { to: '/app/inventory', label: 'Inventory', end: false, icon: '▤' },
   { to: '/app/customers', label: 'Customers', end: false, icon: '◉' },
+  { to: '/app/suppliers', label: 'Suppliers', end: false, icon: '◎' },
   { to: '/app/profile', label: 'Profile', end: false, icon: '☺' },
 ];
 

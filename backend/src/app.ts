@@ -10,6 +10,7 @@ import { customerRouter } from './routes/customerRoutes';
 import { inventoryRouter } from './routes/inventoryRoutes';
 import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
+import { supplierRouter } from './routes/supplierRoutes';
 import { sendSuccess } from './lib/apiResponse';
 
 export function createApp() {
@@ -37,6 +38,7 @@ export function createApp() {
   app.use('/api/products', productRouter);
   app.use('/api/inventory', inventoryRouter);
   app.use('/api/customers', customerRouter);
+  app.use('/api/suppliers', supplierRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
