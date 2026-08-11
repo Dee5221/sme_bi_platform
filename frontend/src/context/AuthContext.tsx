@@ -17,6 +17,7 @@ type AuthContextValue = {
   login: (payload: LoginPayload) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
+  setUser: (user: AuthUser | null) => void;
   hasPermission: (key: string) => boolean;
   clearError: () => void;
 };
@@ -79,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      setUser,
       hasPermission,
       clearError: () => setError(null),
     }),

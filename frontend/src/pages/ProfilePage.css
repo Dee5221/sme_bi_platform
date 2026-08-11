@@ -1,0 +1,59 @@
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.profile-span {
+  grid-column: 1 / -1;
+}
+
+.profile-summary {
+  margin: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.profile-summary div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.profile-summary dt {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.profile-summary dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.profile-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.profile-form__row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.profile-form__row--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 960px) {
+  .profile-grid,
+  .profile-form__row,
+  .profile-form__row--3 {
+    grid-template-columns: 1fr;
+  }
+}
