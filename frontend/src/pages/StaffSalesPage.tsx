@@ -87,11 +87,16 @@ export function StaffSalesPage() {
         title="Sales"
         subtitle="Review recent transactions and record a new sale for this business."
         actions={
-          canCreate ? (
-            <Link className="ui-btn ui-btn--primary" to="/app/sales/new">
-              New sale
+          <>
+            <Link className="ui-btn ui-btn--secondary" to="/app/sales/history">
+              Sales history
             </Link>
-          ) : null
+            {canCreate ? (
+              <Link className="ui-btn ui-btn--primary" to="/app/sales/new">
+                New sale
+              </Link>
+            ) : null}
+          </>
         }
       />
 

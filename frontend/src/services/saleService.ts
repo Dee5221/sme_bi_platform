@@ -43,12 +43,16 @@ type Paginated<T> = {
 export function listSales(params: {
   search?: string;
   customerId?: string;
+  from?: string;
+  to?: string;
   page?: number;
   pageSize?: number;
 }) {
   const query = new URLSearchParams();
   if (params.search) query.set('search', params.search);
   if (params.customerId) query.set('customerId', params.customerId);
+  if (params.from) query.set('from', params.from);
+  if (params.to) query.set('to', params.to);
   if (params.page) query.set('page', String(params.page));
   if (params.pageSize) query.set('pageSize', String(params.pageSize));
   const suffix = query.toString() ? `?${query.toString()}` : '';

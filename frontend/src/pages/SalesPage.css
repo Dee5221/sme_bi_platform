@@ -81,6 +81,14 @@
   margin-bottom: 1rem;
 }
 
+.sales-history-toolbar {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr auto;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+  align-items: end;
+}
+
 .sales-muted {
   color: var(--text-secondary);
   font-size: 0.8rem;
@@ -118,7 +126,8 @@
 
 @media (max-width: 900px) {
   .sales-form__meta,
-  .sales-line {
+  .sales-line,
+  .sales-history-toolbar {
     grid-template-columns: 1fr;
   }
 }

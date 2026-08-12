@@ -21,6 +21,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { RolesPermissionsPage } from './pages/RolesPermissionsPage';
 import { SalesAnalyticsPage } from './pages/SalesAnalyticsPage';
+import { SalesHistoryPage } from './pages/SalesHistoryPage';
 import { SalesPage } from './pages/SalesPage';
 import { SuppliersPage } from './pages/SuppliersPage';
 import { UsersPage } from './pages/UsersPage';
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="recommendations" element={<RecommendationsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="sales/new" element={<NewSalePage />} />
+          <Route path="sales/history" element={<SalesHistoryPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
           <Route path="products" element={<ProductsPage />} />

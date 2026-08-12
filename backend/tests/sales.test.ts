@@ -136,6 +136,58 @@ describe('Sales API', () => {
     expect(response.body.data.sale.customerId).toBeNull();
   });
 
+  it('filters sales by soldAt date range', async () => {
+    const { cookie, product } = await setup('sale-history@test.local');
+
+    const first = await request(app)
+      .post('/api/sales')
+      .set('Cookie', cookie)
+      .send({ items: [{ productId: product.id, quantity: 1 }], notes: 'old sale' });
+
+    const second = await request(app)
+      .post('/api/sales')
+      .set('Cookie', cookie)
+      .send({ items: [{ productId: product.id, quantity: 1 }], notes: 'new sale' });
+
+    await prisma.sale.update({
+      where: { id: first.body.data.sale.id },
+      data: { soldAt: new Date(2024, 0, 15, 12, 0, 0) },
+    });
+
+    const january = await request(app)
+      .get('/api/sales?from=2024-01-01&to=2024-01-31')
+      .set('Cookie', cookie);
+
+    expect(january.status).toBe(200);
+    expect(january.body.data.items).toHaveLength(1);
+    expect(january.body.data.items[0].id).toBe(first.body.data.sale.id);
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const recent = await request(app)
+      .get(`/api/sales?from=${todayStr}`)
+      .set('Cookie', cookie);
+
+    expect(recent.status).toBe(200);
+    expect(recent.body.data.items.some((sale: { id: string }) => sale.id === second.body.data.sale.id)).toBe(
+      true
+    );
+    expect(recent.body.data.items.some((sale: { id: string }) => sale.id === first.body.data.sale.id)).toBe(
+      false
+    );
+  });
+
+  it('rejects an inverted sales date range', async () => {
+    const { cookie } = await setup('sale-range@test.local');
+
+    const response = await request(app)
+      .get('/api/sales?from=2024-02-01&to=2024-01-01')
+      .set('Cookie', cookie);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_DATE_RANGE');
+  });
+
   it('isolates sales across businesses', async () => {
     const a = await setup('saleA@test.local');
     const b = await setup('saleB@test.local');

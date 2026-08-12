@@ -82,6 +82,7 @@ const navItems: NavItem[] = [
   { to: '/app/reports', label: 'Reports', end: false, icon: '⎙', permission: 'reports.view' },
   { to: '/app/sales', label: 'Sales', end: true, icon: '$', permission: 'sales.view' },
   { to: '/app/sales/new', label: 'New Sale', end: false, icon: '↑', permission: 'sales.create' },
+  { to: '/app/sales/history', label: 'Sales History', end: false, icon: '☰', permission: 'sales.view' },
   { to: '/app/expenses', label: 'Expenses', end: false, icon: '−', permission: 'expenses.view' },
   { to: '/app/products', label: 'Products', end: false, icon: '▦', permission: 'products.view' },
   {

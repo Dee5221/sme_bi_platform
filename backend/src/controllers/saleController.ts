@@ -11,6 +11,8 @@ export async function listSales(req: AuthenticatedRequest, res: Response): Promi
     search: typeof req.query.search === 'string' ? req.query.search : undefined,
     customerId:
       typeof req.query.customerId === 'string' ? req.query.customerId : undefined,
+    from: typeof req.query.from === 'string' ? req.query.from : undefined,
+    to: typeof req.query.to === 'string' ? req.query.to : undefined,
     page: req.query.page ? Number(req.query.page) : 1,
     pageSize: req.query.pageSize ? Number(req.query.pageSize) : 20,
   });
