@@ -42,6 +42,32 @@
   gap: 1rem;
 }
 
+.inventory-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.inventory-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.inventory-select span {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.inventory-select select {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 0.95rem;
+  background: #fff;
+}
+
 .inventory-form {
   display: grid;
   gap: 0.9rem;
@@ -56,6 +82,11 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.55rem;
+}
+
+.inventory-form__actions--split {
+  justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 720px) {

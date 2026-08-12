@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import * as inventoryApi from '../services/inventoryService';
@@ -126,6 +127,13 @@ export function StaffInventoryPage() {
       <PageHeader
         title="Inventory"
         subtitle="Monitor current stock levels and low-stock alerts for this business."
+        actions={
+          canAdjust ? (
+            <Link className="ui-btn ui-btn--primary" to="/app/inventory/stock-in">
+              Stock in
+            </Link>
+          ) : null
+        }
       />
 
       <Card>

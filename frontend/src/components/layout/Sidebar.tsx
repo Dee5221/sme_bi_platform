@@ -88,9 +88,16 @@ const navItems: NavItem[] = [
   {
     to: '/app/inventory',
     label: 'Inventory',
-    end: false,
+    end: true,
     icon: '▤',
     permission: 'inventory.view',
+  },
+  {
+    to: '/app/inventory/stock-in',
+    label: 'Stock In',
+    end: false,
+    icon: '+',
+    permission: 'inventory.adjust',
   },
   {
     to: '/app/customers',
