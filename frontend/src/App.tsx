@@ -7,6 +7,7 @@ import { CustomerAnalyticsPage } from './pages/CustomerAnalyticsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
+import { ForecastingPage } from './pages/ForecastingPage';
 import { InventoryAnalyticsPage } from './pages/InventoryAnalyticsPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="analytics/sales" element={<SalesAnalyticsPage />} />
           <Route path="analytics/inventory" element={<InventoryAnalyticsPage />} />
           <Route path="analytics/customers" element={<CustomerAnalyticsPage />} />
+          <Route path="forecasting" element={<ForecastingPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
           <Route path="products" element={<ProductsPage />} />

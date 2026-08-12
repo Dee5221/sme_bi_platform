@@ -10,6 +10,7 @@ import { categoryRouter } from './routes/categoryRoutes';
 import { customerRouter } from './routes/customerRoutes';
 import { dashboardRouter } from './routes/dashboardRoutes';
 import { expenseRouter } from './routes/expenseRoutes';
+import { forecastingRouter } from './routes/forecastingRoutes';
 import { inventoryRouter } from './routes/inventoryRoutes';
 import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
@@ -47,6 +48,7 @@ export function createApp() {
   app.use('/api/suppliers', supplierRouter);
   app.use('/api/sales', saleRouter);
   app.use('/api/expenses', expenseRouter);
+  app.use('/api/forecasting', forecastingRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
