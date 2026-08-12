@@ -13,3 +13,13 @@ export async function getBusinessAnalytics(
   const analytics = await analyticsService.getBusinessAnalytics(businessId, { months });
   sendSuccess(res, { analytics });
 }
+
+export async function getSalesAnalytics(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  const businessId = getBusinessIdOrThrow(req);
+  const months = req.query.months ? Number(req.query.months) : undefined;
+  const analytics = await analyticsService.getSalesAnalytics(businessId, { months });
+  sendSuccess(res, { analytics });
+}

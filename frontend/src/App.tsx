@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
+import { SalesAnalyticsPage } from './pages/SalesAnalyticsPage';
 import { SalesPage } from './pages/SalesPage';
 import { SuppliersPage } from './pages/SuppliersPage';
 
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/app" element={<AppShell />}>
           <Route index element={<DashboardPage />} />
           <Route path="analytics/business" element={<BusinessAnalyticsPage />} />
+          <Route path="analytics/sales" element={<SalesAnalyticsPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
           <Route path="products" element={<ProductsPage />} />

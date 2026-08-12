@@ -196,3 +196,183 @@ export async function getBusinessAnalytics(businessId: string, query: BusinessAn
     expensesByCategory,
   };
 }
+
+export type SalesAnalyticsQuery = {
+  months?: number;
+};
+
+function roundMoney(value: number) {
+  return Number(value.toFixed(2));
+}
+
+function averageOrderValue(revenue: number, salesCount: number) {
+  if (salesCount === 0) return 0;
+  return roundMoney(revenue / salesCount);
+}
+
+export async function getSalesAnalytics(businessId: string, query: SalesAnalyticsQuery) {
+  const months = clampMonths(query.months);
+  const buckets = buildMonthBuckets(months);
+  const rangeStart = buckets[0]?.start ?? new Date();
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date();
+
+  const sales = await prisma.sale.findMany({
+    where: {
+      businessId,
+      status: 'COMPLETED',
+      soldAt: { gte: rangeStart, lte: rangeEnd },
+    },
+    select: {
+      id: true,
+      soldAt: true,
+      total: true,
+      customerId: true,
+      customer: { select: { id: true, name: true } },
+      items: {
+        select: {
+          productId: true,
+          productName: true,
+          productSku: true,
+          quantity: true,
+          lineTotal: true,
+        },
+      },
+    },
+  });
+
+  const revenueByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+  const salesCountByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+  const unitsByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+
+  let totalRevenue = 0;
+  let walkInSales = 0;
+  let customerLinkedSales = 0;
+  let walkInRevenue = 0;
+  let customerRevenue = 0;
+  let totalUnitsSold = 0;
+
+  const productRevenueMap = new Map<
+    string,
+    { productId: string; productName: string; productSku: string; revenue: number; quantity: number }
+  >();
+  const customerMap = new Map<
+    string,
+    { customerId: string; customerName: string; salesCount: number; revenue: number }
+  >();
+
+  for (const sale of sales) {
+    const revenue = toMoneyNumber(sale.total);
+    const unitsInSale = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+    totalRevenue += revenue;
+    totalUnitsSold += unitsInSale;
+
+    const key = monthKey(sale.soldAt);
+    if (revenueByMonth.has(key)) {
+      revenueByMonth.set(key, (revenueByMonth.get(key) || 0) + revenue);
+      salesCountByMonth.set(key, (salesCountByMonth.get(key) || 0) + 1);
+      unitsByMonth.set(key, (unitsByMonth.get(key) || 0) + unitsInSale);
+    }
+
+    if (sale.customerId && sale.customer) {
+      customerLinkedSales += 1;
+      customerRevenue += revenue;
+      const existing = customerMap.get(sale.customerId);
+      if (existing) {
+        existing.salesCount += 1;
+        existing.revenue += revenue;
+      } else {
+        customerMap.set(sale.customerId, {
+          customerId: sale.customerId,
+          customerName: sale.customer.name,
+          salesCount: 1,
+          revenue,
+        });
+      }
+    } else {
+      walkInSales += 1;
+      walkInRevenue += revenue;
+    }
+
+    for (const item of sale.items) {
+      const itemRevenue = toMoneyNumber(item.lineTotal);
+      const existing = productRevenueMap.get(item.productId);
+      if (existing) {
+        existing.revenue += itemRevenue;
+        existing.quantity += item.quantity;
+      } else {
+        productRevenueMap.set(item.productId, {
+          productId: item.productId,
+          productName: item.productName,
+          productSku: item.productSku,
+          revenue: itemRevenue,
+          quantity: item.quantity,
+        });
+      }
+    }
+  }
+
+  const totalSales = sales.length;
+  const monthlyTrend = buckets.map((bucket) => {
+    const revenue = revenueByMonth.get(bucket.key) || 0;
+    const salesCount = salesCountByMonth.get(bucket.key) || 0;
+    return {
+      key: bucket.key,
+      label: bucket.label,
+      revenue: roundMoney(revenue),
+      salesCount,
+      averageOrderValue: averageOrderValue(revenue, salesCount),
+      unitsSold: unitsByMonth.get(bucket.key) || 0,
+    };
+  });
+
+  const topProductsByRevenue = Array.from(productRevenueMap.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 8)
+    .map((item) => ({
+      ...item,
+      revenue: roundMoney(item.revenue),
+    }));
+
+  const topProductsByQuantity = Array.from(productRevenueMap.values())
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 8)
+    .map((item) => ({
+      ...item,
+      revenue: roundMoney(item.revenue),
+    }));
+
+  const topCustomers = Array.from(customerMap.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 8)
+    .map((item) => ({
+      ...item,
+      revenue: roundMoney(item.revenue),
+    }));
+
+  return {
+    period: {
+      label: `Last ${months} months`,
+      months,
+      start: rangeStart,
+      end: rangeEnd,
+    },
+    summary: {
+      totalRevenue: roundMoney(totalRevenue),
+      totalSales,
+      averageOrderValue: averageOrderValue(totalRevenue, totalSales),
+      totalUnitsSold,
+      walkInSales,
+      customerLinkedSales,
+      walkInRevenue: roundMoney(walkInRevenue),
+      customerRevenue: roundMoney(customerRevenue),
+    },
+    monthlyTrend,
+    topProductsByRevenue,
+    topProductsByQuantity,
+    topCustomers,
+    walkInSummary: {
+      salesCount: walkInSales,
+      revenue: roundMoney(walkInRevenue),
+    },
+  };
+}

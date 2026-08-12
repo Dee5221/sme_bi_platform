@@ -8,6 +8,7 @@ import './Sidebar.css';
 const navItems = [
   { to: '/app', label: 'Dashboard', end: true, icon: '⌂' },
   { to: '/app/analytics/business', label: 'Business Analytics', end: false, icon: '◫' },
+  { to: '/app/analytics/sales', label: 'Sales Analytics', end: false, icon: '▥' },
   { to: '/app/sales', label: 'Sales', end: false, icon: '$' },
   { to: '/app/expenses', label: 'Expenses', end: false, icon: '−' },
   { to: '/app/products', label: 'Products', end: false, icon: '▦' },
