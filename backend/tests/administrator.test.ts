@@ -118,13 +118,16 @@ describe('Administrator role foundation', () => {
     expect(login.body.data.user.permissions).not.toContain('products.view');
   });
 
-  it('allows administrator to access dashboard but not sales API', async () => {
+  it('allows administrator to access admin dashboard but not sales API', async () => {
     const { email, password } = await seedAdministrator();
     const login = await request(app).post('/api/auth/login').send({ email, password });
     const cookie = login.headers['set-cookie'];
 
-    const dashboard = await request(app).get('/api/dashboard').set('Cookie', cookie);
+    const dashboard = await request(app).get('/api/admin/dashboard').set('Cookie', cookie);
     expect(dashboard.status).toBe(200);
+
+    const ownerDashboard = await request(app).get('/api/dashboard').set('Cookie', cookie);
+    expect(ownerDashboard.status).toBe(403);
 
     const sales = await request(app).get('/api/sales').set('Cookie', cookie);
     expect(sales.status).toBe(403);

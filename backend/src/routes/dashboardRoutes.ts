@@ -9,6 +9,6 @@ dashboardRouter.use(authenticate);
 
 dashboardRouter.get(
   '/',
-  requirePermissions('dashboard.view'),
+  requirePermissions('dashboard.view', 'sales.view'),
   asyncHandler(dashboardController.getDashboard)
 );
