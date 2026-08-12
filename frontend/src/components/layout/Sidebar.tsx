@@ -1,26 +1,88 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
 import './Sidebar.css';
 
-const navItems = [
-  { to: '/app', label: 'Dashboard', end: true, icon: '⌂' },
-  { to: '/app/analytics/business', label: 'Business Analytics', end: false, icon: '◫' },
-  { to: '/app/analytics/sales', label: 'Sales Analytics', end: false, icon: '▥' },
-  { to: '/app/analytics/inventory', label: 'Inventory Analytics', end: false, icon: '▤' },
-  { to: '/app/analytics/customers', label: 'Customer Analytics', end: false, icon: '◉' },
-  { to: '/app/forecasting', label: 'Forecasting', end: false, icon: '↗' },
-  { to: '/app/recommendations', label: 'Recommendations', end: false, icon: '✦' },
-  { to: '/app/reports', label: 'Reports', end: false, icon: '⎙' },
-  { to: '/app/sales', label: 'Sales', end: false, icon: '$' },
-  { to: '/app/expenses', label: 'Expenses', end: false, icon: '−' },
-  { to: '/app/products', label: 'Products', end: false, icon: '▦' },
-  { to: '/app/inventory', label: 'Inventory', end: false, icon: '▤' },
-  { to: '/app/customers', label: 'Customers', end: false, icon: '◉' },
-  { to: '/app/suppliers', label: 'Suppliers', end: false, icon: '◎' },
-  { to: '/app/profile', label: 'Profile', end: false, icon: '☺' },
+type NavItem = {
+  to: string;
+  label: string;
+  end: boolean;
+  icon: string;
+  permission: string;
+};
+
+const navItems: NavItem[] = [
+  { to: '/app', label: 'Dashboard', end: true, icon: '⌂', permission: 'dashboard.view' },
+  {
+    to: '/app/analytics/business',
+    label: 'Business Analytics',
+    end: false,
+    icon: '◫',
+    permission: 'analytics.view',
+  },
+  {
+    to: '/app/analytics/sales',
+    label: 'Sales Analytics',
+    end: false,
+    icon: '▥',
+    permission: 'analytics.view',
+  },
+  {
+    to: '/app/analytics/inventory',
+    label: 'Inventory Analytics',
+    end: false,
+    icon: '▤',
+    permission: 'analytics.view',
+  },
+  {
+    to: '/app/analytics/customers',
+    label: 'Customer Analytics',
+    end: false,
+    icon: '◉',
+    permission: 'analytics.view',
+  },
+  {
+    to: '/app/forecasting',
+    label: 'Forecasting',
+    end: false,
+    icon: '↗',
+    permission: 'forecasting.view',
+  },
+  {
+    to: '/app/recommendations',
+    label: 'Recommendations',
+    end: false,
+    icon: '✦',
+    permission: 'recommendations.view',
+  },
+  { to: '/app/reports', label: 'Reports', end: false, icon: '⎙', permission: 'reports.view' },
+  { to: '/app/sales', label: 'Sales', end: false, icon: '$', permission: 'sales.view' },
+  { to: '/app/expenses', label: 'Expenses', end: false, icon: '−', permission: 'expenses.view' },
+  { to: '/app/products', label: 'Products', end: false, icon: '▦', permission: 'products.view' },
+  {
+    to: '/app/inventory',
+    label: 'Inventory',
+    end: false,
+    icon: '▤',
+    permission: 'inventory.view',
+  },
+  {
+    to: '/app/customers',
+    label: 'Customers',
+    end: false,
+    icon: '◉',
+    permission: 'customers.view',
+  },
+  {
+    to: '/app/suppliers',
+    label: 'Suppliers',
+    end: false,
+    icon: '◎',
+    permission: 'suppliers.view',
+  },
+  { to: '/app/profile', label: 'Profile', end: false, icon: '☺', permission: 'profile.view' },
 ];
 
 type Props = {
@@ -29,11 +91,16 @@ type Props = {
 };
 
 export function Sidebar({ open, onClose }: Props) {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const { pushToast } = useToast();
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase();
+
+  const visibleNavItems = useMemo(
+    () => navItems.filter((item) => hasPermission(item.permission)),
+    [hasPermission]
+  );
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -69,7 +136,7 @@ export function Sidebar({ open, onClose }: Props) {
         </div>
 
         <nav className="sidebar__nav" aria-label="Primary">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

@@ -1,5 +1,8 @@
 import {
+  ADMINISTRATOR_PERMISSIONS,
+  ALL_PERMISSIONS,
   OWNER_MANAGER_PERMISSIONS,
+  ROLE_ADMINISTRATOR,
   ROLE_OWNER_MANAGER,
 } from '../constants/permissions';
 import { writeAuditLog } from '../lib/audit';
@@ -69,9 +72,9 @@ async function loadAuthUser(userId: string) {
   });
 }
 
-export async function ensureOwnerManagerRole() {
+export async function ensureSystemRoles() {
   const permissions = [];
-  for (const item of OWNER_MANAGER_PERMISSIONS) {
+  for (const item of ALL_PERMISSIONS) {
     const permission = await prisma.permission.upsert({
       where: { key: item.key },
       update: { description: item.description },
@@ -80,7 +83,9 @@ export async function ensureOwnerManagerRole() {
     permissions.push(permission);
   }
 
-  const role = await prisma.role.upsert({
+  const permissionMap = new Map(permissions.map((item) => [item.key, item]));
+
+  const ownerRole = await prisma.role.upsert({
     where: { name: ROLE_OWNER_MANAGER },
     update: {
       description: 'Business owner / manager with full operational oversight',
@@ -92,23 +97,65 @@ export async function ensureOwnerManagerRole() {
     },
   });
 
-  for (const permission of permissions) {
+  for (const item of OWNER_MANAGER_PERMISSIONS) {
+    const permission = permissionMap.get(item.key);
+    if (!permission) continue;
     await prisma.rolePermission.upsert({
       where: {
         roleId_permissionId: {
-          roleId: role.id,
+          roleId: ownerRole.id,
           permissionId: permission.id,
         },
       },
       update: {},
       create: {
-        roleId: role.id,
+        roleId: ownerRole.id,
         permissionId: permission.id,
       },
     });
   }
 
-  return role;
+  const administratorRole = await prisma.role.upsert({
+    where: { name: ROLE_ADMINISTRATOR },
+    update: {
+      description: 'System administrator for user access and business settings',
+    },
+    create: {
+      name: ROLE_ADMINISTRATOR,
+      description: 'System administrator for user access and business settings',
+      isSystem: true,
+    },
+  });
+
+  for (const item of ADMINISTRATOR_PERMISSIONS) {
+    const permission = permissionMap.get(item.key);
+    if (!permission) continue;
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: administratorRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: administratorRole.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
+  return { ownerRole, administratorRole };
+}
+
+export async function ensureOwnerManagerRole() {
+  const { ownerRole } = await ensureSystemRoles();
+  return ownerRole;
+}
+
+export async function ensureAdministratorRole() {
+  const { administratorRole } = await ensureSystemRoles();
+  return administratorRole;
 }
 
 export async function registerBusinessOwner(input: RegisterInput) {

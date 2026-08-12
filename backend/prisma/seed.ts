@@ -1,48 +1,79 @@
 import 'dotenv/config';
-import { ROLE_OWNER_MANAGER } from '../src/constants/permissions';
+import {
+  ROLE_ADMINISTRATOR,
+  ROLE_OWNER_MANAGER,
+} from '../src/constants/permissions';
 import { hashPassword } from '../src/lib/password';
 import { prisma } from '../src/lib/prisma';
-import { ensureOwnerManagerRole } from '../src/services/authService';
+import { ensureSystemRoles } from '../src/services/authService';
 
 async function main() {
-  const role = await ensureOwnerManagerRole();
+  const { ownerRole, administratorRole } = await ensureSystemRoles();
 
-  const demoEmail = 'owner@demo-sme.local';
-  const existing = await prisma.user.findUnique({ where: { email: demoEmail } });
+  const demoBusinessEmail = 'contact@demo-sme.local';
+  let business = await prisma.business.findFirst({
+    where: { email: demoBusinessEmail },
+  });
 
-  if (existing) {
-    console.log('Demo owner already exists:', demoEmail);
-    return;
+  if (!business) {
+    business = await prisma.business.create({
+      data: {
+        name: 'Demo SME Retail',
+        email: demoBusinessEmail,
+        phone: '+260000000000',
+        address: 'Lusaka',
+      },
+    });
+    console.log('Seeded demo business:', business.name);
   }
 
-  const passwordHash = await hashPassword('OwnerDemo1');
+  const ownerEmail = 'owner@demo-sme.local';
+  const existingOwner = await prisma.user.findUnique({ where: { email: ownerEmail } });
 
-  const business = await prisma.business.create({
-    data: {
-      name: 'Demo SME Retail',
-      email: 'contact@demo-sme.local',
-      phone: '+260000000000',
-      address: 'Lusaka',
-    },
-  });
-
-  const user = await prisma.user.create({
-    data: {
-      businessId: business.id,
-      email: demoEmail,
-      passwordHash,
-      firstName: 'Alex',
-      lastName: 'Owner',
-      roles: {
-        create: [{ roleId: role.id }],
+  if (!existingOwner) {
+    const ownerPasswordHash = await hashPassword('OwnerDemo1');
+    const owner = await prisma.user.create({
+      data: {
+        businessId: business.id,
+        email: ownerEmail,
+        passwordHash: ownerPasswordHash,
+        firstName: 'Alex',
+        lastName: 'Owner',
+        roles: {
+          create: [{ roleId: ownerRole.id }],
+        },
       },
-    },
-  });
+    });
+    console.log('Seeded demo owner:', owner.email);
+    console.log('Owner password: OwnerDemo1');
+    console.log('Owner role:', ROLE_OWNER_MANAGER);
+  } else {
+    console.log('Demo owner already exists:', ownerEmail);
+  }
 
-  console.log('Seeded demo business:', business.name);
-  console.log('Seeded demo owner:', user.email);
-  console.log('Demo password: OwnerDemo1');
-  console.log('Assigned role:', ROLE_OWNER_MANAGER);
+  const adminEmail = 'admin@demo-sme.local';
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminEmail } });
+
+  if (!existingAdmin) {
+    const adminPasswordHash = await hashPassword('AdminDemo1');
+    const admin = await prisma.user.create({
+      data: {
+        businessId: business.id,
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        firstName: 'Sam',
+        lastName: 'Admin',
+        roles: {
+          create: [{ roleId: administratorRole.id }],
+        },
+      },
+    });
+    console.log('Seeded demo administrator:', admin.email);
+    console.log('Admin password: AdminDemo1');
+    console.log('Admin role:', ROLE_ADMINISTRATOR);
+  } else {
+    console.log('Demo administrator already exists:', adminEmail);
+  }
 }
 
 main()

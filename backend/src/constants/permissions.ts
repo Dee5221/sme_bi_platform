@@ -1,6 +1,6 @@
 export const OWNER_MANAGER_PERMISSIONS = [
   { key: 'business.view', description: 'View business profile' },
-  { key: 'dashboard.view', description: 'View owner dashboard' },
+  { key: 'dashboard.view', description: 'View dashboard' },
   { key: 'products.view', description: 'View products' },
   { key: 'products.create', description: 'Create products' },
   { key: 'products.update', description: 'Update products' },
@@ -30,6 +30,37 @@ export const OWNER_MANAGER_PERMISSIONS = [
   { key: 'profile.update', description: 'Update own profile' },
 ] as const;
 
-export type PermissionKey = (typeof OWNER_MANAGER_PERMISSIONS)[number]['key'];
+export const ADMINISTRATOR_PERMISSIONS = [
+  { key: 'dashboard.view', description: 'View dashboard' },
+  { key: 'users.view', description: 'View users' },
+  { key: 'users.create', description: 'Create users' },
+  { key: 'users.update', description: 'Update users' },
+  { key: 'users.delete', description: 'Deactivate users' },
+  { key: 'roles.view', description: 'View roles and permissions' },
+  { key: 'roles.manage', description: 'Manage role permissions' },
+  { key: 'audit.view', description: 'View activity log' },
+  { key: 'business.view', description: 'View business profile' },
+  { key: 'business.update', description: 'Update business settings' },
+  { key: 'profile.view', description: 'View own profile' },
+  { key: 'profile.update', description: 'Update own profile' },
+] as const;
+
+function dedupePermissions(
+  items: readonly { key: string; description: string }[]
+) {
+  const map = new Map<string, { key: string; description: string }>();
+  for (const item of items) {
+    map.set(item.key, item);
+  }
+  return Array.from(map.values());
+}
+
+export const ALL_PERMISSIONS = dedupePermissions([
+  ...OWNER_MANAGER_PERMISSIONS,
+  ...ADMINISTRATOR_PERMISSIONS,
+]);
+
+export type PermissionKey = (typeof ALL_PERMISSIONS)[number]['key'];
 
 export const ROLE_OWNER_MANAGER = 'OWNER_MANAGER';
+export const ROLE_ADMINISTRATOR = 'ADMINISTRATOR';
