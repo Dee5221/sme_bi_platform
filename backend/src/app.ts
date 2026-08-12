@@ -17,6 +17,7 @@ import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
 import { recommendationsRouter } from './routes/recommendationsRoutes';
 import { reportsRouter } from './routes/reportsRoutes';
+import { roleRouter } from './routes/roleRoutes';
 import { saleRouter } from './routes/saleRoutes';
 import { supplierRouter } from './routes/supplierRoutes';
 import { userRouter } from './routes/userRoutes';
@@ -57,6 +58,7 @@ export function createApp() {
   app.use('/api/forecasting', forecastingRouter);
   app.use('/api/recommendations', recommendationsRouter);
   app.use('/api/reports', reportsRouter);
+  app.use('/api/roles', roleRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -17,6 +17,13 @@ const navItems: NavItem[] = [
   { to: '/app', label: 'Dashboard', end: true, icon: '⌂', permission: 'dashboard.view' },
   { to: '/app/users', label: 'Users', end: false, icon: '◌', permission: 'users.view' },
   {
+    to: '/app/roles',
+    label: 'Roles & Permissions',
+    end: false,
+    icon: '◈',
+    permission: 'roles.view',
+  },
+  {
     to: '/app/analytics/business',
     label: 'Business Analytics',
     end: false,

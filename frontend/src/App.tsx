@@ -16,6 +16,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { RecommendationsPage } from './pages/RecommendationsPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { RolesPermissionsPage } from './pages/RolesPermissionsPage';
 import { SalesAnalyticsPage } from './pages/SalesAnalyticsPage';
 import { SalesPage } from './pages/SalesPage';
 import { SuppliersPage } from './pages/SuppliersPage';
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="suppliers" element={<SuppliersPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailsPage />} />
+          <Route path="roles" element={<RolesPermissionsPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Route>
