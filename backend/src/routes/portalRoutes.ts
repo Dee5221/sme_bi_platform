@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as customerPortalDashboardController from '../controllers/customerPortalDashboardController';
 import * as customerPortalPurchaseController from '../controllers/customerPortalPurchaseController';
 import * as customerPortalSettingsController from '../controllers/customerPortalSettingsController';
+import * as supplierPortalDashboardController from '../controllers/supplierPortalDashboardController';
 import { authenticate, requirePermissions } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -40,4 +41,10 @@ portalRouter.put(
   requirePermissions('portal.settings.update'),
   validateBody(updateCustomerPortalSettingsSchema),
   asyncHandler(customerPortalSettingsController.updateCustomerPortalSettings)
+);
+
+portalRouter.get(
+  '/supplier/dashboard',
+  requirePermissions('dashboard.view', 'portal.products.view'),
+  asyncHandler(supplierPortalDashboardController.getSupplierPortalDashboard)
 );

@@ -13,6 +13,7 @@ export const stockAdjustSchema = z.object({
     .max(255, 'Reason must be at most 255 characters.')
     .optional()
     .or(z.literal('').transform(() => undefined)),
+  supplierId: z.string().trim().min(1, 'Supplier is required.').optional(),
 });
 
 export const updateThresholdSchema = z.object({

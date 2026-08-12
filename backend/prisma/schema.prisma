@@ -198,6 +198,7 @@ model StockMovement {
   businessId      String
   inventoryId     String
   productId       String
+  supplierId      String?
   actorId         String?
   type            String
   quantityChange  Int
@@ -210,13 +211,16 @@ model StockMovement {
 
   business  Business  @relation(fields: [businessId], references: [id])
   inventory Inventory @relation(fields: [inventoryId], references: [id])
+  supplier  Supplier? @relation(fields: [supplierId], references: [id])
   actor     User?     @relation(fields: [actorId], references: [id])
 
   @@index([businessId, createdAt])
   @@index([businessId, productId])
   @@index([businessId, type])
+  @@index([businessId, supplierId])
   @@index([inventoryId, createdAt])
   @@index([actorId])
+  @@index([supplierId, createdAt])
 }
 
 model Customer {
@@ -257,6 +261,7 @@ model Supplier {
 
   business Business @relation(fields: [businessId], references: [id])
   portalUser User?
+  stockMovements StockMovement[]
 
   @@index([businessId])
   @@index([businessId, status])

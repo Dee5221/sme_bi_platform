@@ -1,5 +1,9 @@
 import { NextFunction, Response } from 'express';
-import { ACCOUNT_TYPE_CUSTOMER, PermissionKey } from '../constants/permissions';
+import {
+  ACCOUNT_TYPE_CUSTOMER,
+  ACCOUNT_TYPE_SUPPLIER,
+  PermissionKey,
+} from '../constants/permissions';
 import { AppError } from '../lib/errors';
 import { verifyAuthToken } from '../lib/jwt';
 import { prisma } from '../lib/prisma';
@@ -149,5 +153,27 @@ export function getPortalCustomerContextOrThrow(req: AuthenticatedRequest): {
   return {
     businessId: req.user.businessId,
     customerId: req.user.customerId,
+  };
+}
+
+export function getPortalSupplierContextOrThrow(req: AuthenticatedRequest): {
+  businessId: string;
+  supplierId: string;
+} {
+  if (!req.user) {
+    throw new AppError(401, 'Authentication required.', 'UNAUTHORIZED');
+  }
+
+  if (req.user.accountType !== ACCOUNT_TYPE_SUPPLIER || !req.user.supplierId) {
+    throw new AppError(
+      403,
+      'This area is only available to linked supplier portal accounts.',
+      'FORBIDDEN'
+    );
+  }
+
+  return {
+    businessId: req.user.businessId,
+    supplierId: req.user.supplierId,
   };
 }

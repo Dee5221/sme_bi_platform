@@ -1,9 +1,9 @@
 import { useAuth } from '../context/AuthContext';
-import { Alert } from '../components/ui/Alert';
 import { AdminDashboardPage } from './AdminDashboardPage';
 import { CustomerDashboardPage } from './CustomerDashboardPage';
 import { OwnerDashboardPage } from './OwnerDashboardPage';
 import { StaffDashboardPage } from './StaffDashboardPage';
+import { SupplierDashboardPage } from './SupplierDashboardPage';
 
 export function DashboardPage() {
   const { hasPermission } = useAuth();
@@ -13,11 +13,7 @@ export function DashboardPage() {
   }
 
   if (hasPermission('portal.products.view')) {
-    return (
-      <Alert tone="info">
-        The supplier portal dashboard will be added in the next step of Role 4.
-      </Alert>
-    );
+    return <SupplierDashboardPage />;
   }
 
   if (hasPermission('users.view')) {

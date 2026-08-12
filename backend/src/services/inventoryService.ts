@@ -232,6 +232,18 @@ export async function adjustStock(
     );
   }
 
+  let supplierId: string | null = null;
+  if (type === 'STOCK_IN' && input.supplierId) {
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: input.supplierId, businessId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (!supplier) {
+      throw new AppError(400, 'Selected supplier is invalid.', 'INVALID_SUPPLIER');
+    }
+    supplierId = supplier.id;
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.inventory.update({
       where: { id: inventory.id },
@@ -255,6 +267,7 @@ export async function adjustStock(
         businessId,
         inventoryId: inventory.id,
         productId: inventory.productId,
+        supplierId,
         actorId,
         type,
         quantityChange,
