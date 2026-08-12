@@ -4,6 +4,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { PublicOnlyRoute } from './components/PublicOnlyRoute';
 import { ActivityLogPage } from './pages/ActivityLogPage';
 import { BusinessAnalyticsPage } from './pages/BusinessAnalyticsPage';
+import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { CustomerAnalyticsPage } from './pages/CustomerAnalyticsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="users/:id" element={<UserDetailsPage />} />
           <Route path="roles" element={<RolesPermissionsPage />} />
           <Route path="activity-log" element={<ActivityLogPage />} />
+          <Route path="business-settings" element={<BusinessSettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Route>

@@ -31,6 +31,13 @@ const navItems: NavItem[] = [
     permission: 'audit.view',
   },
   {
+    to: '/app/business-settings',
+    label: 'Business Settings',
+    end: false,
+    icon: '⚙',
+    permission: 'business.update',
+  },
+  {
     to: '/app/analytics/business',
     label: 'Business Analytics',
     end: false,

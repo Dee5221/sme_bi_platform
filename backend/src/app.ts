@@ -8,6 +8,7 @@ import { adminRouter } from './routes/adminRoutes';
 import { analyticsRouter } from './routes/analyticsRoutes';
 import { auditLogRouter } from './routes/auditLogRoutes';
 import { authRouter } from './routes/authRoutes';
+import { businessRouter } from './routes/businessRoutes';
 import { categoryRouter } from './routes/categoryRoutes';
 import { customerRouter } from './routes/customerRoutes';
 import { dashboardRouter } from './routes/dashboardRoutes';
@@ -61,6 +62,7 @@ export function createApp() {
   app.use('/api/reports', reportsRouter);
   app.use('/api/roles', roleRouter);
   app.use('/api/audit-logs', auditLogRouter);
+  app.use('/api/business', businessRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
