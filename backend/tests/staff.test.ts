@@ -115,6 +115,9 @@ describe('Staff role foundation', () => {
     const ownerDashboard = await request(app).get('/api/dashboard').set('Cookie', cookie);
     expect(ownerDashboard.status).toBe(403);
 
+    const products = await request(app).get('/api/products').set('Cookie', cookie);
+    expect(products.status).toBe(200);
+
     const sales = await request(app).get('/api/sales').set('Cookie', cookie);
     expect(sales.status).toBe(200);
 
@@ -153,5 +156,43 @@ describe('Staff role foundation', () => {
     expect(list.status).toBe(200);
     expect(list.body.data.items).toHaveLength(1);
     expect(list.body.data.items[0].id).toBe(created.body.data.sale.id);
+  });
+
+  it('lets staff manage the catalog but not deactivate products', async () => {
+    const { email, password } = await seedStaff();
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const cookie = login.headers['set-cookie'];
+
+    const created = await request(app)
+      .post('/api/products')
+      .set('Cookie', cookie)
+      .send({ name: 'Soap', sku: 'SOAP-STAFF', price: 12.5 });
+    expect(created.status).toBe(201);
+    const productId = created.body.data.product.id;
+
+    const updated = await request(app)
+      .put(`/api/products/${productId}`)
+      .set('Cookie', cookie)
+      .send({ name: 'Bar soap', sku: 'SOAP-STAFF', price: 13 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.product.name).toBe('Bar soap');
+    expect(updated.body.data.product.status).toBe('ACTIVE');
+
+    const deactivateViaUpdate = await request(app)
+      .put(`/api/products/${productId}`)
+      .set('Cookie', cookie)
+      .send({ name: 'Bar soap', sku: 'SOAP-STAFF', price: 13, status: 'INACTIVE' });
+    expect(deactivateViaUpdate.status).toBe(403);
+
+    const deactivate = await request(app)
+      .delete(`/api/products/${productId}`)
+      .set('Cookie', cookie);
+    expect(deactivate.status).toBe(403);
+
+    const stillActive = await request(app)
+      .get(`/api/products/${productId}`)
+      .set('Cookie', cookie);
+    expect(stillActive.status).toBe(200);
+    expect(stillActive.body.data.product.status).toBe('ACTIVE');
   });
 });

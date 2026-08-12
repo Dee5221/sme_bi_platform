@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { sendSuccess } from '../lib/apiResponse';
+import { AppError } from '../lib/errors';
 import { getBusinessIdOrThrow } from '../middleware/auth';
 import * as productService from '../services/productService';
 import { AuthenticatedRequest } from '../types/auth';
@@ -44,11 +45,15 @@ export async function createProduct(req: AuthenticatedRequest, res: Response): P
 
 export async function updateProduct(req: AuthenticatedRequest, res: Response): Promise<void> {
   const businessId = getBusinessIdOrThrow(req);
+  const input = req.body as UpdateProductInput;
+  if (input.status === 'INACTIVE' && !req.user!.permissions.includes('products.delete')) {
+    throw new AppError(403, 'You do not have permission to deactivate products.', 'FORBIDDEN');
+  }
   const product = await productService.updateProduct(
     businessId,
     req.user!.id,
     req.params.id as string,
-    req.body as UpdateProductInput
+    input
   );
   sendSuccess(res, { product }, 200, 'Product updated.');
 }

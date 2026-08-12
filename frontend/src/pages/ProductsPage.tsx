@@ -184,7 +184,7 @@ export function ProductsPage() {
         unit: productForm.unit || undefined,
         price,
         categoryId: productForm.categoryId || undefined,
-        ...(editingProduct ? { status: productForm.status } : {}),
+        ...(editingProduct && canDelete ? { status: productForm.status } : {}),
       };
 
       if (editingProduct) {
@@ -472,7 +472,7 @@ export function ProductsPage() {
                 ))}
               </select>
             </label>
-            {editingProduct ? (
+            {editingProduct && canDelete ? (
               <label className="products-select">
                 <span>Status</span>
                 <select
