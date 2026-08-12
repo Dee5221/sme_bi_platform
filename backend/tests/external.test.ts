@@ -269,4 +269,30 @@ describe('External user role foundation', () => {
     expect(updated.body.data.user.lastName).toBe('Buyer');
     expect(updated.body.data.user.phone).toBe('+260911000333');
   });
+
+  it('lets external supplier view and update their own profile', async () => {
+    const { supplier, email, password } = await seedExternalSupplier();
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const cookie = login.headers['set-cookie'];
+
+    const profile = await request(app).get('/api/profile').set('Cookie', cookie);
+    expect(profile.status).toBe(200);
+    expect(profile.body.data.user.email).toBe('supplier@test.local');
+    expect(profile.body.data.user.roles).toContain(ROLE_EXTERNAL_SUPPLIER);
+    expect(profile.body.data.user.accountType).toBe(ACCOUNT_TYPE_SUPPLIER);
+    expect(profile.body.data.user.supplierId).toBe(supplier.id);
+
+    const updated = await request(app)
+      .put('/api/profile')
+      .set('Cookie', cookie)
+      .send({
+        firstName: 'Sid',
+        lastName: 'Vendor',
+        email: 'supplier@test.local',
+        phone: '+260911000444',
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.user.lastName).toBe('Vendor');
+    expect(updated.body.data.user.phone).toBe('+260911000444');
+  });
 });
