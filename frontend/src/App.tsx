@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PublicOnlyRoute } from './components/PublicOnlyRoute';
+import { BusinessAnalyticsPage } from './pages/BusinessAnalyticsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
@@ -24,6 +25,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppShell />}>
           <Route index element={<DashboardPage />} />
+          <Route path="analytics/business" element={<BusinessAnalyticsPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
           <Route path="products" element={<ProductsPage />} />

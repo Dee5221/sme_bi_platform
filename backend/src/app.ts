@@ -4,6 +4,7 @@ import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { analyticsRouter } from './routes/analyticsRoutes';
 import { authRouter } from './routes/authRoutes';
 import { categoryRouter } from './routes/categoryRoutes';
 import { customerRouter } from './routes/customerRoutes';
@@ -38,6 +39,7 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api/profile', profileRouter);
   app.use('/api/dashboard', dashboardRouter);
+  app.use('/api/analytics', analyticsRouter);
   app.use('/api/product-categories', categoryRouter);
   app.use('/api/products', productRouter);
   app.use('/api/inventory', inventoryRouter);
