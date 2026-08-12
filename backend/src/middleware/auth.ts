@@ -1,5 +1,5 @@
 import { NextFunction, Response } from 'express';
-import { PermissionKey } from '../constants/permissions';
+import { ACCOUNT_TYPE_CUSTOMER, PermissionKey } from '../constants/permissions';
 import { AppError } from '../lib/errors';
 import { verifyAuthToken } from '../lib/jwt';
 import { prisma } from '../lib/prisma';
@@ -17,6 +17,9 @@ function mapUser(user: {
   email: string;
   firstName: string;
   lastName: string;
+  accountType: string | null;
+  customerId: string | null;
+  supplierId: string | null;
   roles: {
     role: {
       name: string;
@@ -38,6 +41,9 @@ function mapUser(user: {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    accountType: user.accountType,
+    customerId: user.customerId,
+    supplierId: user.supplierId,
     roles,
     permissions: Array.from(permissionSet) as PermissionKey[],
   };
@@ -122,4 +128,26 @@ export function getBusinessIdOrThrow(req: AuthenticatedRequest): string {
     throw new AppError(401, 'Authentication required.', 'UNAUTHORIZED');
   }
   return req.user.businessId;
+}
+
+export function getPortalCustomerContextOrThrow(req: AuthenticatedRequest): {
+  businessId: string;
+  customerId: string;
+} {
+  if (!req.user) {
+    throw new AppError(401, 'Authentication required.', 'UNAUTHORIZED');
+  }
+
+  if (req.user.accountType !== ACCOUNT_TYPE_CUSTOMER || !req.user.customerId) {
+    throw new AppError(
+      403,
+      'This area is only available to linked customer portal accounts.',
+      'FORBIDDEN'
+    );
+  }
+
+  return {
+    businessId: req.user.businessId,
+    customerId: req.user.customerId,
+  };
 }

@@ -15,6 +15,7 @@ import { dashboardRouter } from './routes/dashboardRoutes';
 import { expenseRouter } from './routes/expenseRoutes';
 import { forecastingRouter } from './routes/forecastingRoutes';
 import { inventoryRouter } from './routes/inventoryRoutes';
+import { portalRouter } from './routes/portalRoutes';
 import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
 import { recommendationsRouter } from './routes/recommendationsRoutes';
@@ -58,6 +59,7 @@ export function createApp() {
   app.use('/api/users', userRouter);
   app.use('/api/sales', saleRouter);
   app.use('/api/staff', staffRouter);
+  app.use('/api/portal', portalRouter);
   app.use('/api/expenses', expenseRouter);
   app.use('/api/forecasting', forecastingRouter);
   app.use('/api/recommendations', recommendationsRouter);

@@ -7,6 +7,9 @@ export type AuthenticatedUser = {
   email: string;
   firstName: string;
   lastName: string;
+  accountType: string | null;
+  customerId: string | null;
+  supplierId: string | null;
   permissions: PermissionKey[];
   roles: string[];
 };
