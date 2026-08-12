@@ -4,9 +4,35 @@ import { prisma } from '../lib/prisma';
 
 export type SupplierRecordListQuery = {
   search?: string;
+  from?: string;
+  to?: string;
   page?: number;
   pageSize?: number;
 };
+
+function startOfDay(date: Date) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function endOfDay(date: Date) {
+  const value = new Date(date);
+  value.setHours(23, 59, 59, 999);
+  return value;
+}
+
+function parseDateInput(value: string, end = false) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    throw new AppError(400, 'Invalid date format. Use YYYY-MM-DD.', 'INVALID_DATE');
+  }
+  const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(parsed.getTime())) {
+    throw new AppError(400, 'Invalid date value.', 'INVALID_DATE');
+  }
+  return end ? endOfDay(parsed) : startOfDay(parsed);
+}
 
 function movementFilter(businessId: string, supplierId: string) {
   return {
@@ -55,8 +81,22 @@ export async function listSupplierRecords(
   const page = Math.max(1, query.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
 
+  let createdAt: Prisma.DateTimeFilter | undefined;
+  if (query.from || query.to) {
+    const start = query.from ? parseDateInput(query.from) : undefined;
+    const end = query.to ? parseDateInput(query.to, true) : undefined;
+    if (start && end && start > end) {
+      throw new AppError(400, 'Start date must be on or before end date.', 'INVALID_DATE_RANGE');
+    }
+    createdAt = {
+      ...(start ? { gte: start } : {}),
+      ...(end ? { lte: end } : {}),
+    };
+  }
+
   const where: Prisma.StockMovementWhereInput = {
     ...movementFilter(businessId, supplierId),
+    ...(createdAt ? { createdAt } : {}),
     ...(query.search
       ? {
           OR: [

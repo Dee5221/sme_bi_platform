@@ -29,6 +29,7 @@ import { RolesPermissionsPage } from './pages/RolesPermissionsPage';
 import { SalesAnalyticsPage } from './pages/SalesAnalyticsPage';
 import { SalesHistoryPage } from './pages/SalesHistoryPage';
 import { SalesPage } from './pages/SalesPage';
+import { SupplierPurchaseHistoryPage } from './pages/SupplierPurchaseHistoryPage';
 import { StockInPage } from './pages/StockInPage';
 import { StockOutPage } from './pages/StockOutPage';
 import { SuppliersPage } from './pages/SuppliersPage';
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="forecasting" element={<ForecastingPage />} />
           <Route path="recommendations" element={<RecommendationsPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="portal/records/history" element={<SupplierPurchaseHistoryPage />} />
           <Route path="portal/records" element={<PurchaseRecordsPage />} />
           <Route path="portal/products" element={<ProductsSuppliedPage />} />
           <Route path="portal/settings" element={<CustomerSettingsPage />} />

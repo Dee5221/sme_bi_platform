@@ -152,6 +152,9 @@ async function seedSupplierRecordsWorkspace() {
     supplierCookie: supplierLogin.headers['set-cookie'] as string[],
     customerCookie: customerLogin.headers['set-cookie'] as string[],
     ownRecordId: ownRecord.body.data.movement.id as string,
+    ownerCookie,
+    productId: product.body.data.product.id as string,
+    supplier,
   };
 }
 
@@ -248,5 +251,63 @@ describe('Supplier portal records API', () => {
   it('rejects unauthenticated access', async () => {
     const response = await request(app).get('/api/portal/supplier/records');
     expect(response.status).toBe(401);
+  });
+
+  it('filters records by createdAt date range', async () => {
+    const { supplierCookie, ownRecordId, ownerCookie, productId, supplier } =
+      await seedSupplierRecordsWorkspace();
+
+    const recent = await request(app)
+      .post('/api/inventory/stock-in')
+      .set('Cookie', ownerCookie)
+      .send({
+        productId,
+        quantity: 15,
+        supplierId: supplier.id,
+        reason: 'Recent supplier delivery',
+      });
+
+    await prisma.stockMovement.update({
+      where: { id: ownRecordId },
+      data: { createdAt: new Date(2024, 0, 15, 12, 0, 0) },
+    });
+
+    const january = await request(app)
+      .get('/api/portal/supplier/records')
+      .query({ from: '2024-01-01', to: '2024-01-31' })
+      .set('Cookie', supplierCookie);
+
+    expect(january.status).toBe(200);
+    expect(january.body.data.items).toHaveLength(1);
+    expect(january.body.data.items[0].id).toBe(ownRecordId);
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const current = await request(app)
+      .get('/api/portal/supplier/records')
+      .query({ from: todayStr })
+      .set('Cookie', supplierCookie);
+
+    expect(current.status).toBe(200);
+    expect(
+      current.body.data.items.some(
+        (record: { id: string }) => record.id === recent.body.data.movement.id
+      )
+    ).toBe(true);
+    expect(
+      current.body.data.items.some((record: { id: string }) => record.id === ownRecordId)
+    ).toBe(false);
+  });
+
+  it('rejects an inverted record date range', async () => {
+    const { supplierCookie } = await seedSupplierRecordsWorkspace();
+
+    const response = await request(app)
+      .get('/api/portal/supplier/records')
+      .query({ from: '2024-02-01', to: '2024-01-01' })
+      .set('Cookie', supplierCookie);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_DATE_RANGE');
   });
 });

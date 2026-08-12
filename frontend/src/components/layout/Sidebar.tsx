@@ -50,6 +50,13 @@ const navItems: NavItem[] = [
     icon: '$',
     permission: 'portal.records.view',
   },
+  {
+    to: '/app/portal/records/history',
+    label: 'Purchase History',
+    end: false,
+    icon: '☰',
+    permission: 'portal.history.view',
+  },
   { to: '/app/users', label: 'Users', end: false, icon: '◌', permission: 'users.view' },
   {
     to: '/app/roles',
