@@ -14,6 +14,8 @@ export async function listCustomerPurchases(
     customerId,
     {
       search: typeof req.query.search === 'string' ? req.query.search : undefined,
+      from: typeof req.query.from === 'string' ? req.query.from : undefined,
+      to: typeof req.query.to === 'string' ? req.query.to : undefined,
       page: req.query.page ? Number(req.query.page) : undefined,
       pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined,
     }

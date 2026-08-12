@@ -156,6 +156,8 @@ async function seedPurchasesWorkspace() {
     ownPurchaseId: ownPurchase.body.data.sale.id as string,
     customerCookie: customerLogin.headers['set-cookie'] as string[],
     supplierCookie: supplierLogin.headers['set-cookie'] as string[],
+    ownerCookie,
+    productId: product.body.data.product.id as string,
   };
 }
 
@@ -251,5 +253,62 @@ describe('Customer portal purchases API', () => {
   it('rejects unauthenticated access', async () => {
     const response = await request(app).get('/api/portal/customer/purchases');
     expect(response.status).toBe(401);
+  });
+
+  it('filters purchases by soldAt date range', async () => {
+    const { customerCookie, customer, ownPurchaseId, ownerCookie, productId } =
+      await seedPurchasesWorkspace();
+
+    const recent = await request(app)
+      .post('/api/sales')
+      .set('Cookie', ownerCookie)
+      .send({
+        customerId: customer.id,
+        notes: 'Recent portal order',
+        items: [{ productId, quantity: 1 }],
+      });
+
+    await prisma.sale.update({
+      where: { id: ownPurchaseId },
+      data: { soldAt: new Date(2024, 0, 15, 12, 0, 0) },
+    });
+
+    const january = await request(app)
+      .get('/api/portal/customer/purchases')
+      .query({ from: '2024-01-01', to: '2024-01-31' })
+      .set('Cookie', customerCookie);
+
+    expect(january.status).toBe(200);
+    expect(january.body.data.items).toHaveLength(1);
+    expect(january.body.data.items[0].id).toBe(ownPurchaseId);
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const current = await request(app)
+      .get('/api/portal/customer/purchases')
+      .query({ from: todayStr })
+      .set('Cookie', customerCookie);
+
+    expect(current.status).toBe(200);
+    expect(
+      current.body.data.items.some(
+        (purchase: { id: string }) => purchase.id === recent.body.data.sale.id
+      )
+    ).toBe(true);
+    expect(
+      current.body.data.items.some((purchase: { id: string }) => purchase.id === ownPurchaseId)
+    ).toBe(false);
+  });
+
+  it('rejects an inverted purchase date range', async () => {
+    const { customerCookie } = await seedPurchasesWorkspace();
+
+    const response = await request(app)
+      .get('/api/portal/customer/purchases')
+      .query({ from: '2024-02-01', to: '2024-01-01' })
+      .set('Cookie', customerCookie);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('INVALID_DATE_RANGE');
   });
 });
