@@ -3,6 +3,14 @@
   gap: 1rem;
 }
 
+.sales-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
 .sales-form {
   display: grid;
   gap: 1rem;

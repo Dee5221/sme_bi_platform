@@ -116,7 +116,7 @@ export function StaffDashboardPage() {
           </section>
 
           <section className="shortcut-grid" aria-label="Staff shortcuts">
-            <Link className="shortcut-card" to="/app/sales">
+            <Link className="shortcut-card" to="/app/sales/new">
               New sale
             </Link>
             <Link className="shortcut-card" to="/app/products">
@@ -167,7 +167,7 @@ export function StaffDashboardPage() {
         </div>
 
         <aside className="dashboard-side">
-          <Link to="/app/sales" className="dash-cta">
+          <Link to="/app/sales/new" className="dash-cta">
             <span className="dash-cta__icon" aria-hidden="true">
               ↑
             </span>
