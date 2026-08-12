@@ -166,6 +166,10 @@ export function CustomerDashboardPage() {
 
           <Card title="Portal shortcuts">
             <div className="chip-list">
+              <Link to="/app/portal/purchases" className="stock-chip">
+                <strong>My purchases</strong>
+                <span>View completed orders on your account</span>
+              </Link>
               <Link to="/app/profile" className="stock-chip">
                 <strong>Profile</strong>
                 <span>Update your account details</span>

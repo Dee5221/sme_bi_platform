@@ -14,6 +14,7 @@ import { InventoryAnalyticsPage } from './pages/InventoryAnalyticsPage';
 import { InventoryMovementPage } from './pages/InventoryMovementPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
+import { MyPurchasesPage } from './pages/MyPurchasesPage';
 import { NewSalePage } from './pages/NewSalePage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="forecasting" element={<ForecastingPage />} />
           <Route path="recommendations" element={<RecommendationsPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="portal/purchases" element={<MyPurchasesPage />} />
           <Route path="sales/new" element={<NewSalePage />} />
           <Route path="sales/history" element={<SalesHistoryPage />} />
           <Route path="sales" element={<SalesPage />} />
