@@ -24,6 +24,13 @@ const navItems: NavItem[] = [
     permission: 'roles.view',
   },
   {
+    to: '/app/activity-log',
+    label: 'Activity Log',
+    end: false,
+    icon: '☰',
+    permission: 'audit.view',
+  },
+  {
     to: '/app/analytics/business',
     label: 'Business Analytics',
     end: false,

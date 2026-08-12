@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { adminRouter } from './routes/adminRoutes';
 import { analyticsRouter } from './routes/analyticsRoutes';
+import { auditLogRouter } from './routes/auditLogRoutes';
 import { authRouter } from './routes/authRoutes';
 import { categoryRouter } from './routes/categoryRoutes';
 import { customerRouter } from './routes/customerRoutes';
@@ -59,6 +60,7 @@ export function createApp() {
   app.use('/api/recommendations', recommendationsRouter);
   app.use('/api/reports', reportsRouter);
   app.use('/api/roles', roleRouter);
+  app.use('/api/audit-logs', auditLogRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

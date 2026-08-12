@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PublicOnlyRoute } from './components/PublicOnlyRoute';
+import { ActivityLogPage } from './pages/ActivityLogPage';
 import { BusinessAnalyticsPage } from './pages/BusinessAnalyticsPage';
 import { CustomerAnalyticsPage } from './pages/CustomerAnalyticsPage';
 import { CustomersPage } from './pages/CustomersPage';
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailsPage />} />
           <Route path="roles" element={<RolesPermissionsPage />} />
+          <Route path="activity-log" element={<ActivityLogPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
       </Route>
