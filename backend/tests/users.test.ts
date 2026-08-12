@@ -187,7 +187,42 @@ describe('Users API', () => {
     expect(response.status).toBe(403);
   });
 
-  it('prevents cross-business user access', async () => {
+  it('returns user details with recent activity', async () => {
+    const { cookie, ownerRole } = await seedAdminSession();
+
+    const created = await request(app)
+      .post('/api/users')
+      .set('Cookie', cookie)
+      .send({
+        firstName: 'Detail',
+        lastName: 'User',
+        email: 'detail-users@test.local',
+        password: 'StaffPass1',
+        roleIds: [ownerRole.id],
+      });
+
+    const userId = created.body.data.user.id;
+
+    await request(app).post('/api/auth/login').send({
+      email: 'detail-users@test.local',
+      password: 'StaffPass1',
+    });
+
+    const response = await request(app)
+      .get(`/api/users/${userId}`)
+      .set('Cookie', cookie);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.user.email).toBe('detail-users@test.local');
+    expect(response.body.data.recentActivity.length).toBeGreaterThan(0);
+    expect(
+      response.body.data.recentActivity.some(
+        (entry: { action: string }) => entry.action === 'user.created'
+      )
+    ).toBe(true);
+  });
+
+  it('prevents cross-business user details access', async () => {
     const { cookie, ownerRole } = await seedAdminSession();
 
     const created = await request(app)

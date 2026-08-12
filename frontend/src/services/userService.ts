@@ -15,6 +15,21 @@ export type ManagedUser = {
   roleIds: string[];
 };
 
+export type UserActivityEntry = {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  createdAt: string;
+  actorName: string;
+  actorEmail: string | null;
+};
+
+export type UserDetails = {
+  user: ManagedUser;
+  recentActivity: UserActivityEntry[];
+};
+
 export type AssignableRole = {
   id: string;
   name: string;
@@ -43,6 +58,10 @@ type Paginated<T> = {
 
 export function listAssignableRoles() {
   return apiRequest<{ roles: AssignableRole[] }>('/api/users/roles');
+}
+
+export function fetchUser(id: string) {
+  return apiRequest<UserDetails>(`/api/users/${id}`);
 }
 
 export function listUsers(params: {

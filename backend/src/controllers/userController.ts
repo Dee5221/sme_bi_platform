@@ -31,8 +31,8 @@ export async function listUsers(req: AuthenticatedRequest, res: Response): Promi
 
 export async function getUser(req: AuthenticatedRequest, res: Response): Promise<void> {
   const businessId = getBusinessIdOrThrow(req);
-  const user = await userService.getUser(businessId, req.params.id as string);
-  sendSuccess(res, { user });
+  const details = await userService.getUser(businessId, req.params.id as string);
+  sendSuccess(res, details);
 }
 
 export async function createUser(req: AuthenticatedRequest, res: Response): Promise<void> {

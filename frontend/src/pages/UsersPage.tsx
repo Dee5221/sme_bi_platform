@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import * as userApi from '../services/userService';
@@ -287,7 +288,9 @@ export function UsersPage() {
                   header: 'User',
                   render: (row) => (
                     <div>
-                      <strong>{row.fullName}</strong>
+                      <Link to={`/app/users/${row.id}`}>
+                        <strong>{row.fullName}</strong>
+                      </Link>
                       <div className="users-muted">{row.email}</div>
                     </div>
                   ),
@@ -329,6 +332,9 @@ export function UsersPage() {
                   header: 'Actions',
                   render: (row) => (
                     <div className="users-actions">
+                      <Link className="ui-btn ui-btn--ghost" to={`/app/users/${row.id}`}>
+                        View
+                      </Link>
                       {canUpdate ? (
                         <Button variant="ghost" onClick={() => openEdit(row)}>
                           Edit

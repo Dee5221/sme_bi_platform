@@ -147,7 +147,35 @@ export async function listUsers(businessId: string, query: UserListQuery) {
 
 export async function getUser(businessId: string, userId: string) {
   const user = await getUserOrThrow(businessId, userId);
-  return mapUser(user);
+
+  const recentActivity = await prisma.auditLog.findMany({
+    where: {
+      businessId,
+      OR: [{ actorId: userId }, { entity: 'User', entityId: userId }],
+    },
+    include: {
+      actor: {
+        select: { firstName: true, lastName: true, email: true },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 15,
+  });
+
+  return {
+    user: mapUser(user),
+    recentActivity: recentActivity.map((entry) => ({
+      id: entry.id,
+      action: entry.action,
+      entity: entry.entity,
+      entityId: entry.entityId,
+      createdAt: entry.createdAt,
+      actorName: entry.actor
+        ? `${entry.actor.firstName} ${entry.actor.lastName}`.trim()
+        : 'System',
+      actorEmail: entry.actor?.email ?? null,
+    })),
+  };
 }
 
 export async function createUser(
