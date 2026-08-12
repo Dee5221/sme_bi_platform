@@ -118,6 +118,9 @@ describe('Staff role foundation', () => {
     const products = await request(app).get('/api/products').set('Cookie', cookie);
     expect(products.status).toBe(200);
 
+    const inventory = await request(app).get('/api/inventory').set('Cookie', cookie);
+    expect(inventory.status).toBe(200);
+
     const sales = await request(app).get('/api/sales').set('Cookie', cookie);
     expect(sales.status).toBe(200);
 
