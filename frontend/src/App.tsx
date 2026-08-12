@@ -6,7 +6,7 @@ import { ActivityLogPage } from './pages/ActivityLogPage';
 import { BusinessAnalyticsPage } from './pages/BusinessAnalyticsPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { CustomerAnalyticsPage } from './pages/CustomerAnalyticsPage';
-import { CustomerSettingsPage } from './pages/CustomerSettingsPage';
+import { PortalSettingsPage } from './pages/PortalSettingsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
@@ -57,7 +57,7 @@ export default function App() {
           <Route path="portal/records/history" element={<SupplierPurchaseHistoryPage />} />
           <Route path="portal/records" element={<PurchaseRecordsPage />} />
           <Route path="portal/products" element={<ProductsSuppliedPage />} />
-          <Route path="portal/settings" element={<CustomerSettingsPage />} />
+          <Route path="portal/settings" element={<PortalSettingsPage />} />
           <Route path="portal/purchases/history" element={<PurchaseHistoryPage />} />
           <Route path="portal/purchases" element={<MyPurchasesPage />} />
           <Route path="sales/new" element={<NewSalePage />} />

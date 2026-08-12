@@ -5,10 +5,12 @@ import * as customerPortalSettingsController from '../controllers/customerPortal
 import * as supplierPortalDashboardController from '../controllers/supplierPortalDashboardController';
 import * as supplierPortalProductController from '../controllers/supplierPortalProductController';
 import * as supplierPortalRecordController from '../controllers/supplierPortalRecordController';
+import * as supplierPortalSettingsController from '../controllers/supplierPortalSettingsController';
 import { authenticate, requirePermissions } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { updateCustomerPortalSettingsSchema } from '../validators/customerPortalValidators';
+import { updateSupplierPortalSettingsSchema } from '../validators/supplierPortalValidators';
 
 export const portalRouter = Router();
 
@@ -73,4 +75,17 @@ portalRouter.get(
   '/supplier/records/:id',
   requirePermissions('portal.records.view'),
   asyncHandler(supplierPortalRecordController.getSupplierRecord)
+);
+
+portalRouter.get(
+  '/supplier/settings',
+  requirePermissions('portal.settings.view'),
+  asyncHandler(supplierPortalSettingsController.getSupplierPortalSettings)
+);
+
+portalRouter.put(
+  '/supplier/settings',
+  requirePermissions('portal.settings.update'),
+  validateBody(updateSupplierPortalSettingsSchema),
+  asyncHandler(supplierPortalSettingsController.updateSupplierPortalSettings)
 );
