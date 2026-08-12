@@ -146,3 +146,53 @@ export function fetchInventoryAnalytics(months = 6) {
     `/api/analytics/inventory?months=${months}`
   );
 }
+
+export type CustomerAnalyticsData = {
+  period: { label: string; months: number; start: string; end: string };
+  summary: {
+    activeCustomers: number;
+    newCustomersInPeriod: number;
+    customersWithSalesInPeriod: number;
+    customerLinkedSales: number;
+    walkInSales: number;
+    customerRevenue: number;
+    walkInRevenue: number;
+    repeatCustomersInPeriod: number;
+    oneTimeCustomersInPeriod: number;
+    averageRevenuePerCustomer: number;
+  };
+  monthlyTrend: Array<{
+    key: string;
+    label: string;
+    newCustomers: number;
+    customerSales: number;
+    customerRevenue: number;
+  }>;
+  topCustomersByRevenue: Array<{
+    customerId: string;
+    customerName: string;
+    salesCount: number;
+    revenue: number;
+  }>;
+  topCustomersBySalesCount: Array<{
+    customerId: string;
+    customerName: string;
+    salesCount: number;
+    revenue: number;
+  }>;
+  walkInSummary: {
+    salesCount: number;
+    revenue: number;
+  };
+  customerMix: {
+    repeatCustomers: number;
+    oneTimeCustomers: number;
+    walkInSales: number;
+  };
+};
+
+export function fetchCustomerAnalytics(months = 6) {
+  return apiRequest<{ analytics: CustomerAnalyticsData }>(
+    `/api/analytics/customers?months=${months}`
+  );
+}

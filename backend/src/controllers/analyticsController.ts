@@ -33,3 +33,13 @@ export async function getInventoryAnalytics(
   const analytics = await analyticsService.getInventoryAnalytics(businessId, { months });
   sendSuccess(res, { analytics });
 }
+
+export async function getCustomerAnalytics(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  const businessId = getBusinessIdOrThrow(req);
+  const months = req.query.months ? Number(req.query.months) : undefined;
+  const analytics = await analyticsService.getCustomerAnalytics(businessId, { months });
+  sendSuccess(res, { analytics });
+}

@@ -593,3 +593,158 @@ export async function getInventoryAnalytics(businessId: string, query: Inventory
     },
   };
 }
+
+export type CustomerAnalyticsQuery = {
+  months?: number;
+};
+
+export async function getCustomerAnalytics(businessId: string, query: CustomerAnalyticsQuery) {
+  const months = clampMonths(query.months);
+  const buckets = buildMonthBuckets(months);
+  const rangeStart = buckets[0]?.start ?? new Date();
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date();
+
+  const [activeCustomers, newCustomers, sales] = await Promise.all([
+    prisma.customer.count({ where: { businessId, status: 'ACTIVE' } }),
+    prisma.customer.findMany({
+      where: {
+        businessId,
+        status: 'ACTIVE',
+        createdAt: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: { id: true, name: true, createdAt: true },
+    }),
+    prisma.sale.findMany({
+      where: {
+        businessId,
+        status: 'COMPLETED',
+        soldAt: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: {
+        id: true,
+        soldAt: true,
+        total: true,
+        customerId: true,
+        customer: { select: { id: true, name: true } },
+      },
+    }),
+  ]);
+
+  const newCustomersByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+  for (const customer of newCustomers) {
+    const key = monthKey(customer.createdAt);
+    if (newCustomersByMonth.has(key)) {
+      newCustomersByMonth.set(key, (newCustomersByMonth.get(key) || 0) + 1);
+    }
+  }
+
+  const customerSalesByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+  const customerRevenueByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+
+  let walkInSales = 0;
+  let customerLinkedSales = 0;
+  let walkInRevenue = 0;
+  let customerRevenue = 0;
+
+  const customerMap = new Map<
+    string,
+    { customerId: string; customerName: string; salesCount: number; revenue: number }
+  >();
+
+  for (const sale of sales) {
+    const revenue = toMoneyNumber(sale.total);
+    const key = monthKey(sale.soldAt);
+
+    if (sale.customerId && sale.customer) {
+      customerLinkedSales += 1;
+      customerRevenue += revenue;
+      if (customerSalesByMonth.has(key)) {
+        customerSalesByMonth.set(key, (customerSalesByMonth.get(key) || 0) + 1);
+        customerRevenueByMonth.set(key, (customerRevenueByMonth.get(key) || 0) + revenue);
+      }
+
+      const existing = customerMap.get(sale.customerId);
+      if (existing) {
+        existing.salesCount += 1;
+        existing.revenue += revenue;
+      } else {
+        customerMap.set(sale.customerId, {
+          customerId: sale.customerId,
+          customerName: sale.customer.name,
+          salesCount: 1,
+          revenue,
+        });
+      }
+    } else {
+      walkInSales += 1;
+      walkInRevenue += revenue;
+    }
+  }
+
+  const customersWithSalesInPeriod = customerMap.size;
+  let repeatCustomersInPeriod = 0;
+  let oneTimeCustomersInPeriod = 0;
+  for (const customer of customerMap.values()) {
+    if (customer.salesCount >= 2) repeatCustomersInPeriod += 1;
+    else oneTimeCustomersInPeriod += 1;
+  }
+
+  const monthlyTrend = buckets.map((bucket) => ({
+    key: bucket.key,
+    label: bucket.label,
+    newCustomers: newCustomersByMonth.get(bucket.key) || 0,
+    customerSales: customerSalesByMonth.get(bucket.key) || 0,
+    customerRevenue: roundMoney(customerRevenueByMonth.get(bucket.key) || 0),
+  }));
+
+  const topCustomersByRevenue = Array.from(customerMap.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 8)
+    .map((item) => ({
+      ...item,
+      revenue: roundMoney(item.revenue),
+    }));
+
+  const topCustomersBySalesCount = Array.from(customerMap.values())
+    .sort((a, b) => b.salesCount - a.salesCount || b.revenue - a.revenue)
+    .slice(0, 8)
+    .map((item) => ({
+      ...item,
+      revenue: roundMoney(item.revenue),
+    }));
+
+  return {
+    period: {
+      label: `Last ${months} months`,
+      months,
+      start: rangeStart,
+      end: rangeEnd,
+    },
+    summary: {
+      activeCustomers,
+      newCustomersInPeriod: newCustomers.length,
+      customersWithSalesInPeriod,
+      customerLinkedSales,
+      walkInSales,
+      customerRevenue: roundMoney(customerRevenue),
+      walkInRevenue: roundMoney(walkInRevenue),
+      repeatCustomersInPeriod,
+      oneTimeCustomersInPeriod,
+      averageRevenuePerCustomer: customersWithSalesInPeriod
+        ? roundMoney(customerRevenue / customersWithSalesInPeriod)
+        : 0,
+    },
+    monthlyTrend,
+    topCustomersByRevenue,
+    topCustomersBySalesCount,
+    walkInSummary: {
+      salesCount: walkInSales,
+      revenue: roundMoney(walkInRevenue),
+    },
+    customerMix: {
+      repeatCustomers: repeatCustomersInPeriod,
+      oneTimeCustomers: oneTimeCustomersInPeriod,
+      walkInSales,
+    },
+  };
+}
