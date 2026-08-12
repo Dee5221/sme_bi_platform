@@ -174,6 +174,10 @@ export function CustomerDashboardPage() {
                 <strong>Profile</strong>
                 <span>Update your account details</span>
               </Link>
+              <Link to="/app/portal/settings" className="stock-chip">
+                <strong>Settings</strong>
+                <span>Manage contact details on file</span>
+              </Link>
             </div>
           </Card>
         </aside>

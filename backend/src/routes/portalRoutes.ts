@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import * as customerPortalDashboardController from '../controllers/customerPortalDashboardController';
 import * as customerPortalPurchaseController from '../controllers/customerPortalPurchaseController';
+import * as customerPortalSettingsController from '../controllers/customerPortalSettingsController';
 import { authenticate, requirePermissions } from '../middleware/auth';
+import { validateBody } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
+import { updateCustomerPortalSettingsSchema } from '../validators/customerPortalValidators';
 
 export const portalRouter = Router();
 
@@ -24,4 +27,17 @@ portalRouter.get(
   '/customer/purchases/:id',
   requirePermissions('portal.purchases.view'),
   asyncHandler(customerPortalPurchaseController.getCustomerPurchase)
+);
+
+portalRouter.get(
+  '/customer/settings',
+  requirePermissions('portal.settings.view'),
+  asyncHandler(customerPortalSettingsController.getCustomerPortalSettings)
+);
+
+portalRouter.put(
+  '/customer/settings',
+  requirePermissions('portal.settings.update'),
+  validateBody(updateCustomerPortalSettingsSchema),
+  asyncHandler(customerPortalSettingsController.updateCustomerPortalSettings)
 );

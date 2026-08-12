@@ -29,6 +29,13 @@ const navItems: NavItem[] = [
     icon: '☰',
     permission: 'portal.purchases.history',
   },
+  {
+    to: '/app/portal/settings',
+    label: 'Settings',
+    end: false,
+    icon: '⚙',
+    permission: 'portal.settings.view',
+  },
   { to: '/app/users', label: 'Users', end: false, icon: '◌', permission: 'users.view' },
   {
     to: '/app/roles',
