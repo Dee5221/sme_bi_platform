@@ -107,6 +107,13 @@ const navItems: NavItem[] = [
     permission: 'inventory.adjust',
   },
   {
+    to: '/app/inventory/movements',
+    label: 'Inventory Movement',
+    end: false,
+    icon: '☰',
+    permission: 'inventory.view',
+  },
+  {
     to: '/app/customers',
     label: 'Customers',
     end: false,

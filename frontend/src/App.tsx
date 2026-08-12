@@ -11,6 +11,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { ForecastingPage } from './pages/ForecastingPage';
 import { InventoryAnalyticsPage } from './pages/InventoryAnalyticsPage';
+import { InventoryMovementPage } from './pages/InventoryMovementPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { NewSalePage } from './pages/NewSalePage';
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="inventory/stock-in" element={<StockInPage />} />
           <Route path="inventory/stock-out" element={<StockOutPage />} />
+          <Route path="inventory/movements" element={<InventoryMovementPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="customers" element={<CustomersPage />} />
           <Route path="suppliers" element={<SuppliersPage />} />
