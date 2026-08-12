@@ -159,6 +159,10 @@ export function SupplierDashboardPage() {
 
           <Card title="Portal shortcuts">
             <div className="chip-list">
+              <Link to="/app/portal/products" className="stock-chip">
+                <strong>Products supplied</strong>
+                <span>View products linked to your deliveries</span>
+              </Link>
               <Link to="/app/profile" className="stock-chip">
                 <strong>Profile</strong>
                 <span>Update your account details</span>
