@@ -127,6 +127,9 @@ describe('Staff role foundation', () => {
     const customers = await request(app).get('/api/customers').set('Cookie', cookie);
     expect(customers.status).toBe(200);
 
+    const suppliers = await request(app).get('/api/suppliers').set('Cookie', cookie);
+    expect(suppliers.status).toBe(200);
+
     const sales = await request(app).get('/api/sales').set('Cookie', cookie);
     expect(sales.status).toBe(200);
 
@@ -245,5 +248,51 @@ describe('Staff role foundation', () => {
       .set('Cookie', cookie);
     expect(stillActive.status).toBe(200);
     expect(stillActive.body.data.customer.status).toBe('ACTIVE');
+  });
+
+  it('lets staff manage suppliers but not deactivate them', async () => {
+    const { email, password } = await seedStaff();
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const cookie = login.headers['set-cookie'];
+
+    const created = await request(app)
+      .post('/api/suppliers')
+      .set('Cookie', cookie)
+      .send({ name: 'Fresh Foods Ltd', email: 'orders@freshfoods.test', phone: '555-0200' });
+    expect(created.status).toBe(201);
+    const supplierId = created.body.data.supplier.id;
+
+    const updated = await request(app)
+      .put(`/api/suppliers/${supplierId}`)
+      .set('Cookie', cookie)
+      .send({
+        name: 'Fresh Foods Wholesale',
+        email: 'orders@freshfoods.test',
+        phone: '555-0201',
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.supplier.name).toBe('Fresh Foods Wholesale');
+    expect(updated.body.data.supplier.status).toBe('ACTIVE');
+
+    const deactivateViaUpdate = await request(app)
+      .put(`/api/suppliers/${supplierId}`)
+      .set('Cookie', cookie)
+      .send({
+        name: 'Fresh Foods Wholesale',
+        email: 'orders@freshfoods.test',
+        status: 'INACTIVE',
+      });
+    expect(deactivateViaUpdate.status).toBe(403);
+
+    const deactivate = await request(app)
+      .delete(`/api/suppliers/${supplierId}`)
+      .set('Cookie', cookie);
+    expect(deactivate.status).toBe(403);
+
+    const stillActive = await request(app)
+      .get(`/api/suppliers/${supplierId}`)
+      .set('Cookie', cookie);
+    expect(stillActive.status).toBe(200);
+    expect(stillActive.body.data.supplier.status).toBe('ACTIVE');
   });
 });

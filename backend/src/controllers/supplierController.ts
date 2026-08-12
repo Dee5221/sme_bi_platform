@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { sendSuccess } from '../lib/apiResponse';
+import { AppError } from '../lib/errors';
 import { getBusinessIdOrThrow } from '../middleware/auth';
 import * as supplierService from '../services/supplierService';
 import { AuthenticatedRequest } from '../types/auth';
@@ -42,11 +43,15 @@ export async function createSupplier(req: AuthenticatedRequest, res: Response): 
 
 export async function updateSupplier(req: AuthenticatedRequest, res: Response): Promise<void> {
   const businessId = getBusinessIdOrThrow(req);
+  const input = req.body as UpdateSupplierInput;
+  if (input.status === 'INACTIVE' && !req.user!.permissions.includes('suppliers.delete')) {
+    throw new AppError(403, 'You do not have permission to deactivate suppliers.', 'FORBIDDEN');
+  }
   const supplier = await supplierService.updateSupplier(
     businessId,
     req.user!.id,
     req.params.id as string,
-    req.body as UpdateSupplierInput
+    input
   );
   sendSuccess(res, { supplier }, 200, 'Supplier updated.');
 }

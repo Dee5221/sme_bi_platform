@@ -142,7 +142,7 @@ export function SuppliersPage() {
         phone: form.phone || undefined,
         address: form.address || undefined,
         notes: form.notes || undefined,
-        ...(editing ? { status: form.status } : {}),
+        ...(editing && canDelete ? { status: form.status } : {}),
       };
       if (editing) {
         await supplierApi.updateSupplier(editing.id, payload);
@@ -352,7 +352,7 @@ export function SuppliersPage() {
               onChange={(e) => setForm((c) => ({ ...c, address: e.target.value }))}
               error={fieldErrors.address}
             />
-            {editing ? (
+            {editing && canDelete ? (
               <label className="suppliers-select">
                 <span>Status</span>
                 <select
