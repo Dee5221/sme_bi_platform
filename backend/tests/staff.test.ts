@@ -124,4 +124,34 @@ describe('Staff role foundation', () => {
     const expenses = await request(app).get('/api/expenses').set('Cookie', cookie);
     expect(expenses.status).toBe(403);
   });
+
+  it('lets staff record and list a sale for their business', async () => {
+    const { email, password } = await seedStaff();
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const cookie = login.headers['set-cookie'];
+
+    const product = await request(app)
+      .post('/api/products')
+      .set('Cookie', cookie)
+      .send({ name: 'Bread', sku: 'BRD-STAFF', price: 10 });
+    expect(product.status).toBe(201);
+
+    await request(app)
+      .post('/api/inventory/stock-in')
+      .set('Cookie', cookie)
+      .send({ productId: product.body.data.product.id, quantity: 20 });
+
+    const created = await request(app)
+      .post('/api/sales')
+      .set('Cookie', cookie)
+      .send({ items: [{ productId: product.body.data.product.id, quantity: 2 }] });
+
+    expect(created.status).toBe(201);
+    expect(created.body.data.sale.total).toBe(20);
+
+    const list = await request(app).get('/api/sales').set('Cookie', cookie);
+    expect(list.status).toBe(200);
+    expect(list.body.data.items).toHaveLength(1);
+    expect(list.body.data.items[0].id).toBe(created.body.data.sale.id);
+  });
 });
