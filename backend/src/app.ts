@@ -21,6 +21,7 @@ import { recommendationsRouter } from './routes/recommendationsRoutes';
 import { reportsRouter } from './routes/reportsRoutes';
 import { roleRouter } from './routes/roleRoutes';
 import { saleRouter } from './routes/saleRoutes';
+import { staffRouter } from './routes/staffRoutes';
 import { supplierRouter } from './routes/supplierRoutes';
 import { userRouter } from './routes/userRoutes';
 import { sendSuccess } from './lib/apiResponse';
@@ -56,6 +57,7 @@ export function createApp() {
   app.use('/api/suppliers', supplierRouter);
   app.use('/api/users', userRouter);
   app.use('/api/sales', saleRouter);
+  app.use('/api/staff', staffRouter);
   app.use('/api/expenses', expenseRouter);
   app.use('/api/forecasting', forecastingRouter);
   app.use('/api/recommendations', recommendationsRouter);

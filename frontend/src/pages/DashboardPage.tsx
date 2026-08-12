@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext';
 import { AdminDashboardPage } from './AdminDashboardPage';
 import { OwnerDashboardPage } from './OwnerDashboardPage';
+import { StaffDashboardPage } from './StaffDashboardPage';
 
 export function DashboardPage() {
   const { hasPermission } = useAuth();
@@ -9,5 +10,9 @@ export function DashboardPage() {
     return <AdminDashboardPage />;
   }
 
-  return <OwnerDashboardPage />;
+  if (hasPermission('expenses.view')) {
+    return <OwnerDashboardPage />;
+  }
+
+  return <StaffDashboardPage />;
 }

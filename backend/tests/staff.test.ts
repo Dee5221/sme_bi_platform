@@ -108,8 +108,12 @@ describe('Staff role foundation', () => {
     const login = await request(app).post('/api/auth/login').send({ email, password });
     const cookie = login.headers['set-cookie'];
 
-    const dashboard = await request(app).get('/api/dashboard').set('Cookie', cookie);
+    const dashboard = await request(app).get('/api/staff/dashboard').set('Cookie', cookie);
     expect(dashboard.status).toBe(200);
+    expect(dashboard.body.data.dashboard.kpis.expenses).toBeUndefined();
+
+    const ownerDashboard = await request(app).get('/api/dashboard').set('Cookie', cookie);
+    expect(ownerDashboard.status).toBe(403);
 
     const sales = await request(app).get('/api/sales').set('Cookie', cookie);
     expect(sales.status).toBe(200);
