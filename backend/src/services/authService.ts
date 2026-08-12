@@ -4,6 +4,8 @@ import {
   OWNER_MANAGER_PERMISSIONS,
   ROLE_ADMINISTRATOR,
   ROLE_OWNER_MANAGER,
+  ROLE_STAFF,
+  STAFF_PERMISSIONS,
 } from '../constants/permissions';
 import { writeAuditLog } from '../lib/audit';
 import { AppError } from '../lib/errors';
@@ -145,7 +147,37 @@ export async function ensureSystemRoles() {
     });
   }
 
-  return { ownerRole, administratorRole };
+  const staffRole = await prisma.role.upsert({
+    where: { name: ROLE_STAFF },
+    update: {
+      description: 'Staff member for daily sales, inventory, and customer operations',
+    },
+    create: {
+      name: ROLE_STAFF,
+      description: 'Staff member for daily sales, inventory, and customer operations',
+      isSystem: true,
+    },
+  });
+
+  for (const item of STAFF_PERMISSIONS) {
+    const permission = permissionMap.get(item.key);
+    if (!permission) continue;
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: staffRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: staffRole.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
+  return { ownerRole, administratorRole, staffRole };
 }
 
 export async function ensureOwnerManagerRole() {
@@ -156,6 +188,11 @@ export async function ensureOwnerManagerRole() {
 export async function ensureAdministratorRole() {
   const { administratorRole } = await ensureSystemRoles();
   return administratorRole;
+}
+
+export async function ensureStaffRole() {
+  const { staffRole } = await ensureSystemRoles();
+  return staffRole;
 }
 
 export async function registerBusinessOwner(input: RegisterInput) {

@@ -45,6 +45,25 @@ export const ADMINISTRATOR_PERMISSIONS = [
   { key: 'profile.update', description: 'Update own profile' },
 ] as const;
 
+export const STAFF_PERMISSIONS = [
+  { key: 'dashboard.view', description: 'View dashboard' },
+  { key: 'products.view', description: 'View products' },
+  { key: 'products.create', description: 'Create products' },
+  { key: 'products.update', description: 'Update products' },
+  { key: 'inventory.view', description: 'View inventory' },
+  { key: 'inventory.adjust', description: 'Adjust stock levels' },
+  { key: 'customers.view', description: 'View customers' },
+  { key: 'customers.create', description: 'Create customers' },
+  { key: 'customers.update', description: 'Update customers' },
+  { key: 'suppliers.view', description: 'View suppliers' },
+  { key: 'suppliers.create', description: 'Create suppliers' },
+  { key: 'suppliers.update', description: 'Update suppliers' },
+  { key: 'sales.view', description: 'View sales' },
+  { key: 'sales.create', description: 'Create sales' },
+  { key: 'profile.view', description: 'View own profile' },
+  { key: 'profile.update', description: 'Update own profile' },
+] as const;
+
 function dedupePermissions(
   items: readonly { key: string; description: string }[]
 ) {
@@ -58,9 +77,11 @@ function dedupePermissions(
 export const ALL_PERMISSIONS = dedupePermissions([
   ...OWNER_MANAGER_PERMISSIONS,
   ...ADMINISTRATOR_PERMISSIONS,
+  ...STAFF_PERMISSIONS,
 ]);
 
 export type PermissionKey = (typeof ALL_PERMISSIONS)[number]['key'];
 
 export const ROLE_OWNER_MANAGER = 'OWNER_MANAGER';
 export const ROLE_ADMINISTRATOR = 'ADMINISTRATOR';
+export const ROLE_STAFF = 'STAFF';

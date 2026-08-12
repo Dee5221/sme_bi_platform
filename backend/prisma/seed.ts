@@ -2,13 +2,14 @@ import 'dotenv/config';
 import {
   ROLE_ADMINISTRATOR,
   ROLE_OWNER_MANAGER,
+  ROLE_STAFF,
 } from '../src/constants/permissions';
 import { hashPassword } from '../src/lib/password';
 import { prisma } from '../src/lib/prisma';
 import { ensureSystemRoles } from '../src/services/authService';
 
 async function main() {
-  const { ownerRole, administratorRole } = await ensureSystemRoles();
+  const { ownerRole, administratorRole, staffRole } = await ensureSystemRoles();
 
   const demoBusinessEmail = 'contact@demo-sme.local';
   let business = await prisma.business.findFirst({
@@ -73,6 +74,30 @@ async function main() {
     console.log('Admin role:', ROLE_ADMINISTRATOR);
   } else {
     console.log('Demo administrator already exists:', adminEmail);
+  }
+
+  const staffEmail = 'staff@demo-sme.local';
+  const existingStaff = await prisma.user.findUnique({ where: { email: staffEmail } });
+
+  if (!existingStaff) {
+    const staffPasswordHash = await hashPassword('StaffDemo1');
+    const staff = await prisma.user.create({
+      data: {
+        businessId: business.id,
+        email: staffEmail,
+        passwordHash: staffPasswordHash,
+        firstName: 'Riley',
+        lastName: 'Staff',
+        roles: {
+          create: [{ roleId: staffRole.id }],
+        },
+      },
+    });
+    console.log('Seeded demo staff:', staff.email);
+    console.log('Staff password: StaffDemo1');
+    console.log('Staff role:', ROLE_STAFF);
+  } else {
+    console.log('Demo staff already exists:', staffEmail);
   }
 }
 
