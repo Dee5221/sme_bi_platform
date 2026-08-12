@@ -376,3 +376,220 @@ export async function getSalesAnalytics(businessId: string, query: SalesAnalytic
     },
   };
 }
+
+export type InventoryAnalyticsQuery = {
+  months?: number;
+};
+
+export async function getInventoryAnalytics(businessId: string, query: InventoryAnalyticsQuery) {
+  const months = clampMonths(query.months);
+  const buckets = buildMonthBuckets(months);
+  const rangeStart = buckets[0]?.start ?? new Date();
+  const rangeEnd = buckets[buckets.length - 1]?.end ?? new Date();
+
+  const [inventories, rawMovements] = await Promise.all([
+    prisma.inventory.findMany({
+      where: {
+        businessId,
+        product: { status: 'ACTIVE' },
+      },
+      select: {
+        id: true,
+        quantity: true,
+        lowStockThreshold: true,
+        product: {
+          select: { id: true, name: true, sku: true, price: true },
+        },
+      },
+      orderBy: { quantity: 'asc' },
+    }),
+    prisma.stockMovement.findMany({
+      where: {
+        businessId,
+        createdAt: { gte: rangeStart, lte: rangeEnd },
+      },
+      select: {
+        id: true,
+        productId: true,
+        type: true,
+        quantityChange: true,
+        createdAt: true,
+      },
+    }),
+  ]);
+
+  const productInfoMap = new Map(
+    inventories.map((item) => [
+      item.product.id,
+      { id: item.product.id, name: item.product.name, sku: item.product.sku },
+    ])
+  );
+  const movements = rawMovements.filter((movement) => productInfoMap.has(movement.productId));
+
+  let totalUnitsOnHand = 0;
+  let lowStockCount = 0;
+  let outOfStockCount = 0;
+  let healthyStockCount = 0;
+  let inventoryValue = 0;
+
+  const lowStockProducts: Array<{
+    inventoryId: string;
+    productId: string;
+    productName: string;
+    productSku: string;
+    quantity: number;
+    lowStockThreshold: number;
+  }> = [];
+
+  for (const item of inventories) {
+    totalUnitsOnHand += item.quantity;
+    inventoryValue += item.quantity * toMoneyNumber(item.product.price);
+
+    if (item.quantity === 0) {
+      outOfStockCount += 1;
+    } else if (item.quantity <= item.lowStockThreshold) {
+      lowStockCount += 1;
+      lowStockProducts.push({
+        inventoryId: item.id,
+        productId: item.product.id,
+        productName: item.product.name,
+        productSku: item.product.sku,
+        quantity: item.quantity,
+        lowStockThreshold: item.lowStockThreshold,
+      });
+    } else {
+      healthyStockCount += 1;
+    }
+  }
+
+  const trackedProducts = inventories.length;
+  const percentHealthy =
+    trackedProducts === 0 ? 100 : Math.round((healthyStockCount / trackedProducts) * 100);
+
+  const stockInByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+  const stockOutByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+  const stockInMovementsByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+  const stockOutMovementsByMonth = new Map(buckets.map((bucket) => [bucket.key, 0]));
+
+  let periodStockIn = 0;
+  let periodStockOut = 0;
+  let stockInMovements = 0;
+  let stockOutMovements = 0;
+
+  const productInMap = new Map<
+    string,
+    { productId: string; productName: string; productSku: string; units: number; movements: number }
+  >();
+  const productOutMap = new Map<
+    string,
+    { productId: string; productName: string; productSku: string; units: number; movements: number }
+  >();
+
+  for (const movement of movements) {
+    const units = Math.abs(movement.quantityChange);
+    const key = monthKey(movement.createdAt);
+
+    if (movement.type === 'STOCK_IN') {
+      periodStockIn += units;
+      stockInMovements += 1;
+      if (stockInByMonth.has(key)) {
+        stockInByMonth.set(key, (stockInByMonth.get(key) || 0) + units);
+        stockInMovementsByMonth.set(
+          key,
+          (stockInMovementsByMonth.get(key) || 0) + 1
+        );
+      }
+      const existing = productInMap.get(movement.productId);
+      const product = productInfoMap.get(movement.productId)!;
+      if (existing) {
+        existing.units += units;
+        existing.movements += 1;
+      } else {
+        productInMap.set(movement.productId, {
+          productId: movement.productId,
+          productName: product.name,
+          productSku: product.sku,
+          units,
+          movements: 1,
+        });
+      }
+    } else if (movement.type === 'STOCK_OUT') {
+      periodStockOut += units;
+      stockOutMovements += 1;
+      if (stockOutByMonth.has(key)) {
+        stockOutByMonth.set(key, (stockOutByMonth.get(key) || 0) + units);
+        stockOutMovementsByMonth.set(
+          key,
+          (stockOutMovementsByMonth.get(key) || 0) + 1
+        );
+      }
+      const existing = productOutMap.get(movement.productId);
+      const product = productInfoMap.get(movement.productId)!;
+      if (existing) {
+        existing.units += units;
+        existing.movements += 1;
+      } else {
+        productOutMap.set(movement.productId, {
+          productId: movement.productId,
+          productName: product.name,
+          productSku: product.sku,
+          units,
+          movements: 1,
+        });
+      }
+    }
+  }
+
+  const monthlyTrend = buckets.map((bucket) => {
+    const stockIn = stockInByMonth.get(bucket.key) || 0;
+    const stockOut = stockOutByMonth.get(bucket.key) || 0;
+    return {
+      key: bucket.key,
+      label: bucket.label,
+      stockIn,
+      stockOut,
+      netMovement: stockIn - stockOut,
+      stockInMovements: stockInMovementsByMonth.get(bucket.key) || 0,
+      stockOutMovements: stockOutMovementsByMonth.get(bucket.key) || 0,
+    };
+  });
+
+  const topStockInProducts = Array.from(productInMap.values())
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 8);
+
+  const topStockOutProducts = Array.from(productOutMap.values())
+    .sort((a, b) => b.units - a.units)
+    .slice(0, 8);
+
+  return {
+    period: {
+      label: `Last ${months} months`,
+      months,
+      start: rangeStart,
+      end: rangeEnd,
+    },
+    summary: {
+      trackedProducts,
+      totalUnitsOnHand,
+      inventoryValue: roundMoney(inventoryValue),
+      lowStockCount,
+      outOfStockCount,
+      healthyStockCount,
+      percentHealthy,
+      periodStockIn,
+      periodStockOut,
+      netMovement: periodStockIn - periodStockOut,
+    },
+    monthlyTrend,
+    lowStockProducts: lowStockProducts.slice(0, 8),
+    topStockInProducts,
+    topStockOutProducts,
+    movementBreakdown: {
+      stockInMovements,
+      stockOutMovements,
+      stockInUnits: periodStockIn,
+      stockOutUnits: periodStockOut,
+    },
+  };
+}

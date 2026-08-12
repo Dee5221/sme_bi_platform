@@ -18,3 +18,9 @@ analyticsRouter.get(
   requirePermissions('analytics.view'),
   asyncHandler(analyticsController.getSalesAnalytics)
 );
+
+analyticsRouter.get(
+  '/inventory',
+  requirePermissions('analytics.view'),
+  asyncHandler(analyticsController.getInventoryAnalytics)
+);

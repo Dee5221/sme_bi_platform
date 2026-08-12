@@ -87,3 +87,62 @@ export type SalesAnalyticsData = {
 export function fetchSalesAnalytics(months = 6) {
   return apiRequest<{ analytics: SalesAnalyticsData }>(`/api/analytics/sales?months=${months}`);
 }
+
+export type InventoryAnalyticsData = {
+  period: { label: string; months: number; start: string; end: string };
+  summary: {
+    trackedProducts: number;
+    totalUnitsOnHand: number;
+    inventoryValue: number;
+    lowStockCount: number;
+    outOfStockCount: number;
+    healthyStockCount: number;
+    percentHealthy: number;
+    periodStockIn: number;
+    periodStockOut: number;
+    netMovement: number;
+  };
+  monthlyTrend: Array<{
+    key: string;
+    label: string;
+    stockIn: number;
+    stockOut: number;
+    netMovement: number;
+    stockInMovements: number;
+    stockOutMovements: number;
+  }>;
+  lowStockProducts: Array<{
+    inventoryId: string;
+    productId: string;
+    productName: string;
+    productSku: string;
+    quantity: number;
+    lowStockThreshold: number;
+  }>;
+  topStockInProducts: Array<{
+    productId: string;
+    productName: string;
+    productSku: string;
+    units: number;
+    movements: number;
+  }>;
+  topStockOutProducts: Array<{
+    productId: string;
+    productName: string;
+    productSku: string;
+    units: number;
+    movements: number;
+  }>;
+  movementBreakdown: {
+    stockInMovements: number;
+    stockOutMovements: number;
+    stockInUnits: number;
+    stockOutUnits: number;
+  };
+};
+
+export function fetchInventoryAnalytics(months = 6) {
+  return apiRequest<{ analytics: InventoryAnalyticsData }>(
+    `/api/analytics/inventory?months=${months}`
+  );
+}
