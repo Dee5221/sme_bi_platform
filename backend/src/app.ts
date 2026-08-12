@@ -14,6 +14,7 @@ import { forecastingRouter } from './routes/forecastingRoutes';
 import { inventoryRouter } from './routes/inventoryRoutes';
 import { productRouter } from './routes/productRoutes';
 import { profileRouter } from './routes/profileRoutes';
+import { recommendationsRouter } from './routes/recommendationsRoutes';
 import { saleRouter } from './routes/saleRoutes';
 import { supplierRouter } from './routes/supplierRoutes';
 import { sendSuccess } from './lib/apiResponse';
@@ -49,6 +50,7 @@ export function createApp() {
   app.use('/api/sales', saleRouter);
   app.use('/api/expenses', expenseRouter);
   app.use('/api/forecasting', forecastingRouter);
+  app.use('/api/recommendations', recommendationsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -13,6 +13,7 @@ import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { RecommendationsPage } from './pages/RecommendationsPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { SalesAnalyticsPage } from './pages/SalesAnalyticsPage';
 import { SalesPage } from './pages/SalesPage';
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="analytics/inventory" element={<InventoryAnalyticsPage />} />
           <Route path="analytics/customers" element={<CustomerAnalyticsPage />} />
           <Route path="forecasting" element={<ForecastingPage />} />
+          <Route path="recommendations" element={<RecommendationsPage />} />
           <Route path="sales" element={<SalesPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
           <Route path="products" element={<ProductsPage />} />

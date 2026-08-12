@@ -12,6 +12,7 @@ const navItems = [
   { to: '/app/analytics/inventory', label: 'Inventory Analytics', end: false, icon: '▤' },
   { to: '/app/analytics/customers', label: 'Customer Analytics', end: false, icon: '◉' },
   { to: '/app/forecasting', label: 'Forecasting', end: false, icon: '↗' },
+  { to: '/app/recommendations', label: 'Recommendations', end: false, icon: '✦' },
   { to: '/app/sales', label: 'Sales', end: false, icon: '$' },
   { to: '/app/expenses', label: 'Expenses', end: false, icon: '−' },
   { to: '/app/products', label: 'Products', end: false, icon: '▦' },
