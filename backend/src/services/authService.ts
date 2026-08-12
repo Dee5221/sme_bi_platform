@@ -1,8 +1,12 @@
 import {
   ADMINISTRATOR_PERMISSIONS,
   ALL_PERMISSIONS,
+  EXTERNAL_CUSTOMER_PERMISSIONS,
+  EXTERNAL_SUPPLIER_PERMISSIONS,
   OWNER_MANAGER_PERMISSIONS,
   ROLE_ADMINISTRATOR,
+  ROLE_EXTERNAL_CUSTOMER,
+  ROLE_EXTERNAL_SUPPLIER,
   ROLE_OWNER_MANAGER,
   ROLE_STAFF,
   STAFF_PERMISSIONS,
@@ -21,6 +25,9 @@ function sanitizeUser(user: {
   firstName: string;
   lastName: string;
   phone: string | null;
+  accountType: string | null;
+  customerId: string | null;
+  supplierId: string | null;
   isActive: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
@@ -43,6 +50,9 @@ function sanitizeUser(user: {
     firstName: user.firstName,
     lastName: user.lastName,
     phone: user.phone,
+    accountType: user.accountType,
+    customerId: user.customerId,
+    supplierId: user.supplierId,
     isActive: user.isActive,
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
@@ -177,7 +187,73 @@ export async function ensureSystemRoles() {
     });
   }
 
-  return { ownerRole, administratorRole, staffRole };
+  const externalCustomerRole = await prisma.role.upsert({
+    where: { name: ROLE_EXTERNAL_CUSTOMER },
+    update: {
+      description: 'External customer portal access for purchase visibility',
+    },
+    create: {
+      name: ROLE_EXTERNAL_CUSTOMER,
+      description: 'External customer portal access for purchase visibility',
+      isSystem: true,
+    },
+  });
+
+  for (const item of EXTERNAL_CUSTOMER_PERMISSIONS) {
+    const permission = permissionMap.get(item.key);
+    if (!permission) continue;
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: externalCustomerRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: externalCustomerRole.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
+  const externalSupplierRole = await prisma.role.upsert({
+    where: { name: ROLE_EXTERNAL_SUPPLIER },
+    update: {
+      description: 'External supplier portal access for supply records',
+    },
+    create: {
+      name: ROLE_EXTERNAL_SUPPLIER,
+      description: 'External supplier portal access for supply records',
+      isSystem: true,
+    },
+  });
+
+  for (const item of EXTERNAL_SUPPLIER_PERMISSIONS) {
+    const permission = permissionMap.get(item.key);
+    if (!permission) continue;
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: externalSupplierRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: externalSupplierRole.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
+  return {
+    ownerRole,
+    administratorRole,
+    staffRole,
+    externalCustomerRole,
+    externalSupplierRole,
+  };
 }
 
 export async function ensureOwnerManagerRole() {
@@ -193,6 +269,16 @@ export async function ensureAdministratorRole() {
 export async function ensureStaffRole() {
   const { staffRole } = await ensureSystemRoles();
   return staffRole;
+}
+
+export async function ensureExternalCustomerRole() {
+  const { externalCustomerRole } = await ensureSystemRoles();
+  return externalCustomerRole;
+}
+
+export async function ensureExternalSupplierRole() {
+  const { externalSupplierRole } = await ensureSystemRoles();
+  return externalSupplierRole;
 }
 
 export async function registerBusinessOwner(input: RegisterInput) {

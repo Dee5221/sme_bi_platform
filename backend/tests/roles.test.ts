@@ -100,7 +100,7 @@ describe('Roles API', () => {
     const response = await request(app).get('/api/roles').set('Cookie', cookie);
 
     expect(response.status).toBe(200);
-    expect(response.body.data.roles).toHaveLength(3);
+    expect(response.body.data.roles).toHaveLength(5);
     expect(response.body.data.permissions.length).toBeGreaterThan(20);
 
     const ownerRole = response.body.data.roles.find(

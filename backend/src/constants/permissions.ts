@@ -64,6 +64,27 @@ export const STAFF_PERMISSIONS = [
   { key: 'profile.update', description: 'Update own profile' },
 ] as const;
 
+export const EXTERNAL_CUSTOMER_PERMISSIONS = [
+  { key: 'dashboard.view', description: 'View portal dashboard' },
+  { key: 'profile.view', description: 'View own profile' },
+  { key: 'profile.update', description: 'Update own profile' },
+  { key: 'portal.purchases.view', description: 'View own purchases' },
+  { key: 'portal.purchases.history', description: 'View purchase history' },
+  { key: 'portal.settings.view', description: 'View portal settings' },
+  { key: 'portal.settings.update', description: 'Update portal settings' },
+] as const;
+
+export const EXTERNAL_SUPPLIER_PERMISSIONS = [
+  { key: 'dashboard.view', description: 'View portal dashboard' },
+  { key: 'profile.view', description: 'View own profile' },
+  { key: 'profile.update', description: 'Update own profile' },
+  { key: 'portal.products.view', description: 'View supplied products' },
+  { key: 'portal.records.view', description: 'View purchase records' },
+  { key: 'portal.history.view', description: 'View purchase history' },
+  { key: 'portal.settings.view', description: 'View portal settings' },
+  { key: 'portal.settings.update', description: 'Update portal settings' },
+] as const;
+
 function dedupePermissions(
   items: readonly { key: string; description: string }[]
 ) {
@@ -78,6 +99,8 @@ export const ALL_PERMISSIONS = dedupePermissions([
   ...OWNER_MANAGER_PERMISSIONS,
   ...ADMINISTRATOR_PERMISSIONS,
   ...STAFF_PERMISSIONS,
+  ...EXTERNAL_CUSTOMER_PERMISSIONS,
+  ...EXTERNAL_SUPPLIER_PERMISSIONS,
 ]);
 
 export type PermissionKey = (typeof ALL_PERMISSIONS)[number]['key'];
@@ -85,3 +108,8 @@ export type PermissionKey = (typeof ALL_PERMISSIONS)[number]['key'];
 export const ROLE_OWNER_MANAGER = 'OWNER_MANAGER';
 export const ROLE_ADMINISTRATOR = 'ADMINISTRATOR';
 export const ROLE_STAFF = 'STAFF';
+export const ROLE_EXTERNAL_CUSTOMER = 'EXTERNAL_CUSTOMER';
+export const ROLE_EXTERNAL_SUPPLIER = 'EXTERNAL_SUPPLIER';
+
+export const ACCOUNT_TYPE_CUSTOMER = 'CUSTOMER';
+export const ACCOUNT_TYPE_SUPPLIER = 'SUPPLIER';
