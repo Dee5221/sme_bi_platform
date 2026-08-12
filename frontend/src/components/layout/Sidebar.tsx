@@ -15,6 +15,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { to: '/app', label: 'Dashboard', end: true, icon: '⌂', permission: 'dashboard.view' },
+  { to: '/app/users', label: 'Users', end: false, icon: '◌', permission: 'users.view' },
   {
     to: '/app/analytics/business',
     label: 'Business Analytics',

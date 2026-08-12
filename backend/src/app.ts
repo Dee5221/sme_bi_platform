@@ -19,6 +19,7 @@ import { recommendationsRouter } from './routes/recommendationsRoutes';
 import { reportsRouter } from './routes/reportsRoutes';
 import { saleRouter } from './routes/saleRoutes';
 import { supplierRouter } from './routes/supplierRoutes';
+import { userRouter } from './routes/userRoutes';
 import { sendSuccess } from './lib/apiResponse';
 
 export function createApp() {
@@ -50,6 +51,7 @@ export function createApp() {
   app.use('/api/inventory', inventoryRouter);
   app.use('/api/customers', customerRouter);
   app.use('/api/suppliers', supplierRouter);
+  app.use('/api/users', userRouter);
   app.use('/api/sales', saleRouter);
   app.use('/api/expenses', expenseRouter);
   app.use('/api/forecasting', forecastingRouter);
