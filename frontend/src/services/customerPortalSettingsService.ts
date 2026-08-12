@@ -1,9 +1,11 @@
 import { apiRequest } from '../lib/api';
+import type { PricingCurrency } from '../lib/money';
 
 export type CustomerPortalSettings = {
   business: {
     id: string;
     name: string;
+    usdToZmwRate: number;
   };
   customer: {
     id: string;
@@ -11,6 +13,7 @@ export type CustomerPortalSettings = {
     email: string | null;
     phone: string | null;
     address: string | null;
+    preferredCurrency: PricingCurrency;
     status: string;
     createdAt: string;
     updatedAt: string;
@@ -30,5 +33,12 @@ export function updateCustomerPortalSettings(payload: {
   return apiRequest<{ settings: CustomerPortalSettings }>('/api/portal/customer/settings', {
     method: 'PUT',
     body: JSON.stringify(payload),
+  });
+}
+
+export function updateCustomerPortalCurrency(preferredCurrency: PricingCurrency) {
+  return apiRequest<{ settings: CustomerPortalSettings }>('/api/portal/customer/currency', {
+    method: 'PUT',
+    body: JSON.stringify({ preferredCurrency }),
   });
 }

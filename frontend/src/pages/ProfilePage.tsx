@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
+import { ApiClientError, mediaUrl } from '../lib/api';
 import * as profileApi from '../services/profileService';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
@@ -58,6 +58,8 @@ export function ProfilePage() {
   const [passwordFieldErrors, setPasswordFieldErrors] = useState<Record<string, string>>({});
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
 
   const canView = hasPermission('profile.view');
   const canUpdate = hasPermission('profile.update');
@@ -146,6 +148,23 @@ export function ProfilePage() {
     }
   }
 
+  async function onAvatarSelected(file: File | null) {
+    if (!file || !canUpdate) return;
+    setAvatarError(null);
+    setUploadingAvatar(true);
+    try {
+      const result = await profileApi.uploadAvatar(file);
+      setUser(result.user);
+      pushToast('Profile photo updated.', 'success');
+    } catch (err) {
+      setAvatarError(
+        err instanceof ApiClientError ? err.message : 'Unable to upload profile photo.'
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -160,6 +179,9 @@ export function ProfilePage() {
 
   if (!user) return null;
 
+  const avatarSrc = mediaUrl(user.avatarUrl);
+  const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
+
   return (
     <div className="profile-page">
       <PageHeader
@@ -169,6 +191,37 @@ export function ProfilePage() {
 
       <div className="profile-grid">
         <Card title="Account summary">
+          <div className="profile-avatar-block">
+            <div className="profile-avatar" aria-hidden="true">
+              {avatarSrc ? (
+                <img src={avatarSrc} alt="" className="profile-avatar__image" />
+              ) : (
+                <span>{initials || 'U'}</span>
+              )}
+            </div>
+            <div className="profile-avatar__meta">
+              <strong>
+                {user.firstName} {user.lastName}
+              </strong>
+              <span>{user.email}</span>
+              {canUpdate ? (
+                <label className="profile-avatar__upload">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    disabled={uploadingAvatar}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null;
+                      event.target.value = '';
+                      void onAvatarSelected(file);
+                    }}
+                  />
+                  <span>{uploadingAvatar ? 'Uploading…' : 'Upload photo'}</span>
+                </label>
+              ) : null}
+              {avatarError ? <Alert tone="error">{avatarError}</Alert> : null}
+            </div>
+          </div>
           <dl className="profile-summary">
             <div>
               <dt>Business</dt>

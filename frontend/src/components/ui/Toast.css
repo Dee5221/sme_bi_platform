@@ -17,15 +17,15 @@
 }
 
 .ui-toast--success {
-  background: var(--success);
+  background: #0a7d70;
 }
 
 .ui-toast--error {
-  background: var(--danger);
+  background: #e53535;
 }
 
 .ui-toast--info {
-  background: var(--accent-blue);
+  background: #1e4c8a;
 }
 
 @keyframes toast-in {

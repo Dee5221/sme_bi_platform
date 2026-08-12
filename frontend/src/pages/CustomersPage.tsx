@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
+import { ApiClientError, mediaUrl } from '../lib/api';
 import * as customerApi from '../services/customerService';
 import type { Customer } from '../services/customerService';
 import { Alert } from '../components/ui/Alert';
@@ -41,6 +41,13 @@ function mapFieldErrors(details: unknown): Record<string, string> {
     if (item.path && item.message) next[item.path] = item.message;
   }
   return next;
+}
+
+function customerInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'C';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
 }
 
 export function CustomersPage() {
@@ -241,12 +248,24 @@ export function CustomersPage() {
                 {
                   key: 'name',
                   header: 'Customer',
-                  render: (row) => (
-                    <div>
-                      <strong>{row.name}</strong>
-                      {row.notes ? <div className="customers-muted">{row.notes}</div> : null}
-                    </div>
-                  ),
+                  render: (row) => {
+                    const photo = mediaUrl(row.avatarUrl);
+                    return (
+                      <div className="customers-name-cell">
+                        <div className="customers-avatar" aria-hidden="true">
+                          {photo ? (
+                            <img src={photo} alt="" className="customers-avatar__image" />
+                          ) : (
+                            <span>{customerInitials(row.name)}</span>
+                          )}
+                        </div>
+                        <div>
+                          <strong>{row.name}</strong>
+                          {row.notes ? <div className="customers-muted">{row.notes}</div> : null}
+                        </div>
+                      </div>
+                    );
+                  },
                 },
                 {
                   key: 'email',

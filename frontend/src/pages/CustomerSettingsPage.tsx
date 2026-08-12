@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
+import type { PricingCurrency } from '../lib/money';
 import * as settingsApi from '../services/customerPortalSettingsService';
 import type { CustomerPortalSettings } from '../services/customerPortalSettingsService';
 import { Alert } from '../components/ui/Alert';
@@ -38,6 +39,7 @@ export function CustomerSettingsPage() {
   const { pushToast } = useToast();
   const canView = hasPermission('portal.settings.view');
   const canUpdate = hasPermission('portal.settings.update');
+  const canUpdateCurrency = hasPermission('portal.currency.update');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -48,9 +50,12 @@ export function CustomerSettingsPage() {
     phone: '',
     address: '',
   });
+  const [preferredCurrency, setPreferredCurrency] = useState<PricingCurrency>('USD');
   const [formError, setFormError] = useState<string | null>(null);
+  const [currencyError, setCurrencyError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +75,9 @@ export function CustomerSettingsPage() {
           phone: result.settings.customer.phone || '',
           address: result.settings.customer.address || '',
         });
+        setPreferredCurrency(
+          result.settings.customer.preferredCurrency === 'ZMW' ? 'ZMW' : 'USD'
+        );
         setLoadError(null);
       } catch (err) {
         if (!active) return;
@@ -112,6 +120,27 @@ export function CustomerSettingsPage() {
     }
   }
 
+  async function onSaveCurrency(event: FormEvent) {
+    event.preventDefault();
+    if (!canUpdateCurrency) return;
+    setCurrencyError(null);
+    setSavingCurrency(true);
+    try {
+      const result = await settingsApi.updateCustomerPortalCurrency(preferredCurrency);
+      setSettings(result.settings);
+      setPreferredCurrency(
+        result.settings.customer.preferredCurrency === 'ZMW' ? 'ZMW' : 'USD'
+      );
+      pushToast('Pricing currency updated.', 'success');
+    } catch (err) {
+      setCurrencyError(
+        err instanceof ApiClientError ? err.message : 'Unable to update pricing currency.'
+      );
+    } finally {
+      setSavingCurrency(false);
+    }
+  }
+
   if (!canView) {
     return <Alert tone="error">You do not have permission to view portal settings.</Alert>;
   }
@@ -127,6 +156,8 @@ export function CustomerSettingsPage() {
   if (loadError || !settings) {
     return <Alert tone="error">{loadError || 'Portal settings unavailable.'}</Alert>;
   }
+
+  const rate = settings.business.usdToZmwRate || 18.5;
 
   return (
     <div className="business-settings-page">
@@ -159,6 +190,36 @@ export function CustomerSettingsPage() {
             Account login details are managed from Profile. Status changes are handled by the
             business.
           </p>
+        </Card>
+
+        <Card title="Pricing currency">
+          <form className="business-settings-form" onSubmit={onSaveCurrency} noValidate>
+            {currencyError ? <Alert tone="error">{currencyError}</Alert> : null}
+            <p className="business-settings-hint">
+              Amounts are stored in USD. Choose how purchase totals are shown to you. Current
+              business rate: <strong>K{rate.toFixed(2)} = $1</strong>.
+            </p>
+            <label className="business-settings-select">
+              <span>Display currency</span>
+              <select
+                value={preferredCurrency}
+                disabled={!canUpdateCurrency}
+                onChange={(e) =>
+                  setPreferredCurrency(e.target.value === 'ZMW' ? 'ZMW' : 'USD')
+                }
+              >
+                <option value="USD">US Dollar (USD)</option>
+                <option value="ZMW">Zambian Kwacha (ZMW)</option>
+              </select>
+            </label>
+            {canUpdateCurrency ? (
+              <Button type="submit" loading={savingCurrency}>
+                Save currency
+              </Button>
+            ) : (
+              <Alert tone="info">You can view the currency setting but cannot change it.</Alert>
+            )}
+          </form>
         </Card>
 
         <Card title="Contact details">

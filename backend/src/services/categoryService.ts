@@ -3,6 +3,54 @@ import { AppError } from '../lib/errors';
 import { prisma } from '../lib/prisma';
 import { CreateCategoryInput, UpdateCategoryInput } from '../validators/productValidators';
 
+export const DEFAULT_PRODUCT_CATEGORIES = [
+  { name: 'Grocery', description: 'Food staples, household groceries, and daily essentials.' },
+  { name: 'Technology', description: 'Phones, computers, accessories, and tech gadgets.' },
+  { name: 'Clothing', description: 'Apparel, fashion, and wearable accessories.' },
+  { name: 'Food & Beverages', description: 'Prepared foods, snacks, drinks, and catering items.' },
+  { name: 'Health & Beauty', description: 'Personal care, cosmetics, and wellness products.' },
+  { name: 'Home & Living', description: 'Furniture, decor, kitchenware, and home goods.' },
+  { name: 'Office Supplies', description: 'Stationery, printers, and workplace essentials.' },
+  { name: 'Electronics', description: 'TVs, appliances, audio equipment, and electronics.' },
+  { name: 'Hardware & Tools', description: 'Building materials, tools, and hardware supplies.' },
+  { name: 'Agriculture', description: 'Farm inputs, seeds, feed, and agri-equipment.' },
+  { name: 'Automotive', description: 'Vehicle parts, oils, and automotive accessories.' },
+  { name: 'Sports & Outdoors', description: 'Sporting goods, fitness, and outdoor gear.' },
+  { name: 'Baby & Kids', description: 'Baby care, toys, and children’s products.' },
+  { name: 'Services', description: 'Service-based offerings and non-stock items.' },
+  { name: 'Other', description: 'General products that do not fit other categories.' },
+] as const;
+
+export async function ensureDefaultProductCategories(businessId: string) {
+  const existing = await prisma.productCategory.findMany({
+    where: { businessId },
+    select: { name: true },
+  });
+  const existingNames = new Set(existing.map((item) => item.name.toLowerCase()));
+
+  const missing = DEFAULT_PRODUCT_CATEGORIES.filter(
+    (category) => !existingNames.has(category.name.toLowerCase())
+  );
+
+  if (missing.length === 0) {
+    return { created: 0, total: existing.length };
+  }
+
+  await prisma.productCategory.createMany({
+    data: missing.map((category) => ({
+      businessId,
+      name: category.name,
+      description: category.description,
+      isActive: true,
+    })),
+  });
+
+  return {
+    created: missing.length,
+    total: existing.length + missing.length,
+  };
+}
+
 function mapCategory(category: {
   id: string;
   businessId: string;

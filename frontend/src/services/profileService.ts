@@ -1,4 +1,4 @@
-import { apiRequest } from '../lib/api';
+﻿import { apiRequest, apiUpload } from '../lib/api';
 import type { AuthUser } from '../types/auth';
 
 export type UpdateProfilePayload = {
@@ -30,4 +30,10 @@ export function changePassword(payload: ChangePasswordPayload) {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+}
+
+export function uploadAvatar(file: File) {
+  const formData = new FormData();
+  formData.append('image', file);
+  return apiUpload<{ user: AuthUser }>('/api/profile/avatar', formData);
 }

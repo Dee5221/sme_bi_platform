@@ -144,8 +144,8 @@ describe('Supplier portal settings API', () => {
     expect(response.body.data.settings.supplier.notes).toBeUndefined();
   });
 
-  it('updates linked supplier contact settings', async () => {
-    const { supplierCookie, supplier } = await seedSupplierPortalSettingsWorkspace();
+  it('blocks external suppliers from updating linked supplier contact settings', async () => {
+    const { supplierCookie } = await seedSupplierPortalSettingsWorkspace();
 
     const response = await request(app)
       .put('/api/portal/supplier/settings')
@@ -157,29 +157,7 @@ describe('Supplier portal settings API', () => {
         address: 'Ndola',
       });
 
-    expect(response.status).toBe(200);
-    expect(response.body.data.settings.supplier.name).toBe('Sid Supplier');
-    expect(response.body.data.settings.supplier.email).toBe('sid.supplier@test.local');
-    expect(response.body.data.settings.supplier.phone).toBe('+260922000444');
-    expect(response.body.data.settings.supplier.address).toBe('Ndola');
-
-    const stored = await prisma.supplier.findUniqueOrThrow({ where: { id: supplier.id } });
-    expect(stored.name).toBe('Sid Supplier');
-    expect(stored.email).toBe('sid.supplier@test.local');
-  });
-
-  it('rejects duplicate supplier email within the business', async () => {
-    const { supplierCookie } = await seedSupplierPortalSettingsWorkspace();
-
-    const response = await request(app)
-      .put('/api/portal/supplier/settings')
-      .set('Cookie', supplierCookie)
-      .send({
-        name: 'Portal Supplier',
-        email: 'other-supplier@test.local',
-      });
-
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(403);
   });
 
   it('rejects customer accounts from supplier settings APIs', async () => {

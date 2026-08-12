@@ -11,20 +11,26 @@
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 0.85rem 0.75rem;
+  padding: 0.85rem 0.7rem;
   border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
 }
 
 .data-table th {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--text-secondary);
+  font-weight: 700;
 }
 
 .data-table td {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.data-table tbody tr:hover {
+  background: #f8fafc;
 }
 
 .data-table-empty {

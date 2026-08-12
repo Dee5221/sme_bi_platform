@@ -5,6 +5,7 @@ export type AuthUser = {
   firstName: string;
   lastName: string;
   phone: string | null;
+  avatarUrl: string | null;
   accountType: string | null;
   customerId: string | null;
   supplierId: string | null;

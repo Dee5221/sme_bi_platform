@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { mediaUrl } from '../../lib/api';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useToast } from '../ui/Toast';
 import './Sidebar.css';
@@ -183,6 +184,7 @@ export function Sidebar({ open, onClose }: Props) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const initials = `${user?.firstName?.[0] || ''}${user?.lastName?.[0] || ''}`.toUpperCase();
+  const avatarSrc = mediaUrl(user?.avatarUrl);
 
   const visibleNavItems = useMemo(
     () => navItems.filter((item) => hasPermission(item.permission)),
@@ -203,16 +205,49 @@ export function Sidebar({ open, onClose }: Props) {
   }
 
   return (
-    <>
+    <div className="sidebar-root">
       <div
         className={`sidebar-backdrop ${open ? 'is-open' : ''}`}
         onClick={onClose}
         aria-hidden={!open}
       />
-      <aside className={`sidebar ${open ? 'is-open' : ''}`}>
+      <div className={`sidebar-shell ${open ? 'is-open' : ''}`}>
+        <nav className="sidebar-rail" aria-label="Quick navigation">
+          {hasPermission('dashboard.view') ? (
+            <NavLink
+              to="/app"
+              end
+              className={({ isActive }) =>
+                `sidebar-rail__link ${isActive ? 'is-active' : ''}`
+              }
+              onClick={onClose}
+              aria-label="Dashboard"
+            >
+              ⌂
+            </NavLink>
+          ) : null}
+          {hasPermission('profile.view') ? (
+            <NavLink
+              to="/app/profile"
+              className={({ isActive }) =>
+                `sidebar-rail__link ${isActive ? 'is-active' : ''}`
+              }
+              onClick={onClose}
+              aria-label="Profile"
+            >
+              ☺
+            </NavLink>
+          ) : null}
+        </nav>
+
+        <aside className="sidebar">
         <div className="sidebar__profile">
           <div className="sidebar__avatar" aria-hidden="true">
-            {initials || 'U'}
+            {avatarSrc ? (
+              <img src={avatarSrc} alt="" className="sidebar__avatar-image" />
+            ) : (
+              initials || 'U'
+            )}
           </div>
           <div>
             <p className="sidebar__name">
@@ -250,6 +285,7 @@ export function Sidebar({ open, onClose }: Props) {
           </button>
         </div>
       </aside>
+      </div>
 
       <ConfirmDialog
         open={confirmLogout}
@@ -262,6 +298,6 @@ export function Sidebar({ open, onClose }: Props) {
       >
         You will need to sign in again to access your business workspace.
       </ConfirmDialog>
-    </>
+    </div>
   );
 }

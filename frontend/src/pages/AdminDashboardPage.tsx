@@ -100,14 +100,14 @@ export function AdminDashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader
-        title={`Welcome, ${user?.firstName || 'Administrator'}`}
-        subtitle={`${business.name} · system administration overview`}
-      />
+      <section className="dashboard-hero">
+        <PageHeader
+          title={`Welcome, ${user?.firstName || 'Administrator'}`}
+          subtitle={`${business.name} · system administration overview`}
+        />
 
-      <div className="dashboard-layout">
-        <div className="dashboard-main">
-          <section className="kpi-grid" aria-label="Administration indicators">
+        <div className="dashboard-hero__grid">
+          <section className="dashboard-hero__kpis" aria-label="Administration indicators">
             <article className="kpi-card kpi-card--blue">
               <p className="kpi-card__label">Active users</p>
               <h2>{kpis.activeUsers}</h2>
@@ -130,16 +130,60 @@ export function AdminDashboardPage() {
             </article>
           </section>
 
-          {visibleQuickLinks.length > 0 ? (
-            <section className="shortcut-grid" aria-label="Administration shortcuts">
-              {visibleQuickLinks.map((item) => (
-                <Link key={item.to} className="shortcut-card" to={item.to}>
-                  {item.label}
-                </Link>
-              ))}
-            </section>
-          ) : null}
+          <div className="dashboard-hero__panel">
+            <p className="dashboard-hero__panel-title">Business status</p>
+            <div className="health-block">
+              <div className="health-block__row">
+                <span>{business.name}</span>
+                <Badge tone={business.isActive ? 'green' : 'orange'}>
+                  {business.isActive ? 'Active' : 'Inactive'}
+                </Badge>
+              </div>
+              {business.email ? <p className="kpi-card__meta">{business.email}</p> : null}
+              {business.phone ? <p className="kpi-card__meta">{business.phone}</p> : null}
+              <p className="kpi-card__meta">Created {formatDate(business.createdAt)}</p>
+            </div>
+            {visibleQuickLinks.length > 0 ? (
+              <section className="shortcut-grid" aria-label="Administration shortcuts" style={{ marginTop: '1rem' }}>
+                {visibleQuickLinks.map((item) => (
+                  <Link key={item.to} className="shortcut-card" to={item.to}>
+                    {item.label}
+                  </Link>
+                ))}
+              </section>
+            ) : null}
+          </div>
 
+          <aside className="dashboard-side">
+            <Card title="Access overview">
+              <div className="chip-list">
+                <div className="stock-chip">
+                  <strong>{kpis.activeUsers + kpis.inactiveUsers} total users</strong>
+                  <span>
+                    {kpis.activeUsers} active · {kpis.inactiveUsers} inactive
+                  </span>
+                </div>
+                <div className="stock-chip">
+                  <strong>{kpis.rolesInUse} roles assigned</strong>
+                  <span>Across users in this business workspace</span>
+                </div>
+              </div>
+              {hasPermission('audit.view') ? (
+                <div className="side-link">
+                  <Link to="/app/activity-log">View full activity log →</Link>
+                </div>
+              ) : null}
+            </Card>
+          </aside>
+        </div>
+      </section>
+
+      <section className="dashboard-data">
+        <p className="dashboard-data__tagline">
+          Forecast your business growth and readily track here!!
+        </p>
+
+        <div className="dashboard-data__grid dashboard-data__full">
           <Card title="Recent activity">
             {recentActivity.length === 0 ? (
               <EmptyState
@@ -167,52 +211,14 @@ export function AdminDashboardPage() {
                 ))}
               </ul>
             )}
-          </Card>
-        </div>
-
-        <aside className="dashboard-side">
-          <Card title="Business status">
-            <div className="health-block">
-              <div className="health-block__row">
-                <span>{business.name}</span>
-                <Badge tone={business.isActive ? 'green' : 'orange'}>
-                  {business.isActive ? 'Active' : 'Inactive'}
-                </Badge>
-              </div>
-              {business.email ? <p className="kpi-card__meta">{business.email}</p> : null}
-              {business.phone ? <p className="kpi-card__meta">{business.phone}</p> : null}
-              <p className="kpi-card__meta">
-                Created {formatDate(business.createdAt)}
-              </p>
-            </div>
             {hasPermission('business.update') ? (
               <div className="side-link">
                 <Link to="/app/business-settings">Manage business settings →</Link>
               </div>
             ) : null}
           </Card>
-
-          <Card title="Access overview">
-            <div className="chip-list">
-              <div className="stock-chip">
-                <strong>{kpis.activeUsers + kpis.inactiveUsers} total users</strong>
-                <span>
-                  {kpis.activeUsers} active · {kpis.inactiveUsers} inactive
-                </span>
-              </div>
-              <div className="stock-chip">
-                <strong>{kpis.rolesInUse} roles assigned</strong>
-                <span>Across users in this business workspace</span>
-              </div>
-            </div>
-            {hasPermission('audit.view') ? (
-              <div className="side-link">
-                <Link to="/app/activity-log">View full activity log →</Link>
-              </div>
-            ) : null}
-          </Card>
-        </aside>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

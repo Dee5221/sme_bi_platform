@@ -6,6 +6,7 @@ export type BusinessSettings = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  usdToZmwRate: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -16,6 +17,7 @@ export type UpdateBusinessPayload = {
   email?: string;
   phone?: string;
   address?: string;
+  usdToZmwRate: number;
   isActive?: boolean;
 };
 

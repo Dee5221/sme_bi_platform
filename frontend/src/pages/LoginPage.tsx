@@ -12,8 +12,8 @@ export function LoginPage() {
   const { login } = useAuth();
   const { pushToast } = useToast();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('owner@demo-sme.local');
-  const [password, setPassword] = useState('OwnerDemo1');
+  const [email, setEmail] = useState('owner@amfinancial.local');
+  const [password, setPassword] = useState('OwnerPass1');
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -52,7 +52,7 @@ export function LoginPage() {
           <p className="auth-brand__eyebrow">SME Intelligence</p>
           <h1>Sign in to your business</h1>
           <p className="auth-brand__copy">
-            Secure access for owners and managers. Demo: owner@demo-sme.local / OwnerDemo1
+            Secure access for your business. Owner: owner@amfinancial.local / OwnerPass1
           </p>
         </div>
 

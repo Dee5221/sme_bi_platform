@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { sendSuccess } from '../lib/apiResponse';
+import { AppError } from '../lib/errors';
 import { getBusinessIdOrThrow } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types/auth';
 import * as profileService from '../services/profileService';
@@ -32,4 +33,13 @@ export async function changePassword(req: AuthenticatedRequest, res: Response): 
     req.body as ChangePasswordInput
   );
   sendSuccess(res, result, 200, 'Password updated.');
+}
+
+export async function updateAvatar(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const businessId = getBusinessIdOrThrow(req);
+  if (!req.file) {
+    throw new AppError(400, 'Please choose an image to upload.', 'FILE_REQUIRED');
+  }
+  const user = await profileService.updateAvatar(req.user!.id, businessId, req.file.filename);
+  sendSuccess(res, { user }, 200, 'Profile photo updated.');
 }

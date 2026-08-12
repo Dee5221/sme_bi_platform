@@ -25,6 +25,7 @@ function mapCustomer(customer: {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  portalUser?: { avatarUrl: string | null } | null;
 }) {
   return {
     id: customer.id,
@@ -35,10 +36,15 @@ function mapCustomer(customer: {
     address: customer.address,
     notes: customer.notes,
     status: customer.status,
+    avatarUrl: customer.portalUser?.avatarUrl ?? null,
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
   };
 }
+
+const customerInclude = {
+  portalUser: { select: { avatarUrl: true } },
+} as const;
 
 async function assertUniqueEmail(
   businessId: string,
@@ -86,6 +92,7 @@ export async function listCustomers(businessId: string, query: CustomerListQuery
     prisma.customer.count({ where }),
     prisma.customer.findMany({
       where,
+      include: customerInclude,
       orderBy: [{ updatedAt: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -106,6 +113,7 @@ export async function listCustomers(businessId: string, query: CustomerListQuery
 export async function getCustomer(businessId: string, customerId: string) {
   const customer = await prisma.customer.findFirst({
     where: { id: customerId, businessId },
+    include: customerInclude,
   });
   if (!customer) {
     throw new AppError(404, 'Customer not found.', 'NOT_FOUND');
@@ -131,6 +139,7 @@ export async function createCustomer(
       notes: input.notes ?? null,
       status: 'ACTIVE',
     },
+    include: customerInclude,
   });
 
   await writeAuditLog({
@@ -170,6 +179,7 @@ export async function updateCustomer(
       notes: input.notes ?? null,
       ...(input.status ? { status: input.status } : {}),
     },
+    include: customerInclude,
   });
 
   await writeAuditLog({
@@ -198,6 +208,7 @@ export async function deactivateCustomer(
   const customer = await prisma.customer.update({
     where: { id: customerId },
     data: { status: 'INACTIVE' },
+    include: customerInclude,
   });
 
   await writeAuditLog({

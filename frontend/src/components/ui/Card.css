@@ -1,8 +1,9 @@
 .ui-card {
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
 }
 
 .ui-card__header {
@@ -15,9 +16,13 @@
 
 .ui-card__header h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
 }
 
 .ui-card__body {
-  padding: 1.25rem;
+  padding: 0.85rem 1.25rem 1.25rem;
 }

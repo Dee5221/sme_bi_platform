@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+﻿const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export type ApiErrorBody = {
   success: false;
@@ -28,6 +28,20 @@ export class ApiClientError extends Error {
   }
 }
 
+function parsePayload<T>(payload: ApiSuccessBody<T> | ApiErrorBody | null, response: Response): T {
+  if (!response.ok || !payload || payload.success === false) {
+    const message =
+      payload && 'error' in payload
+        ? payload.error.message
+        : 'Something went wrong. Please try again.';
+    const code = payload && 'error' in payload ? payload.error.code : 'REQUEST_FAILED';
+    const details = payload && 'error' in payload ? payload.error.details : undefined;
+    throw new ApiClientError(response.status, message, code, details);
+  }
+
+  return payload.data;
+}
+
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {}
@@ -50,15 +64,28 @@ export async function apiRequest<T>(
     payload = null;
   }
 
-  if (!response.ok || !payload || payload.success === false) {
-    const message =
-      payload && 'error' in payload
-        ? payload.error.message
-        : 'Something went wrong. Please try again.';
-    const code = payload && 'error' in payload ? payload.error.code : 'REQUEST_FAILED';
-    const details = payload && 'error' in payload ? payload.error.details : undefined;
-    throw new ApiClientError(response.status, message, code, details);
+  return parsePayload(payload, response);
+}
+
+export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  let payload: ApiSuccessBody<T> | ApiErrorBody | null = null;
+  try {
+    payload = (await response.json()) as ApiSuccessBody<T> | ApiErrorBody;
+  } catch {
+    payload = null;
   }
 
-  return payload.data;
+  return parsePayload(payload, response);
+}
+
+export function mediaUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
 }

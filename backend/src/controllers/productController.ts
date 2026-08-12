@@ -70,3 +70,20 @@ export async function deactivateProduct(
   );
   sendSuccess(res, { product }, 200, 'Product deactivated.');
 }
+
+export async function updateProductImage(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  const businessId = getBusinessIdOrThrow(req);
+  if (!req.file) {
+    throw new AppError(400, 'Please choose an image to upload.', 'FILE_REQUIRED');
+  }
+  const product = await productService.updateProductImage(
+    businessId,
+    req.user!.id,
+    req.params.id as string,
+    req.file.filename
+  );
+  sendSuccess(res, { product }, 200, 'Product image updated.');
+}

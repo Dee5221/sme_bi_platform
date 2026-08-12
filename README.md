@@ -24,10 +24,20 @@ npm run dev
 
 API: http://localhost:4000
 
-Demo owner:
+### Seed data — AM Financial Solutions
 
-- Email: `owner@demo-sme.local`
-- Password: `OwnerDemo1`
+Running `npm run prisma:seed` clears all businesses and users, then creates one test company with the accounts below.
+
+| Role | Email | Password |
+|------|-------|----------|
+| Owner / Manager | `owner@amfinancial.local` | `OwnerPass1` |
+| Administrator | `admin@amfinancial.local` | `AdminPass1` |
+| Staff | `staff@amfinancial.local` | `StaffPass1` |
+| External Customer | `customer@amfinancial.local` | `CustomerPass1` |
+| External Supplier | `supplier@amfinancial.local` | `SupplierPass1` |
+
+Customer records (no login): Grace Mwamba, John Banda, Mary Phiri.  
+Supplier record: Capital Supplies Ltd. Portal customer/supplier logins are linked to Grace Mwamba and Capital Supplies Ltd.
 
 ### Frontend
 

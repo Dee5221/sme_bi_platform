@@ -1,4 +1,4 @@
-import cookieParser from 'cookie-parser';
+﻿import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
@@ -26,12 +26,18 @@ import { staffRouter } from './routes/staffRoutes';
 import { supplierRouter } from './routes/supplierRoutes';
 import { userRouter } from './routes/userRoutes';
 import { sendSuccess } from './lib/apiResponse';
+import { UPLOADS_ROOT, ensureUploadDir } from './lib/uploads';
 
 export function createApp() {
   const app = express();
+  ensureUploadDir();
 
   app.set('trust proxy', 1);
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
   app.use(
     cors({
       origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
@@ -41,6 +47,7 @@ export function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.use(morgan(process.env.NODE_ENV === 'test' ? 'tiny' : 'dev'));
+  app.use('/uploads', express.static(UPLOADS_ROOT));
 
   app.get('/api/health', (_req, res) => {
     sendSuccess(res, { status: 'ok' });

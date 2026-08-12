@@ -19,6 +19,7 @@ type BusinessForm = {
   email: string;
   phone: string;
   address: string;
+  usdToZmwRate: string;
 };
 
 function mapFieldErrors(details: unknown): Record<string, string> {
@@ -48,6 +49,7 @@ export function BusinessSettingsPage() {
     email: '',
     phone: '',
     address: '',
+    usdToZmwRate: '18.5',
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -70,6 +72,7 @@ export function BusinessSettingsPage() {
           email: result.business.email || '',
           phone: result.business.phone || '',
           address: result.business.address || '',
+          usdToZmwRate: String(result.business.usdToZmwRate ?? 18.5),
         });
         setLoadError(null);
       } catch (err) {
@@ -93,11 +96,18 @@ export function BusinessSettingsPage() {
     setFieldErrors({});
     setSaving(true);
     try {
+      const rate = Number(form.usdToZmwRate);
+      if (!Number.isFinite(rate) || rate <= 0) {
+        setFieldErrors({ usdToZmwRate: 'Enter a valid exchange rate greater than zero.' });
+        setSaving(false);
+        return;
+      }
       const result = await businessApi.updateBusiness({
         name: form.name,
         email: form.email || undefined,
         phone: form.phone || undefined,
         address: form.address || undefined,
+        usdToZmwRate: rate,
       });
       setBusiness(result.business);
       const session = await authApi.fetchMe();
@@ -201,6 +211,21 @@ export function BusinessSettingsPage() {
               onChange={(e) => setForm((current) => ({ ...current, address: e.target.value }))}
               error={fieldErrors.address}
               disabled={!canUpdate}
+            />
+            <Input
+              label="USD to Kwacha rate (ZMW per 1 USD)"
+              name="usdToZmwRate"
+              type="number"
+              min="0.0001"
+              step="0.01"
+              value={form.usdToZmwRate}
+              onChange={(e) =>
+                setForm((current) => ({ ...current, usdToZmwRate: e.target.value }))
+              }
+              error={fieldErrors.usdToZmwRate}
+              disabled={!canUpdate}
+              hint="Customers can switch display currency using this rate. Example: 18.5 means K18.50 = $1."
+              required
             />
             {canUpdate ? (
               <Button type="submit" loading={saving}>

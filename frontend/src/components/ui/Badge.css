@@ -2,32 +2,42 @@
   display: inline-flex;
   align-items: center;
   border-radius: var(--radius-pill);
-  padding: 0.2rem 0.65rem;
+  padding: 0.25rem 0.7rem;
   font-size: 0.75rem;
   font-weight: 700;
 }
 
 .ui-badge--neutral {
-  background: #e8eef8;
-  color: #4b5b76;
+  background: var(--bg-muted);
+  color: var(--text-secondary);
 }
 
 .ui-badge--blue {
-  background: #dcecff;
-  color: #245ea8;
+  background: rgba(51, 121, 240, 0.14);
+  color: #1e4c8a;
 }
 
 .ui-badge--green {
-  background: #d9f5e6;
-  color: #1f7a4d;
+  background: rgba(18, 178, 160, 0.14);
+  color: #0a7d70;
 }
 
 .ui-badge--orange {
-  background: #ffe8cc;
-  color: #9a5b10;
+  background: rgba(235, 142, 9, 0.14);
+  color: #b45309;
 }
 
 .ui-badge--red {
-  background: #ffdcdc;
-  color: #a13232;
+  background: rgba(229, 53, 53, 0.14);
+  color: #b91c1c;
+}
+
+.dashboard-hero .ui-badge--green {
+  background: rgba(18, 178, 160, 0.28);
+  color: #ecfeff;
+}
+
+.dashboard-hero .ui-badge--orange {
+  background: rgba(235, 142, 9, 0.3);
+  color: #fff7ed;
 }

@@ -143,11 +143,28 @@ describe('Customer portal settings API', () => {
     expect(response.body.data.settings.customer.email).toBe('portal-customer@test.local');
     expect(response.body.data.settings.customer.phone).toBe('+260911000001');
     expect(response.body.data.settings.customer.status).toBe('ACTIVE');
+    expect(response.body.data.settings.customer.preferredCurrency).toBe('USD');
+    expect(response.body.data.settings.business.usdToZmwRate).toBe(18.5);
     expect(response.body.data.settings.customer.notes).toBeUndefined();
   });
 
-  it('updates linked customer contact settings', async () => {
+  it('allows external customers to update preferred pricing currency', async () => {
     const { customerCookie, customer } = await seedPortalSettingsWorkspace();
+
+    const response = await request(app)
+      .put('/api/portal/customer/currency')
+      .set('Cookie', customerCookie)
+      .send({ preferredCurrency: 'ZMW' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.settings.customer.preferredCurrency).toBe('ZMW');
+
+    const stored = await prisma.customer.findUnique({ where: { id: customer.id } });
+    expect(stored?.preferredCurrency).toBe('ZMW');
+  });
+
+  it('blocks external customers from updating linked customer contact settings', async () => {
+    const { customerCookie } = await seedPortalSettingsWorkspace();
 
     const response = await request(app)
       .put('/api/portal/customer/settings')
@@ -159,29 +176,7 @@ describe('Customer portal settings API', () => {
         address: 'Ndola',
       });
 
-    expect(response.status).toBe(200);
-    expect(response.body.data.settings.customer.name).toBe('Casey Customer');
-    expect(response.body.data.settings.customer.email).toBe('casey.customer@test.local');
-    expect(response.body.data.settings.customer.phone).toBe('+260911000444');
-    expect(response.body.data.settings.customer.address).toBe('Ndola');
-
-    const stored = await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } });
-    expect(stored.name).toBe('Casey Customer');
-    expect(stored.email).toBe('casey.customer@test.local');
-  });
-
-  it('rejects duplicate customer email within the business', async () => {
-    const { customerCookie } = await seedPortalSettingsWorkspace();
-
-    const response = await request(app)
-      .put('/api/portal/customer/settings')
-      .set('Cookie', customerCookie)
-      .send({
-        name: 'Portal Customer',
-        email: 'other-customer@test.local',
-      });
-
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(403);
   });
 
   it('rejects supplier accounts from customer settings APIs', async () => {

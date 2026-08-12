@@ -17,6 +17,7 @@ import { signAuthToken } from '../lib/jwt';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { prisma } from '../lib/prisma';
 import { LoginInput, RegisterInput } from '../validators/authValidators';
+import { ensureDefaultProductCategories } from './categoryService';
 
 function sanitizeUser(user: {
   id: string;
@@ -25,6 +26,7 @@ function sanitizeUser(user: {
   firstName: string;
   lastName: string;
   phone: string | null;
+  avatarUrl: string | null;
   accountType: string | null;
   customerId: string | null;
   supplierId: string | null;
@@ -50,6 +52,7 @@ function sanitizeUser(user: {
     firstName: user.firstName,
     lastName: user.lastName,
     phone: user.phone,
+    avatarUrl: user.avatarUrl,
     accountType: user.accountType,
     customerId: user.customerId,
     supplierId: user.supplierId,
@@ -84,6 +87,43 @@ async function loadAuthUser(userId: string) {
   });
 }
 
+async function syncRolePermissions(
+  roleId: string,
+  permissionKeys: readonly string[],
+  permissionMap: Map<string, { id: string }>
+) {
+  const permissionIds = permissionKeys
+    .map((key) => permissionMap.get(key)?.id)
+    .filter((id): id is string => Boolean(id));
+
+  if (permissionIds.length > 0) {
+    await prisma.rolePermission.deleteMany({
+      where: {
+        roleId,
+        permissionId: { notIn: permissionIds },
+      },
+    });
+  }
+
+  for (const key of permissionKeys) {
+    const permission = permissionMap.get(key);
+    if (!permission) continue;
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId,
+        permissionId: permission.id,
+      },
+    });
+  }
+}
+
 export async function ensureSystemRoles() {
   const permissions = [];
   for (const item of ALL_PERMISSIONS) {
@@ -109,23 +149,11 @@ export async function ensureSystemRoles() {
     },
   });
 
-  for (const item of OWNER_MANAGER_PERMISSIONS) {
-    const permission = permissionMap.get(item.key);
-    if (!permission) continue;
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: ownerRole.id,
-          permissionId: permission.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: ownerRole.id,
-        permissionId: permission.id,
-      },
-    });
-  }
+  await syncRolePermissions(
+    ownerRole.id,
+    OWNER_MANAGER_PERMISSIONS.map((item) => item.key),
+    permissionMap
+  );
 
   const administratorRole = await prisma.role.upsert({
     where: { name: ROLE_ADMINISTRATOR },
@@ -139,23 +167,11 @@ export async function ensureSystemRoles() {
     },
   });
 
-  for (const item of ADMINISTRATOR_PERMISSIONS) {
-    const permission = permissionMap.get(item.key);
-    if (!permission) continue;
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: administratorRole.id,
-          permissionId: permission.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: administratorRole.id,
-        permissionId: permission.id,
-      },
-    });
-  }
+  await syncRolePermissions(
+    administratorRole.id,
+    ADMINISTRATOR_PERMISSIONS.map((item) => item.key),
+    permissionMap
+  );
 
   const staffRole = await prisma.role.upsert({
     where: { name: ROLE_STAFF },
@@ -169,23 +185,11 @@ export async function ensureSystemRoles() {
     },
   });
 
-  for (const item of STAFF_PERMISSIONS) {
-    const permission = permissionMap.get(item.key);
-    if (!permission) continue;
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: staffRole.id,
-          permissionId: permission.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: staffRole.id,
-        permissionId: permission.id,
-      },
-    });
-  }
+  await syncRolePermissions(
+    staffRole.id,
+    STAFF_PERMISSIONS.map((item) => item.key),
+    permissionMap
+  );
 
   const externalCustomerRole = await prisma.role.upsert({
     where: { name: ROLE_EXTERNAL_CUSTOMER },
@@ -199,23 +203,11 @@ export async function ensureSystemRoles() {
     },
   });
 
-  for (const item of EXTERNAL_CUSTOMER_PERMISSIONS) {
-    const permission = permissionMap.get(item.key);
-    if (!permission) continue;
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: externalCustomerRole.id,
-          permissionId: permission.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: externalCustomerRole.id,
-        permissionId: permission.id,
-      },
-    });
-  }
+  await syncRolePermissions(
+    externalCustomerRole.id,
+    EXTERNAL_CUSTOMER_PERMISSIONS.map((item) => item.key),
+    permissionMap
+  );
 
   const externalSupplierRole = await prisma.role.upsert({
     where: { name: ROLE_EXTERNAL_SUPPLIER },
@@ -229,23 +221,11 @@ export async function ensureSystemRoles() {
     },
   });
 
-  for (const item of EXTERNAL_SUPPLIER_PERMISSIONS) {
-    const permission = permissionMap.get(item.key);
-    if (!permission) continue;
-    await prisma.rolePermission.upsert({
-      where: {
-        roleId_permissionId: {
-          roleId: externalSupplierRole.id,
-          permissionId: permission.id,
-        },
-      },
-      update: {},
-      create: {
-        roleId: externalSupplierRole.id,
-        permissionId: permission.id,
-      },
-    });
-  }
+  await syncRolePermissions(
+    externalSupplierRole.id,
+    EXTERNAL_SUPPLIER_PERMISSIONS.map((item) => item.key),
+    permissionMap
+  );
 
   return {
     ownerRole,
@@ -332,6 +312,8 @@ export async function registerBusinessOwner(input: RegisterInput) {
 
     return { business, user };
   });
+
+  await ensureDefaultProductCategories(result.business.id);
 
   await writeAuditLog({
     businessId: result.business.id,

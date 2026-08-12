@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCustomerCurrency } from '../hooks/useCustomerCurrency';
 import { ApiClientError } from '../lib/api';
+import { formatMoney as formatMoneyValue } from '../lib/money';
 import * as customerPortalDashboardApi from '../services/customerPortalDashboardService';
 import type { CustomerPortalDashboardData } from '../services/customerPortalDashboardService';
 import { Alert } from '../components/ui/Alert';
@@ -11,20 +13,18 @@ import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { PageHeader } from '../components/ui/PageHeader';
 import './DashboardPage.css';
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
 
 export function CustomerDashboardPage() {
   const { user, hasPermission } = useAuth();
+  const {
+    preferredCurrency,
+    usdToZmwRate,
+  } = useCustomerCurrency();
+  const formatMoney = (value: number) =>
+    formatMoneyValue(value, { currency: preferredCurrency, usdToZmwRate });
   const canView =
     hasPermission('dashboard.view') && hasPermission('portal.purchases.view');
   const [loading, setLoading] = useState(true);
@@ -82,14 +82,14 @@ export function CustomerDashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader
-        title={`Welcome, ${user?.firstName || customer.name}`}
-        subtitle={`${business.name} · your purchase overview`}
-      />
+      <section className="dashboard-hero">
+        <PageHeader
+          title={`Welcome, ${user?.firstName || customer.name}`}
+          subtitle={`${business.name} · your purchase overview`}
+        />
 
-      <div className="dashboard-layout">
-        <div className="dashboard-main">
-          <section className="kpi-grid" aria-label="Purchase indicators">
+        <div className="dashboard-hero__grid">
+          <section className="dashboard-hero__kpis" aria-label="Purchase indicators">
             <article className="kpi-card kpi-card--blue">
               <p className="kpi-card__label">Total spent</p>
               <h2>{formatMoney(kpis.lifetimeSpent)}</h2>
@@ -118,6 +118,43 @@ export function CustomerDashboardPage() {
             </article>
           </section>
 
+          <div className="dashboard-hero__panel">
+            <p className="dashboard-hero__panel-title">Your account</p>
+            <div className="health-block">
+              <div className="health-block__row">
+                <span>{customer.name}</span>
+              </div>
+              {customer.email ? <p className="kpi-card__meta">{customer.email}</p> : null}
+            </div>
+          </div>
+
+          <aside className="dashboard-side">
+            <Card title="Portal shortcuts">
+              <div className="chip-list">
+                <Link to="/app/portal/purchases" className="stock-chip">
+                  <strong>My purchases</strong>
+                  <span>View completed orders on your account</span>
+                </Link>
+                <Link to="/app/profile" className="stock-chip">
+                  <strong>Profile</strong>
+                  <span>Update your account details</span>
+                </Link>
+                <Link to="/app/portal/settings" className="stock-chip">
+                  <strong>Settings</strong>
+                  <span>Manage contact details on file</span>
+                </Link>
+              </div>
+            </Card>
+          </aside>
+        </div>
+      </section>
+
+      <section className="dashboard-data">
+        <p className="dashboard-data__tagline">
+          Forecast your business growth and readily track here!!
+        </p>
+
+        <div className="dashboard-data__grid dashboard-data__full">
           <Card title="Recent purchases">
             {recentPurchases.length === 0 ? (
               <EmptyState
@@ -125,63 +162,39 @@ export function CustomerDashboardPage() {
                 description="When this business records a sale for your customer account, it will appear here."
               />
             ) : (
-              <ul className="recent-list">
-                {recentPurchases.map((purchase) => (
-                  <li key={purchase.id} className="recent-list__item">
-                    <div className="recent-list__icon" aria-hidden="true">
-                      $
-                    </div>
-                    <div className="recent-list__body">
-                      <strong>{purchase.saleNumber}</strong>
-                      <span>
-                        {purchase.items.map((item) => item.productName).join(', ') || 'Items'} ·{' '}
-                        {purchase.itemCount} item
-                        {purchase.itemCount === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    <div className="recent-list__meta">
-                      <strong>{formatMoney(purchase.total)}</strong>
-                      <span>{formatDate(purchase.soldAt)}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="recent-list">
+                  {recentPurchases.map((purchase) => (
+                    <li key={purchase.id} className="recent-list__item">
+                      <div className="recent-list__icon" aria-hidden="true">
+                        $
+                      </div>
+                      <div className="recent-list__body">
+                        <strong>{purchase.saleNumber}</strong>
+                        <span>
+                          {purchase.items.map((item) => item.productName).join(', ') || 'Items'} ·{' '}
+                          {purchase.itemCount} item
+                          {purchase.itemCount === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div className="recent-list__meta">
+                        <strong>{formatMoney(purchase.total)}</strong>
+                        <span>{formatDate(purchase.soldAt)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="table-total">
+                  <span>Total</span>
+                  <span className="table-total__value">
+                    {formatMoney(recentPurchases.reduce((sum, purchase) => sum + purchase.total, 0))}
+                  </span>
+                </div>
+              </>
             )}
           </Card>
         </div>
-
-        <aside className="dashboard-side">
-          <Card title="Your account">
-            <div className="health-block">
-              <div className="health-block__row">
-                <span>{customer.name}</span>
-              </div>
-              {customer.email ? (
-                <p className="kpi-card__meta" style={{ color: 'var(--text-muted)', margin: 0 }}>
-                  {customer.email}
-                </p>
-              ) : null}
-            </div>
-          </Card>
-
-          <Card title="Portal shortcuts">
-            <div className="chip-list">
-              <Link to="/app/portal/purchases" className="stock-chip">
-                <strong>My purchases</strong>
-                <span>View completed orders on your account</span>
-              </Link>
-              <Link to="/app/profile" className="stock-chip">
-                <strong>Profile</strong>
-                <span>Update your account details</span>
-              </Link>
-              <Link to="/app/portal/settings" className="stock-chip">
-                <strong>Settings</strong>
-                <span>Manage contact details on file</span>
-              </Link>
-            </div>
-          </Card>
-        </aside>
-      </div>
+      </section>
     </div>
   );
 }

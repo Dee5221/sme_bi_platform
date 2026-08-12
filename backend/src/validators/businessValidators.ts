@@ -23,6 +23,11 @@ export const updateBusinessSchema = z.object({
     .or(z.literal('').transform(() => undefined)),
   phone: optionalText(40),
   address: optionalText(255),
+  usdToZmwRate: z
+    .number()
+    .finite('Enter a valid exchange rate.')
+    .gt(0, 'Exchange rate must be greater than zero.')
+    .max(100000, 'Exchange rate is too large.'),
   isActive: z.boolean().optional(),
 });
 

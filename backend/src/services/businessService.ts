@@ -9,6 +9,7 @@ function mapBusiness(business: {
   email: string | null;
   phone: string | null;
   address: string | null;
+  usdToZmwRate: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -19,6 +20,7 @@ function mapBusiness(business: {
     email: business.email,
     phone: business.phone,
     address: business.address,
+    usdToZmwRate: business.usdToZmwRate,
     isActive: business.isActive,
     createdAt: business.createdAt,
     updatedAt: business.updatedAt,
@@ -76,6 +78,7 @@ export async function updateBusiness(
       email: nextEmail,
       phone: input.phone ?? null,
       address: input.address ?? null,
+      usdToZmwRate: input.usdToZmwRate,
       ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     },
   });
@@ -87,7 +90,7 @@ export async function updateBusiness(
     entity: 'Business',
     entityId: businessId,
     metadata: {
-      fields: ['name', 'email', 'phone', 'address', 'isActive'],
+      fields: ['name', 'email', 'phone', 'address', 'usdToZmwRate', 'isActive'],
     },
   });
 

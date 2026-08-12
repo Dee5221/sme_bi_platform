@@ -5,28 +5,31 @@
   gap: 0.5rem;
   border: none;
   border-radius: var(--radius-md);
-  padding: 0.75rem 1.15rem;
+  padding: 0.72rem 1.15rem;
   font-weight: 700;
-  transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+  font-size: 0.88rem;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .ui-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .ui-btn:not(:disabled):hover {
+  opacity: 0.92;
   transform: translateY(-1px);
 }
 
 .ui-btn--primary {
-  background: var(--accent-blue);
-  color: #fff;
+  background: #1e4c8a;
+  color: #ffffff;
 }
 
 .ui-btn--secondary {
-  background: var(--bg-muted);
+  background: #ffffff;
   color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
 }
 
 .ui-btn--ghost {
@@ -35,6 +38,6 @@
 }
 
 .ui-btn--danger {
-  background: var(--danger);
-  color: #fff;
+  background: var(--accent-red);
+  color: #ffffff;
 }

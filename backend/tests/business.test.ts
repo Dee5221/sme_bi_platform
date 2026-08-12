@@ -36,6 +36,7 @@ async function seedAdminSession() {
       email: 'settings-biz@test.local',
       phone: '+260900000000',
       address: 'Lusaka',
+      usdToZmwRate: 18.5,
     },
   });
 
@@ -96,6 +97,7 @@ describe('Business settings API', () => {
     expect(response.body.data.business.id).toBe(business.id);
     expect(response.body.data.business.name).toBe('Settings Test Biz');
     expect(response.body.data.business.email).toBe('settings-biz@test.local');
+    expect(response.body.data.business.usdToZmwRate).toBe(18.5);
   });
 
   it('updates business settings and writes an audit log', async () => {
@@ -109,11 +111,13 @@ describe('Business settings API', () => {
         email: 'updated-settings@test.local',
         phone: '+260911111111',
         address: 'Kitwe',
+        usdToZmwRate: 19.25,
       });
 
     expect(response.status).toBe(200);
     expect(response.body.data.business.name).toBe('Updated Settings Biz');
     expect(response.body.data.business.phone).toBe('+260911111111');
+    expect(response.body.data.business.usdToZmwRate).toBe(19.25);
 
     const audit = await prisma.auditLog.findFirst({
       where: {
@@ -140,6 +144,7 @@ describe('Business settings API', () => {
       .send({
         name: 'Settings Test Biz',
         email: 'taken-settings@test.local',
+        usdToZmwRate: 18.5,
       });
 
     expect(response.status).toBe(409);
@@ -154,13 +159,14 @@ describe('Business settings API', () => {
       .send({
         name: 'Settings Test Biz',
         email: 'settings-biz@test.local',
+        usdToZmwRate: 18.5,
         isActive: false,
       });
 
     expect(response.status).toBe(400);
   });
 
-  it('allows owners to view but not update business settings', async () => {
+  it('allows owners to update the USD to Kwacha rate', async () => {
     await seedAdminSession();
     const ownerLogin = await request(app).post('/api/auth/login').send({
       email: 'owner-settings@test.local',
@@ -174,8 +180,13 @@ describe('Business settings API', () => {
     const update = await request(app)
       .put('/api/business')
       .set('Cookie', cookie)
-      .send({ name: 'Owner Cannot Update' });
-    expect(update.status).toBe(403);
+      .send({
+        name: 'Settings Test Biz',
+        email: 'settings-biz@test.local',
+        usdToZmwRate: 20,
+      });
+    expect(update.status).toBe(200);
+    expect(update.body.data.business.usdToZmwRate).toBe(20);
   });
 
   it('isolates business settings by tenant', async () => {

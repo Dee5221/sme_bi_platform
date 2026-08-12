@@ -2,6 +2,7 @@ import { writeAuditLog } from '../lib/audit';
 import { AppError } from '../lib/errors';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { prisma } from '../lib/prisma';
+import { deleteUploadIfExists, toPublicUploadPath } from '../lib/uploads';
 import { getCurrentUser } from './authService';
 import { ChangePasswordInput, UpdateProfileInput } from '../validators/profileValidators';
 
@@ -64,6 +65,42 @@ export async function updateProfile(
     metadata: {
       fields: ['firstName', 'lastName', 'email', 'phone'],
     },
+  });
+
+  return getCurrentUser(userId);
+}
+
+export async function updateAvatar(
+  userId: string,
+  businessId: string,
+  filename: string
+) {
+  const existing = await prisma.user.findFirst({
+    where: { id: userId, businessId, isActive: true },
+  });
+
+  if (!existing) {
+    throw new AppError(404, 'Profile not found.', 'NOT_FOUND');
+  }
+
+  const avatarUrl = toPublicUploadPath('avatars', businessId, filename);
+  const previousUrl = existing.avatarUrl;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { avatarUrl },
+  });
+
+  if (previousUrl && previousUrl !== avatarUrl) {
+    deleteUploadIfExists(previousUrl);
+  }
+
+  await writeAuditLog({
+    businessId,
+    actorId: userId,
+    action: 'profile.avatar_updated',
+    entity: 'User',
+    entityId: userId,
   });
 
   return getCurrentUser(userId);

@@ -1,7 +1,10 @@
 import { writeAuditLog } from '../lib/audit';
 import { AppError } from '../lib/errors';
 import { prisma } from '../lib/prisma';
-import { UpdateCustomerPortalSettingsInput } from '../validators/customerPortalValidators';
+import {
+  UpdateCustomerPortalCurrencyInput,
+  UpdateCustomerPortalSettingsInput,
+} from '../validators/customerPortalValidators';
 
 function mapPortalCustomerSettings(
   customer: {
@@ -10,16 +13,18 @@ function mapPortalCustomerSettings(
     email: string | null;
     phone: string | null;
     address: string | null;
+    preferredCurrency: string;
     status: string;
     createdAt: Date;
     updatedAt: Date;
   },
-  business: { id: string; name: string }
+  business: { id: string; name: string; usdToZmwRate: number }
 ) {
   return {
     business: {
       id: business.id,
       name: business.name,
+      usdToZmwRate: business.usdToZmwRate,
     },
     customer: {
       id: customer.id,
@@ -27,6 +32,7 @@ function mapPortalCustomerSettings(
       email: customer.email,
       phone: customer.phone,
       address: customer.address,
+      preferredCurrency: customer.preferredCurrency === 'ZMW' ? 'ZMW' : 'USD',
       status: customer.status,
       createdAt: customer.createdAt,
       updatedAt: customer.updatedAt,
@@ -67,7 +73,7 @@ export async function getCustomerPortalSettings(businessId: string, customerId: 
 
   const business = await prisma.business.findUnique({
     where: { id: businessId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, usdToZmwRate: true },
   });
   if (!business) {
     throw new AppError(404, 'Business not found.', 'NOT_FOUND');
@@ -104,7 +110,7 @@ export async function updateCustomerPortalSettings(
 
   const business = await prisma.business.findUniqueOrThrow({
     where: { id: businessId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, usdToZmwRate: true },
   });
 
   await writeAuditLog({
@@ -115,6 +121,45 @@ export async function updateCustomerPortalSettings(
     entityId: customerId,
     metadata: {
       fields: ['name', 'email', 'phone', 'address'],
+    },
+  });
+
+  return mapPortalCustomerSettings(customer, business);
+}
+
+export async function updateCustomerPortalCurrency(
+  businessId: string,
+  customerId: string,
+  actorId: string,
+  input: UpdateCustomerPortalCurrencyInput
+) {
+  const existing = await prisma.customer.findFirst({
+    where: { id: customerId, businessId, status: 'ACTIVE' },
+  });
+  if (!existing) {
+    throw new AppError(404, 'Linked customer record not found.', 'NOT_FOUND');
+  }
+
+  const customer = await prisma.customer.update({
+    where: { id: customerId },
+    data: {
+      preferredCurrency: input.preferredCurrency,
+    },
+  });
+
+  const business = await prisma.business.findUniqueOrThrow({
+    where: { id: businessId },
+    select: { id: true, name: true, usdToZmwRate: true },
+  });
+
+  await writeAuditLog({
+    businessId,
+    actorId,
+    action: 'portal.customer_currency.updated',
+    entity: 'Customer',
+    entityId: customerId,
+    metadata: {
+      preferredCurrency: input.preferredCurrency,
     },
   });
 

@@ -11,74 +11,23 @@
 .analytics-period label {
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: #6b7280;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .analytics-period select {
   min-width: 140px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 0.45rem 0.65rem;
-  background: var(--bg-card);
-  color: var(--text-primary);
-}
-
-.analytics-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
-}
-
-.analytics-kpi {
-  background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  padding: 1rem 1.1rem;
-  min-height: 128px;
-}
-
-.analytics-kpi p {
-  margin: 0;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.analytics-kpi h2 {
-  margin: 0.35rem 0 0.45rem;
-  font-size: clamp(1.2rem, 2vw, 1.55rem);
-  letter-spacing: -0.03em;
-}
-
-.analytics-kpi span {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-}
-
-.analytics-kpi--revenue {
-  border-top: 4px solid #3b7ddd;
-}
-
-.analytics-kpi--expense {
-  border-top: 4px solid #d64545;
-}
-
-.analytics-kpi--net {
-  border-top: 4px solid #3db9b0;
-}
-
-.analytics-kpi--context {
-  border-top: 4px solid #e28b2c;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.75rem;
+  background: #f0f3f8;
+  color: #0b233f;
 }
 
 .analytics-context-list {
   margin: 0.55rem 0 0;
   padding-left: 1rem;
-  color: var(--text-muted);
   font-size: 0.85rem;
 }
 
@@ -109,28 +58,27 @@
 
 .analytics-rank-list li > span {
   font-weight: 700;
-  color: var(--text-muted);
+  color: #6b7280;
   min-width: 1rem;
 }
 
 .analytics-rank-list strong {
   display: block;
+  color: #0b233f;
 }
 
 .analytics-rank-list li span:last-child {
   font-size: 0.82rem;
-  color: var(--text-muted);
+  color: #6b7280;
 }
 
 @media (max-width: 1080px) {
-  .analytics-kpi-grid,
   .analytics-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
 
 @media (max-width: 720px) {
-  .analytics-kpi-grid,
   .analytics-grid {
     grid-template-columns: 1fr;
   }
@@ -145,7 +93,7 @@
 .forecast-footnote {
   margin: 0.75rem 0 0;
   font-size: 0.78rem;
-  color: var(--text-muted);
+  color: #6b7280;
 }
 
 .forecasting-inventory-list li > span {
@@ -159,4 +107,5 @@
 .side-link a {
   font-size: 0.85rem;
   font-weight: 700;
+  color: #3379f0;
 }

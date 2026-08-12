@@ -12,7 +12,7 @@
 
 .simple-bar-chart__label {
   font-size: 0.82rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .simple-bar-chart__track {
@@ -28,15 +28,15 @@
 }
 
 .simple-bar-chart__fill--primary {
-  background: linear-gradient(90deg, #4d89e8, #3b7ddd);
+  background: #3379f0;
 }
 
 .simple-bar-chart__fill--secondary {
-  background: linear-gradient(90deg, #e85d5d, #d64545);
+  background: #e53535;
 }
 
 .simple-bar-chart__fill--accent {
-  background: linear-gradient(90deg, #45c7be, #3db9b0);
+  background: #12b2a0;
 }
 
 .simple-bar-chart__value {
@@ -78,15 +78,15 @@
 }
 
 .grouped-bar-chart__swatch--primary {
-  background: #3b7ddd;
+  background: #3379f0;
 }
 
 .grouped-bar-chart__swatch--secondary {
-  background: #d64545;
+  background: #e53535;
 }
 
 .grouped-bar-chart__swatch--accent {
-  background: #3db9b0;
+  background: #12b2a0;
 }
 
 .grouped-bar-chart__grid {
@@ -133,13 +133,13 @@
 }
 
 .grouped-bar-chart__bar--primary {
-  background: linear-gradient(180deg, #4d89e8, #3b7ddd);
+  background: #3379f0;
 }
 
 .grouped-bar-chart__bar--secondary {
-  background: linear-gradient(180deg, #e85d5d, #d64545);
+  background: #e53535;
 }
 
 .grouped-bar-chart__bar--accent {
-  background: linear-gradient(180deg, #45c7be, #3db9b0);
+  background: #12b2a0;
 }

@@ -1,4 +1,4 @@
-.roles-page {
+﻿.roles-page {
   display: grid;
   gap: 1rem;
 }
@@ -20,7 +20,7 @@
   text-align: left;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: #f0f3f8;
   padding: 0.85rem 0.95rem;
   box-shadow: var(--shadow-card);
   cursor: pointer;
@@ -64,7 +64,7 @@
   padding: 0.75rem 0.85rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  background: #fff;
+  background: #f0f3f8;
 }
 
 .roles-permission input {

@@ -102,6 +102,8 @@ describe('Administrator role foundation', () => {
     );
     expect(ownerKeys).toContain('sales.view');
     expect(adminKeys).toContain('users.view');
+    expect(adminKeys).toContain('customers.update');
+    expect(adminKeys).toContain('suppliers.update');
     expect(adminKeys).not.toContain('sales.view');
     expect(ownerKeys).not.toContain('users.view');
   });
@@ -114,6 +116,8 @@ describe('Administrator role foundation', () => {
     expect(login.body.data.user.roles).toContain(ROLE_ADMINISTRATOR);
     expect(login.body.data.user.permissions).toContain('users.view');
     expect(login.body.data.user.permissions).toContain('audit.view');
+    expect(login.body.data.user.permissions).toContain('customers.update');
+    expect(login.body.data.user.permissions).toContain('suppliers.update');
     expect(login.body.data.user.permissions).not.toContain('sales.view');
     expect(login.body.data.user.permissions).not.toContain('products.view');
   });
@@ -131,5 +135,47 @@ describe('Administrator role foundation', () => {
 
     const sales = await request(app).get('/api/sales').set('Cookie', cookie);
     expect(sales.status).toBe(403);
+  });
+
+  it('allows administrator to manage customers and suppliers', async () => {
+    const { email, password } = await seedAdministrator();
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const cookie = login.headers['set-cookie'];
+
+    const createdCustomer = await request(app)
+      .post('/api/customers')
+      .set('Cookie', cookie)
+      .send({ name: 'Admin Customer', email: 'admin-customer@test.local', phone: '555-0300' });
+    expect(createdCustomer.status).toBe(201);
+    const customerId = createdCustomer.body.data.customer.id;
+
+    const updatedCustomer = await request(app)
+      .put(`/api/customers/${customerId}`)
+      .set('Cookie', cookie)
+      .send({
+        name: 'Admin Customer Updated',
+        email: 'admin-customer@test.local',
+        phone: '555-0301',
+      });
+    expect(updatedCustomer.status).toBe(200);
+    expect(updatedCustomer.body.data.customer.name).toBe('Admin Customer Updated');
+
+    const createdSupplier = await request(app)
+      .post('/api/suppliers')
+      .set('Cookie', cookie)
+      .send({ name: 'Admin Supplier', email: 'admin-supplier@test.local', phone: '555-0400' });
+    expect(createdSupplier.status).toBe(201);
+    const supplierId = createdSupplier.body.data.supplier.id;
+
+    const updatedSupplier = await request(app)
+      .put(`/api/suppliers/${supplierId}`)
+      .set('Cookie', cookie)
+      .send({
+        name: 'Admin Supplier Updated',
+        email: 'admin-supplier@test.local',
+        phone: '555-0401',
+      });
+    expect(updatedSupplier.status).toBe(200);
+    expect(updatedSupplier.body.data.supplier.name).toBe('Admin Supplier Updated');
   });
 });

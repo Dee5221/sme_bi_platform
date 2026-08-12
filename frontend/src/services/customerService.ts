@@ -8,6 +8,7 @@ export type Customer = {
   address: string | null;
   notes: string | null;
   status: string;
+  avatarUrl: string | null;
   createdAt: string;
   updatedAt: string;
 };

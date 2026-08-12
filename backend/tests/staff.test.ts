@@ -88,7 +88,10 @@ describe('Staff role foundation', () => {
     expect(staffKeys).not.toContain('users.view');
     expect(staffKeys).not.toContain('analytics.view');
     expect(staffKeys).not.toContain('expenses.view');
-    expect(staffKeys).not.toContain('products.delete');
+    expect(staffKeys).not.toContain('customers.create');
+    expect(staffKeys).not.toContain('customers.update');
+    expect(staffKeys).not.toContain('suppliers.create');
+    expect(staffKeys).not.toContain('suppliers.update');
   });
 
   it('logs in staff with operational permissions only', async () => {
@@ -99,6 +102,8 @@ describe('Staff role foundation', () => {
     expect(login.body.data.user.roles).toContain(ROLE_STAFF);
     expect(login.body.data.user.permissions).toContain('sales.create');
     expect(login.body.data.user.permissions).toContain('customers.view');
+    expect(login.body.data.user.permissions).not.toContain('customers.create');
+    expect(login.body.data.user.permissions).not.toContain('customers.update');
     expect(login.body.data.user.permissions).not.toContain('users.view');
     expect(login.body.data.user.permissions).not.toContain('reports.view');
   });
@@ -211,27 +216,104 @@ describe('Staff role foundation', () => {
     expect(stillActive.body.data.product.status).toBe('ACTIVE');
   });
 
-  it('lets staff manage customers but not deactivate them', async () => {
+  it('blocks staff from creating or updating customers and suppliers', async () => {
     const { email, password } = await seedStaff();
     const login = await request(app).post('/api/auth/login').send({ email, password });
     const cookie = login.headers['set-cookie'];
 
-    const created = await request(app)
+    const createdCustomer = await request(app)
       .post('/api/customers')
       .set('Cookie', cookie)
       .send({ name: 'Walk-in Regular', email: 'regular@test.local', phone: '555-0100' });
-    expect(created.status).toBe(201);
-    const customerId = created.body.data.customer.id;
+    expect(createdCustomer.status).toBe(403);
+
+    const createdSupplier = await request(app)
+      .post('/api/suppliers')
+      .set('Cookie', cookie)
+      .send({ name: 'Fresh Foods Ltd', email: 'orders@freshfoods.test', phone: '555-0200' });
+    expect(createdSupplier.status).toBe(403);
+
+    const { ownerRole } = await ensureSystemRoles();
+    const business = await prisma.business.findFirstOrThrow({
+      where: { email: 'staff-biz@test.local' },
+    });
+    const ownerPasswordHash = await hashPassword('OwnerPass1');
+    const owner = await prisma.user.create({
+      data: {
+        businessId: business.id,
+        email: 'owner-staff-customer@test.local',
+        passwordHash: ownerPasswordHash,
+        firstName: 'Owner',
+        lastName: 'Manager',
+        roles: { create: [{ roleId: ownerRole.id }] },
+      },
+    });
+    const ownerLogin = await request(app).post('/api/auth/login').send({
+      email: owner.email,
+      password: 'OwnerPass1',
+    });
+    const ownerCookie = ownerLogin.headers['set-cookie'];
+
+    const ownerCreatedCustomer = await request(app)
+      .post('/api/customers')
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Walk-in Regular', email: 'regular@test.local', phone: '555-0100' });
+    expect(ownerCreatedCustomer.status).toBe(201);
+    const customerId = ownerCreatedCustomer.body.data.customer.id;
 
     const updated = await request(app)
       .put(`/api/customers/${customerId}`)
       .set('Cookie', cookie)
       .send({ name: 'Regular Customer', email: 'regular@test.local', phone: '555-0101' });
-    expect(updated.status).toBe(200);
-    expect(updated.body.data.customer.name).toBe('Regular Customer');
-    expect(updated.body.data.customer.status).toBe('ACTIVE');
+    expect(updated.status).toBe(403);
 
-    const deactivateViaUpdate = await request(app)
+    const ownerUpdated = await request(app)
+      .put(`/api/customers/${customerId}`)
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Regular Customer', email: 'regular@test.local', phone: '555-0101' });
+    expect(ownerUpdated.status).toBe(200);
+    expect(ownerUpdated.body.data.customer.name).toBe('Regular Customer');
+  });
+
+  it('blocks staff from deactivating customers and suppliers', async () => {
+    const { email, password } = await seedStaff();
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const cookie = login.headers['set-cookie'];
+
+    const { ownerRole } = await ensureSystemRoles();
+    const business = await prisma.business.findFirstOrThrow({
+      where: { email: 'staff-biz@test.local' },
+    });
+    const ownerPasswordHash = await hashPassword('OwnerPass1');
+    const owner = await prisma.user.create({
+      data: {
+        businessId: business.id,
+        email: 'owner-staff-deactivate@test.local',
+        passwordHash: ownerPasswordHash,
+        firstName: 'Owner',
+        lastName: 'Manager',
+        roles: { create: [{ roleId: ownerRole.id }] },
+      },
+    });
+    const ownerLogin = await request(app).post('/api/auth/login').send({
+      email: owner.email,
+      password: 'OwnerPass1',
+    });
+    const ownerCookie = ownerLogin.headers['set-cookie'];
+
+    const customer = await request(app)
+      .post('/api/customers')
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Regular Customer', email: 'regular@test.local', phone: '555-0100' });
+    const customerId = customer.body.data.customer.id;
+
+    const supplier = await request(app)
+      .post('/api/suppliers')
+      .set('Cookie', ownerCookie)
+      .send({ name: 'Fresh Foods Ltd', email: 'orders@freshfoods.test', phone: '555-0200' });
+    const supplierId = supplier.body.data.supplier.id;
+
+    const deactivateCustomerViaUpdate = await request(app)
       .put(`/api/customers/${customerId}`)
       .set('Cookie', cookie)
       .send({
@@ -239,64 +321,39 @@ describe('Staff role foundation', () => {
         email: 'regular@test.local',
         status: 'INACTIVE',
       });
-    expect(deactivateViaUpdate.status).toBe(403);
+    expect(deactivateCustomerViaUpdate.status).toBe(403);
 
-    const deactivate = await request(app)
+    const deactivateCustomer = await request(app)
       .delete(`/api/customers/${customerId}`)
       .set('Cookie', cookie);
-    expect(deactivate.status).toBe(403);
+    expect(deactivateCustomer.status).toBe(403);
 
-    const stillActive = await request(app)
-      .get(`/api/customers/${customerId}`)
-      .set('Cookie', cookie);
-    expect(stillActive.status).toBe(200);
-    expect(stillActive.body.data.customer.status).toBe('ACTIVE');
-  });
-
-  it('lets staff manage suppliers but not deactivate them', async () => {
-    const { email, password } = await seedStaff();
-    const login = await request(app).post('/api/auth/login').send({ email, password });
-    const cookie = login.headers['set-cookie'];
-
-    const created = await request(app)
-      .post('/api/suppliers')
-      .set('Cookie', cookie)
-      .send({ name: 'Fresh Foods Ltd', email: 'orders@freshfoods.test', phone: '555-0200' });
-    expect(created.status).toBe(201);
-    const supplierId = created.body.data.supplier.id;
-
-    const updated = await request(app)
+    const deactivateSupplierViaUpdate = await request(app)
       .put(`/api/suppliers/${supplierId}`)
       .set('Cookie', cookie)
       .send({
-        name: 'Fresh Foods Wholesale',
-        email: 'orders@freshfoods.test',
-        phone: '555-0201',
-      });
-    expect(updated.status).toBe(200);
-    expect(updated.body.data.supplier.name).toBe('Fresh Foods Wholesale');
-    expect(updated.body.data.supplier.status).toBe('ACTIVE');
-
-    const deactivateViaUpdate = await request(app)
-      .put(`/api/suppliers/${supplierId}`)
-      .set('Cookie', cookie)
-      .send({
-        name: 'Fresh Foods Wholesale',
+        name: 'Fresh Foods Ltd',
         email: 'orders@freshfoods.test',
         status: 'INACTIVE',
       });
-    expect(deactivateViaUpdate.status).toBe(403);
+    expect(deactivateSupplierViaUpdate.status).toBe(403);
 
-    const deactivate = await request(app)
+    const deactivateSupplier = await request(app)
       .delete(`/api/suppliers/${supplierId}`)
       .set('Cookie', cookie);
-    expect(deactivate.status).toBe(403);
+    expect(deactivateSupplier.status).toBe(403);
 
-    const stillActive = await request(app)
+    const stillActiveCustomer = await request(app)
+      .get(`/api/customers/${customerId}`)
+      .set('Cookie', cookie);
+    expect(stillActiveCustomer.status).toBe(200);
+    expect(stillActiveCustomer.body.data.customer.status).toBe('ACTIVE');
+
+    const stillActiveSupplier = await request(app)
       .get(`/api/suppliers/${supplierId}`)
       .set('Cookie', cookie);
-    expect(stillActive.status).toBe(200);
-    expect(stillActive.body.data.supplier.status).toBe('ACTIVE');
+    expect(stillActiveSupplier.status).toBe(200);
+    expect(stillActiveSupplier.body.data.supplier.status).toBe('ACTIVE');
   });
 
   it('lets staff view and update their own profile', async () => {

@@ -76,14 +76,14 @@ export function SupplierDashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader
-        title={`Welcome, ${user?.firstName || supplier.name}`}
-        subtitle={`${business.name} · your supply overview`}
-      />
+      <section className="dashboard-hero">
+        <PageHeader
+          title={`Welcome, ${user?.firstName || supplier.name}`}
+          subtitle={`${business.name} · your supply overview`}
+        />
 
-      <div className="dashboard-layout">
-        <div className="dashboard-main">
-          <section className="kpi-grid" aria-label="Supply indicators">
+        <div className="dashboard-hero__grid">
+          <section className="dashboard-hero__kpis" aria-label="Supply indicators">
             <article className="kpi-card kpi-card--blue">
               <p className="kpi-card__label">Units supplied</p>
               <h2>{kpis.lifetimeUnitsSupplied}</h2>
@@ -112,6 +112,47 @@ export function SupplierDashboardPage() {
             </article>
           </section>
 
+          <div className="dashboard-hero__panel">
+            <p className="dashboard-hero__panel-title">Your account</p>
+            <div className="health-block">
+              <div className="health-block__row">
+                <span>{supplier.name}</span>
+              </div>
+              {supplier.email ? <p className="kpi-card__meta">{supplier.email}</p> : null}
+            </div>
+          </div>
+
+          <aside className="dashboard-side">
+            <Card title="Portal shortcuts">
+              <div className="chip-list">
+                <Link to="/app/portal/products" className="stock-chip">
+                  <strong>Products supplied</strong>
+                  <span>View products linked to your deliveries</span>
+                </Link>
+                <Link to="/app/portal/records" className="stock-chip">
+                  <strong>Purchase records</strong>
+                  <span>Review stock-in deliveries on your account</span>
+                </Link>
+                <Link to="/app/profile" className="stock-chip">
+                  <strong>Profile</strong>
+                  <span>Update your account details</span>
+                </Link>
+                <Link to="/app/portal/settings" className="stock-chip">
+                  <strong>Settings</strong>
+                  <span>Manage contact details on file</span>
+                </Link>
+              </div>
+            </Card>
+          </aside>
+        </div>
+      </section>
+
+      <section className="dashboard-data">
+        <p className="dashboard-data__tagline">
+          Forecast your business growth and readily track here!!
+        </p>
+
+        <div className="dashboard-data__grid dashboard-data__full">
           <Card title="Recent supply records">
             {recentSupplyRecords.length === 0 ? (
               <EmptyState
@@ -119,66 +160,38 @@ export function SupplierDashboardPage() {
                 description="When this business records stock-in linked to your supplier account, it will appear here."
               />
             ) : (
-              <ul className="recent-list">
-                {recentSupplyRecords.map((record) => (
-                  <li key={record.id} className="recent-list__item">
-                    <div className="recent-list__icon" aria-hidden="true">
-                      +
-                    </div>
-                    <div className="recent-list__body">
-                      <strong>{record.productName}</strong>
-                      <span>
-                        {record.productSku} · {record.quantity} units
-                        {record.reason ? ` · ${record.reason}` : ''}
-                      </span>
-                    </div>
-                    <div className="recent-list__meta">
-                      <strong>{record.quantity}</strong>
-                      <span>{formatDate(record.createdAt)}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ul className="recent-list">
+                  {recentSupplyRecords.map((record) => (
+                    <li key={record.id} className="recent-list__item">
+                      <div className="recent-list__icon" aria-hidden="true">
+                        +
+                      </div>
+                      <div className="recent-list__body">
+                        <strong>{record.productName}</strong>
+                        <span>
+                          {record.productSku} · {record.quantity} units
+                          {record.reason ? ` · ${record.reason}` : ''}
+                        </span>
+                      </div>
+                      <div className="recent-list__meta">
+                        <strong>{record.quantity}</strong>
+                        <span>{formatDate(record.createdAt)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="table-total">
+                  <span>Total units</span>
+                  <span className="table-total__value">
+                    {recentSupplyRecords.reduce((sum, record) => sum + record.quantity, 0)}
+                  </span>
+                </div>
+              </>
             )}
           </Card>
         </div>
-
-        <aside className="dashboard-side">
-          <Card title="Your account">
-            <div className="health-block">
-              <div className="health-block__row">
-                <span>{supplier.name}</span>
-              </div>
-              {supplier.email ? (
-                <p className="kpi-card__meta" style={{ color: 'var(--text-muted)', margin: 0 }}>
-                  {supplier.email}
-                </p>
-              ) : null}
-            </div>
-          </Card>
-
-          <Card title="Portal shortcuts">
-            <div className="chip-list">
-              <Link to="/app/portal/products" className="stock-chip">
-                <strong>Products supplied</strong>
-                <span>View products linked to your deliveries</span>
-              </Link>
-              <Link to="/app/portal/records" className="stock-chip">
-                <strong>Purchase records</strong>
-                <span>Review stock-in deliveries on your account</span>
-              </Link>
-              <Link to="/app/profile" className="stock-chip">
-                <strong>Profile</strong>
-                <span>Update your account details</span>
-              </Link>
-              <Link to="/app/portal/settings" className="stock-chip">
-                <strong>Settings</strong>
-                <span>Manage contact details on file</span>
-              </Link>
-            </div>
-          </Card>
-        </aside>
-      </div>
+      </section>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { writeAuditLog } from '../lib/audit';
 import { AppError } from '../lib/errors';
 import { parseMoney, toMoneyNumber } from '../lib/money';
 import { prisma } from '../lib/prisma';
+import { deleteUploadIfExists, toPublicUploadPath } from '../lib/uploads';
 import { CreateProductInput, UpdateProductInput } from '../validators/productValidators';
 
 export type ProductListQuery = {
@@ -21,6 +22,7 @@ function mapProduct(product: {
   sku: string;
   description: string | null;
   unit: string | null;
+  imageUrl: string | null;
   price: Prisma.Decimal;
   status: string;
   createdAt: Date;
@@ -36,6 +38,7 @@ function mapProduct(product: {
     sku: product.sku,
     description: product.description,
     unit: product.unit,
+    imageUrl: product.imageUrl,
     price: toMoneyNumber(product.price),
     status: product.status,
     createdAt: product.createdAt,
@@ -258,6 +261,46 @@ export async function deactivateProduct(
     businessId,
     actorId,
     action: 'product.deactivated',
+    entity: 'Product',
+    entityId: productId,
+  });
+
+  return mapProduct(updated);
+}
+
+export async function updateProductImage(
+  businessId: string,
+  actorId: string,
+  productId: string,
+  filename: string
+) {
+  const existing = await prisma.product.findFirst({
+    where: { id: productId, businessId },
+  });
+  if (!existing) {
+    throw new AppError(404, 'Product not found.', 'NOT_FOUND');
+  }
+
+  const imageUrl = toPublicUploadPath('products', businessId, filename);
+  const previousUrl = existing.imageUrl;
+
+  const updated = await prisma.product.update({
+    where: { id: productId },
+    data: { imageUrl },
+    include: {
+      category: { select: { id: true, name: true } },
+      inventory: { select: { quantity: true, lowStockThreshold: true } },
+    },
+  });
+
+  if (previousUrl && previousUrl !== imageUrl) {
+    deleteUploadIfExists(previousUrl);
+  }
+
+  await writeAuditLog({
+    businessId,
+    actorId,
+    action: 'product.image_updated',
     entity: 'Product',
     entityId: productId,
   });

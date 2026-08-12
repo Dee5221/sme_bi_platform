@@ -81,14 +81,14 @@ export function StaffDashboardPage() {
 
   return (
     <div className="dashboard-page">
-      <PageHeader
-        title={`Welcome, ${user?.firstName || 'Staff'}`}
-        subtitle={`${business.name} · daily operations overview`}
-      />
+      <section className="dashboard-hero">
+        <PageHeader
+          title={`Welcome, ${user?.firstName || 'Staff'}`}
+          subtitle={`${business.name} · daily operations overview`}
+        />
 
-      <div className="dashboard-layout">
-        <div className="dashboard-main">
-          <section className="kpi-grid" aria-label="Daily operations indicators">
+        <div className="dashboard-hero__grid">
+          <section className="dashboard-hero__kpis" aria-label="Daily operations indicators">
             <article className="kpi-card kpi-card--red">
               <p className="kpi-card__label">Today's sales</p>
               <h2>{formatMoney(kpis.todayRevenue)}</h2>
@@ -115,67 +115,8 @@ export function StaffDashboardPage() {
             </article>
           </section>
 
-          <section className="shortcut-grid" aria-label="Staff shortcuts">
-            <Link className="shortcut-card" to="/app/sales/new">
-              New sale
-            </Link>
-            <Link className="shortcut-card" to="/app/products">
-              Products
-            </Link>
-            <Link className="shortcut-card" to="/app/inventory">
-              Inventory
-            </Link>
-            <Link className="shortcut-card" to="/app/customers">
-              Customers
-            </Link>
-          </section>
-
-          <Card title="Recent sales">
-            {recentSales.length === 0 ? (
-              <EmptyState
-                title="No sales yet"
-                description="Record a sale to see recent activity here."
-                action={
-                  <Link to="/app/sales">
-                    <Button>Go to Sales</Button>
-                  </Link>
-                }
-              />
-            ) : (
-              <ul className="recent-list">
-                {recentSales.map((sale) => (
-                  <li key={sale.id} className="recent-list__item">
-                    <div className="recent-list__icon" aria-hidden="true">
-                      $
-                    </div>
-                    <div className="recent-list__body">
-                      <strong>{sale.saleNumber}</strong>
-                      <span>
-                        {sale.customerName} · {sale.itemCount} item
-                        {sale.itemCount === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                    <div className="recent-list__meta">
-                      <strong>{formatMoney(sale.total)}</strong>
-                      <span>{formatDate(sale.soldAt)}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
-
-        <aside className="dashboard-side">
-          <Link to="/app/sales/new" className="dash-cta">
-            <span className="dash-cta__icon" aria-hidden="true">
-              ↑
-            </span>
-            <strong>Add new sale</strong>
-            <span>Record a transaction for this business</span>
-          </Link>
-
-          <Card title="Inventory health">
+          <div className="dashboard-hero__panel">
+            <p className="dashboard-hero__panel-title">Inventory health</p>
             <div className="health-block">
               <div className="health-block__row">
                 <span>
@@ -192,6 +133,81 @@ export function StaffDashboardPage() {
                 />
               </div>
             </div>
+            <section className="shortcut-grid" aria-label="Staff shortcuts" style={{ marginTop: '1rem' }}>
+              <Link className="shortcut-card" to="/app/sales/new">
+                New sale
+              </Link>
+              <Link className="shortcut-card" to="/app/products">
+                Products
+              </Link>
+              <Link className="shortcut-card" to="/app/inventory">
+                Inventory
+              </Link>
+              <Link className="shortcut-card" to="/app/customers">
+                Customers
+              </Link>
+            </section>
+          </div>
+
+          <aside className="dashboard-side">
+            <Link to="/app/sales/new" className="dash-cta">
+              <span className="dash-cta__icon" aria-hidden="true">
+                ↑
+              </span>
+              <strong>Add new sale</strong>
+              <span>Record a transaction for this business</span>
+            </Link>
+          </aside>
+        </div>
+      </section>
+
+      <section className="dashboard-data">
+        <p className="dashboard-data__tagline">
+          Forecast your business growth and readily track here!!
+        </p>
+
+        <div className="dashboard-data__grid">
+          <Card title="Recent sales">
+            {recentSales.length === 0 ? (
+              <EmptyState
+                title="No sales yet"
+                description="Record a sale to see recent activity here."
+                action={
+                  <Link to="/app/sales">
+                    <Button>Go to Sales</Button>
+                  </Link>
+                }
+              />
+            ) : (
+              <>
+                <ul className="recent-list">
+                  {recentSales.map((sale) => (
+                    <li key={sale.id} className="recent-list__item">
+                      <div className="recent-list__icon" aria-hidden="true">
+                        $
+                      </div>
+                      <div className="recent-list__body">
+                        <strong>{sale.saleNumber}</strong>
+                        <span>
+                          {sale.customerName} · {sale.itemCount} item
+                          {sale.itemCount === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div className="recent-list__meta">
+                        <strong>{formatMoney(sale.total)}</strong>
+                        <span>{formatDate(sale.soldAt)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <div className="table-total">
+                  <span>Total</span>
+                  <span className="table-total__value">
+                    {formatMoney(recentSales.reduce((sum, sale) => sum + sale.total, 0))}
+                  </span>
+                </div>
+              </>
+            )}
           </Card>
 
           <Card title="Low stock alerts">
@@ -201,23 +217,25 @@ export function StaffDashboardPage() {
                 description="Inventory levels are above their thresholds."
               />
             ) : (
-              <div className="chip-list">
-                {lowStockItems.map((item) => (
-                  <div key={item.inventoryId} className="stock-chip">
-                    <strong>{item.productName}</strong>
-                    <span>
-                      {item.quantity} left · alert at {item.lowStockThreshold}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="chip-list">
+                  {lowStockItems.map((item) => (
+                    <div key={item.inventoryId} className="stock-chip">
+                      <strong>{item.productName}</strong>
+                      <span>
+                        {item.quantity} left · alert at {item.lowStockThreshold}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="side-link">
+                  <Link to="/app/inventory">Manage inventory →</Link>
+                </div>
+              </>
             )}
-            <div className="side-link">
-              <Link to="/app/inventory">Manage inventory →</Link>
-            </div>
           </Card>
-        </aside>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

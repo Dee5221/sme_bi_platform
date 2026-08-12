@@ -1,4 +1,4 @@
-import { apiRequest } from '../lib/api';
+﻿import { apiRequest, apiUpload } from '../lib/api';
 
 export type ProductCategory = {
   id: string;
@@ -14,6 +14,7 @@ export type Product = {
   sku: string;
   description: string | null;
   unit: string | null;
+  imageUrl: string | null;
   price: number;
   status: 'ACTIVE' | 'INACTIVE' | string;
   categoryId: string | null;
@@ -101,6 +102,12 @@ export function updateProduct(id: string, payload: ProductPayload) {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+}
+
+export function uploadProductImage(id: string, file: File) {
+  const formData = new FormData();
+  formData.append('image', file);
+  return apiUpload<{ product: Product }>(`/api/products/${id}/image`, formData);
 }
 
 export function deactivateProduct(id: string) {

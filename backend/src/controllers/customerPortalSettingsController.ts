@@ -1,9 +1,12 @@
-import { Response } from 'express';
+﻿import { Response } from 'express';
 import { sendSuccess } from '../lib/apiResponse';
 import { getPortalCustomerContextOrThrow } from '../middleware/auth';
 import * as customerPortalSettingsService from '../services/customerPortalSettingsService';
 import { AuthenticatedRequest } from '../types/auth';
-import { UpdateCustomerPortalSettingsInput } from '../validators/customerPortalValidators';
+import {
+  UpdateCustomerPortalCurrencyInput,
+  UpdateCustomerPortalSettingsInput,
+} from '../validators/customerPortalValidators';
 
 export async function getCustomerPortalSettings(
   req: AuthenticatedRequest,
@@ -29,4 +32,18 @@ export async function updateCustomerPortalSettings(
     req.body as UpdateCustomerPortalSettingsInput
   );
   sendSuccess(res, { settings }, 200, 'Portal settings updated.');
+}
+
+export async function updateCustomerPortalCurrency(
+  req: AuthenticatedRequest,
+  res: Response
+): Promise<void> {
+  const { businessId, customerId } = getPortalCustomerContextOrThrow(req);
+  const settings = await customerPortalSettingsService.updateCustomerPortalCurrency(
+    businessId,
+    customerId,
+    req.user!.id,
+    req.body as UpdateCustomerPortalCurrencyInput
+  );
+  sendSuccess(res, { settings }, 200, 'Pricing currency updated.');
 }

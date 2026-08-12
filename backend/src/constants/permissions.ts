@@ -1,5 +1,6 @@
 export const OWNER_MANAGER_PERMISSIONS = [
   { key: 'business.view', description: 'View business profile' },
+  { key: 'business.update', description: 'Update business settings' },
   { key: 'dashboard.view', description: 'View dashboard' },
   { key: 'products.view', description: 'View products' },
   { key: 'products.create', description: 'Create products' },
@@ -41,6 +42,14 @@ export const ADMINISTRATOR_PERMISSIONS = [
   { key: 'audit.view', description: 'View activity log' },
   { key: 'business.view', description: 'View business profile' },
   { key: 'business.update', description: 'Update business settings' },
+  { key: 'customers.view', description: 'View customers' },
+  { key: 'customers.create', description: 'Create customers' },
+  { key: 'customers.update', description: 'Update customers' },
+  { key: 'customers.delete', description: 'Deactivate customers' },
+  { key: 'suppliers.view', description: 'View suppliers' },
+  { key: 'suppliers.create', description: 'Create suppliers' },
+  { key: 'suppliers.update', description: 'Update suppliers' },
+  { key: 'suppliers.delete', description: 'Deactivate suppliers' },
   { key: 'profile.view', description: 'View own profile' },
   { key: 'profile.update', description: 'Update own profile' },
 ] as const;
@@ -53,11 +62,7 @@ export const STAFF_PERMISSIONS = [
   { key: 'inventory.view', description: 'View inventory' },
   { key: 'inventory.adjust', description: 'Adjust stock levels' },
   { key: 'customers.view', description: 'View customers' },
-  { key: 'customers.create', description: 'Create customers' },
-  { key: 'customers.update', description: 'Update customers' },
   { key: 'suppliers.view', description: 'View suppliers' },
-  { key: 'suppliers.create', description: 'Create suppliers' },
-  { key: 'suppliers.update', description: 'Update suppliers' },
   { key: 'sales.view', description: 'View sales' },
   { key: 'sales.create', description: 'Create sales' },
   { key: 'profile.view', description: 'View own profile' },
@@ -71,7 +76,7 @@ export const EXTERNAL_CUSTOMER_PERMISSIONS = [
   { key: 'portal.purchases.view', description: 'View own purchases' },
   { key: 'portal.purchases.history', description: 'View purchase history' },
   { key: 'portal.settings.view', description: 'View portal settings' },
-  { key: 'portal.settings.update', description: 'Update portal settings' },
+  { key: 'portal.currency.update', description: 'Select pricing currency' },
 ] as const;
 
 export const EXTERNAL_SUPPLIER_PERMISSIONS = [
@@ -82,7 +87,6 @@ export const EXTERNAL_SUPPLIER_PERMISSIONS = [
   { key: 'portal.records.view', description: 'View purchase records' },
   { key: 'portal.history.view', description: 'View purchase history' },
   { key: 'portal.settings.view', description: 'View portal settings' },
-  { key: 'portal.settings.update', description: 'Update portal settings' },
 ] as const;
 
 function dedupePermissions(

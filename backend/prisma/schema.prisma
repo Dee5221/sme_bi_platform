@@ -9,14 +9,15 @@ datasource db {
 }
 
 model Business {
-  id          String   @id @default(cuid())
-  name        String
-  email       String?  @unique
-  phone       String?
-  address     String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  email         String?  @unique
+  phone         String?
+  address       String?
+  usdToZmwRate  Float    @default(18.5)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   users             User[]
   auditLogs         AuditLog[]
@@ -42,6 +43,7 @@ model User {
   firstName    String
   lastName     String
   phone        String?
+  avatarUrl    String?
   accountType  String?
   customerId   String?  @unique
   supplierId   String?  @unique
@@ -158,6 +160,7 @@ model Product {
   sku         String
   description String?
   unit        String?
+  imageUrl    String?
   price       Decimal
   status      String   @default("ACTIVE")
   createdAt   DateTime @default(now())
@@ -224,16 +227,17 @@ model StockMovement {
 }
 
 model Customer {
-  id          String   @id @default(cuid())
-  businessId  String
-  name        String
-  email       String?
-  phone       String?
-  address     String?
-  notes       String?
-  status      String   @default("ACTIVE")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  businessId         String
+  name               String
+  email              String?
+  phone              String?
+  address            String?
+  notes              String?
+  preferredCurrency  String   @default("USD")
+  status             String   @default("ACTIVE")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   business Business @relation(fields: [businessId], references: [id])
   sales    Sale[]

@@ -9,7 +9,7 @@ import * as supplierPortalSettingsController from '../controllers/supplierPortal
 import { authenticate, requirePermissions } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
-import { updateCustomerPortalSettingsSchema } from '../validators/customerPortalValidators';
+import { updateCustomerPortalCurrencySchema, updateCustomerPortalSettingsSchema } from '../validators/customerPortalValidators';
 import { updateSupplierPortalSettingsSchema } from '../validators/supplierPortalValidators';
 
 export const portalRouter = Router();
@@ -45,6 +45,13 @@ portalRouter.put(
   requirePermissions('portal.settings.update'),
   validateBody(updateCustomerPortalSettingsSchema),
   asyncHandler(customerPortalSettingsController.updateCustomerPortalSettings)
+);
+
+portalRouter.put(
+  '/customer/currency',
+  requirePermissions('portal.currency.update'),
+  validateBody(updateCustomerPortalCurrencySchema),
+  asyncHandler(customerPortalSettingsController.updateCustomerPortalCurrency)
 );
 
 portalRouter.get(

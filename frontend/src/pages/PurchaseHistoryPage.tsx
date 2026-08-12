@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCustomerCurrency } from '../hooks/useCustomerCurrency';
 import { ApiClientError } from '../lib/api';
+import { formatMoney as formatMoneyValue } from '../lib/money';
 import * as purchaseApi from '../services/customerPortalPurchaseService';
 import type { CustomerPurchase } from '../services/customerPortalPurchaseService';
 import { Alert } from '../components/ui/Alert';
@@ -15,20 +17,15 @@ import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
 import './SalesPage.css';
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
 
 export function PurchaseHistoryPage() {
   const { hasPermission } = useAuth();
+  const { preferredCurrency, usdToZmwRate } = useCustomerCurrency();
+  const formatMoney = (value: number) =>
+    formatMoneyValue(value, { currency: preferredCurrency, usdToZmwRate });
   const canView = hasPermission('portal.purchases.history');
 
   const [loading, setLoading] = useState(true);

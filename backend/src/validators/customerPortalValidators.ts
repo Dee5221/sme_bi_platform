@@ -25,6 +25,14 @@ export const updateCustomerPortalSettingsSchema = z.object({
   address: optionalText(255),
 });
 
+export const updateCustomerPortalCurrencySchema = z.object({
+  preferredCurrency: z.enum(['USD', 'ZMW']),
+});
+
 export type UpdateCustomerPortalSettingsInput = z.infer<
   typeof updateCustomerPortalSettingsSchema
+>;
+
+export type UpdateCustomerPortalCurrencyInput = z.infer<
+  typeof updateCustomerPortalCurrencySchema
 >;

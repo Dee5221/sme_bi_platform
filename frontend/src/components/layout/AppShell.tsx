@@ -4,6 +4,7 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import './AppShell.css';
 import './Header.css';
+import '../../pages/app-pages.css';
 
 export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -13,7 +14,9 @@ export function AppShell() {
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="app-shell__main">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <Outlet />
+        <div className="app-shell__content">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
