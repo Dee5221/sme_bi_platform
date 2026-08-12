@@ -163,6 +163,10 @@ export function SupplierDashboardPage() {
                 <strong>Products supplied</strong>
                 <span>View products linked to your deliveries</span>
               </Link>
+              <Link to="/app/portal/records" className="stock-chip">
+                <strong>Purchase records</strong>
+                <span>Review stock-in deliveries on your account</span>
+              </Link>
               <Link to="/app/profile" className="stock-chip">
                 <strong>Profile</strong>
                 <span>Update your account details</span>

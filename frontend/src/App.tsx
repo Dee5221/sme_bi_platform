@@ -20,6 +20,7 @@ import { NewSalePage } from './pages/NewSalePage';
 import { ProductsSuppliedPage } from './pages/ProductsSuppliedPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { PurchaseHistoryPage } from './pages/PurchaseHistoryPage';
+import { PurchaseRecordsPage } from './pages/PurchaseRecordsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { RecommendationsPage } from './pages/RecommendationsPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="forecasting" element={<ForecastingPage />} />
           <Route path="recommendations" element={<RecommendationsPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="portal/records" element={<PurchaseRecordsPage />} />
           <Route path="portal/products" element={<ProductsSuppliedPage />} />
           <Route path="portal/settings" element={<CustomerSettingsPage />} />
           <Route path="portal/purchases/history" element={<PurchaseHistoryPage />} />

@@ -4,6 +4,7 @@ import * as customerPortalPurchaseController from '../controllers/customerPortal
 import * as customerPortalSettingsController from '../controllers/customerPortalSettingsController';
 import * as supplierPortalDashboardController from '../controllers/supplierPortalDashboardController';
 import * as supplierPortalProductController from '../controllers/supplierPortalProductController';
+import * as supplierPortalRecordController from '../controllers/supplierPortalRecordController';
 import { authenticate, requirePermissions } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -60,4 +61,16 @@ portalRouter.get(
   '/supplier/products/:productId',
   requirePermissions('portal.products.view'),
   asyncHandler(supplierPortalProductController.getSuppliedProduct)
+);
+
+portalRouter.get(
+  '/supplier/records',
+  requirePermissions('portal.records.view'),
+  asyncHandler(supplierPortalRecordController.listSupplierRecords)
+);
+
+portalRouter.get(
+  '/supplier/records/:id',
+  requirePermissions('portal.records.view'),
+  asyncHandler(supplierPortalRecordController.getSupplierRecord)
 );
