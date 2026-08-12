@@ -2,7 +2,8 @@ import { beforeAll, afterAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { ensureOwnerManagerRole } from '../src/services/authService';
+import { hashPassword } from '../src/lib/password';
+import { ensureSystemRoles } from '../src/services/authService';
 
 const app = createApp();
 
@@ -24,7 +25,7 @@ async function resetDb() {
   await prisma.business.deleteMany();
   await prisma.permission.deleteMany();
   await prisma.role.deleteMany();
-  await ensureOwnerManagerRole();
+  await ensureSystemRoles();
 }
 
 async function registerAndCookie(email = 'owner@profile.test') {
@@ -145,5 +146,47 @@ describe('Profile API', () => {
   it('rejects unauthenticated profile access', async () => {
     const response = await request(app).get('/api/profile');
     expect(response.status).toBe(401);
+  });
+
+  it('lets an administrator view and update their own profile', async () => {
+    const { administratorRole } = await ensureSystemRoles();
+    const business = await prisma.business.create({
+      data: { name: 'Admin Profile Biz', email: 'admin-profile-biz@test.local' },
+    });
+    await prisma.user.create({
+      data: {
+        businessId: business.id,
+        email: 'admin-profile@test.local',
+        passwordHash: await hashPassword('AdminPass1'),
+        firstName: 'Sam',
+        lastName: 'Admin',
+        roles: { create: [{ roleId: administratorRole.id }] },
+      },
+    });
+
+    const login = await request(app).post('/api/auth/login').send({
+      email: 'admin-profile@test.local',
+      password: 'AdminPass1',
+    });
+    const cookie = login.headers['set-cookie'];
+
+    const me = await request(app).get('/api/profile').set('Cookie', cookie);
+    expect(me.status).toBe(200);
+    expect(me.body.data.user.email).toBe('admin-profile@test.local');
+    expect(me.body.data.user.roles).toContain('ADMINISTRATOR');
+
+    const updated = await request(app)
+      .put('/api/profile')
+      .set('Cookie', cookie)
+      .send({
+        firstName: 'Samuel',
+        lastName: 'Admin',
+        email: 'admin-profile@test.local',
+        phone: '+260922000000',
+      });
+
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.user.firstName).toBe('Samuel');
+    expect(updated.body.data.user.phone).toBe('+260922000000');
   });
 });
