@@ -129,9 +129,14 @@ export function StaffInventoryPage() {
         subtitle="Monitor current stock levels and low-stock alerts for this business."
         actions={
           canAdjust ? (
-            <Link className="ui-btn ui-btn--primary" to="/app/inventory/stock-in">
-              Stock in
-            </Link>
+            <>
+              <Link className="ui-btn ui-btn--secondary" to="/app/inventory/stock-out">
+                Stock out
+              </Link>
+              <Link className="ui-btn ui-btn--primary" to="/app/inventory/stock-in">
+                Stock in
+              </Link>
+            </>
           ) : null
         }
       />

@@ -100,6 +100,13 @@ const navItems: NavItem[] = [
     permission: 'inventory.adjust',
   },
   {
+    to: '/app/inventory/stock-out',
+    label: 'Stock Out',
+    end: false,
+    icon: '−',
+    permission: 'inventory.adjust',
+  },
+  {
     to: '/app/customers',
     label: 'Customers',
     end: false,
