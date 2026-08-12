@@ -138,6 +138,9 @@ describe('Staff role foundation', () => {
 
     const expenses = await request(app).get('/api/expenses').set('Cookie', cookie);
     expect(expenses.status).toBe(403);
+
+    const profile = await request(app).get('/api/profile').set('Cookie', cookie);
+    expect(profile.status).toBe(200);
   });
 
   it('lets staff record and list a sale for their business', async () => {
@@ -294,5 +297,29 @@ describe('Staff role foundation', () => {
       .set('Cookie', cookie);
     expect(stillActive.status).toBe(200);
     expect(stillActive.body.data.supplier.status).toBe('ACTIVE');
+  });
+
+  it('lets staff view and update their own profile', async () => {
+    const { email, password } = await seedStaff();
+    const login = await request(app).post('/api/auth/login').send({ email, password });
+    const cookie = login.headers['set-cookie'];
+
+    const profile = await request(app).get('/api/profile').set('Cookie', cookie);
+    expect(profile.status).toBe(200);
+    expect(profile.body.data.user.email).toBe('staff@test.local');
+    expect(profile.body.data.user.roles).toContain('STAFF');
+
+    const updated = await request(app)
+      .put('/api/profile')
+      .set('Cookie', cookie)
+      .send({
+        firstName: 'Riley',
+        lastName: 'Staffer',
+        email: 'staff@test.local',
+        phone: '+260911000222',
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.user.lastName).toBe('Staffer');
+    expect(updated.body.data.user.phone).toBe('+260911000222');
   });
 });
