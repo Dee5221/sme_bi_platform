@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { sendSuccess } from '../lib/apiResponse';
+import { AppError } from '../lib/errors';
 import { getBusinessIdOrThrow } from '../middleware/auth';
 import * as customerService from '../services/customerService';
 import { AuthenticatedRequest } from '../types/auth';
@@ -42,11 +43,15 @@ export async function createCustomer(req: AuthenticatedRequest, res: Response): 
 
 export async function updateCustomer(req: AuthenticatedRequest, res: Response): Promise<void> {
   const businessId = getBusinessIdOrThrow(req);
+  const input = req.body as UpdateCustomerInput;
+  if (input.status === 'INACTIVE' && !req.user!.permissions.includes('customers.delete')) {
+    throw new AppError(403, 'You do not have permission to deactivate customers.', 'FORBIDDEN');
+  }
   const customer = await customerService.updateCustomer(
     businessId,
     req.user!.id,
     req.params.id as string,
-    req.body as UpdateCustomerInput
+    input
   );
   sendSuccess(res, { customer }, 200, 'Customer updated.');
 }

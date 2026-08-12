@@ -142,7 +142,7 @@ export function CustomersPage() {
         phone: form.phone || undefined,
         address: form.address || undefined,
         notes: form.notes || undefined,
-        ...(editing ? { status: form.status } : {}),
+        ...(editing && canDelete ? { status: form.status } : {}),
       };
       if (editing) {
         await customerApi.updateCustomer(editing.id, payload);
@@ -352,7 +352,7 @@ export function CustomersPage() {
               onChange={(e) => setForm((c) => ({ ...c, address: e.target.value }))}
               error={fieldErrors.address}
             />
-            {editing ? (
+            {editing && canDelete ? (
               <label className="customers-select">
                 <span>Status</span>
                 <select
