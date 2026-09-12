@@ -1,0 +1,32 @@
+.ui-alert {
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.925rem;
+  border: 1px solid transparent;
+}
+
+.ui-alert--info {
+  background: #eef4fb;
+  color: #1e4c8a;
+  border-color: #c9daf0;
+}
+
+.ui-alert--success {
+  background: #e6f8f5;
+  color: #0a7d70;
+  border-color: #a7e6dc;
+}
+
+.ui-alert--error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.ui-alert--warning {
+  background: #fff8eb;
+  color: #b45309;
+  border-color: #fde2a8;
+}

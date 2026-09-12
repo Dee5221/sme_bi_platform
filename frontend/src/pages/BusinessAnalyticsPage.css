@@ -1,0 +1,111 @@
+.business-analytics-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.analytics-period {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.analytics-period label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.analytics-period select {
+  min-width: 140px;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.75rem;
+  background: #f0f3f8;
+  color: #0b233f;
+}
+
+.analytics-context-list {
+  margin: 0.55rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.85rem;
+}
+
+.analytics-context-list li + li {
+  margin-top: 0.2rem;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.analytics-rank-list {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.analytics-rank-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.analytics-rank-list li > span {
+  font-weight: 700;
+  color: #6b7280;
+  min-width: 1rem;
+}
+
+.analytics-rank-list strong {
+  display: block;
+  color: #0b233f;
+}
+
+.analytics-rank-list li span:last-child {
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+@media (max-width: 1080px) {
+  .analytics-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.forecasting-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.forecast-footnote {
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+
+.forecasting-inventory-list li > span {
+  min-width: 4.5rem;
+}
+
+.side-link {
+  margin-top: 0.85rem;
+}
+
+.side-link a {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #3379f0;
+}

@@ -1,0 +1,145 @@
+.simple-bar-chart {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.simple-bar-chart__row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.simple-bar-chart__label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.simple-bar-chart__track {
+  height: 10px;
+  background: var(--bg-muted);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.simple-bar-chart__fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.simple-bar-chart__fill--primary {
+  background: #3379f0;
+}
+
+.simple-bar-chart__fill--secondary {
+  background: #e53535;
+}
+
+.simple-bar-chart__fill--accent {
+  background: #12b2a0;
+}
+
+.simple-bar-chart__value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  min-width: 4.5rem;
+  text-align: right;
+}
+
+.simple-bar-chart__empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.grouped-bar-chart {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.grouped-bar-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+
+.grouped-bar-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.grouped-bar-chart__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.grouped-bar-chart__swatch--primary {
+  background: #3379f0;
+}
+
+.grouped-bar-chart__swatch--secondary {
+  background: #e53535;
+}
+
+.grouped-bar-chart__swatch--accent {
+  background: #12b2a0;
+}
+
+.grouped-bar-chart__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(52px, 1fr));
+  gap: 0.65rem;
+  align-items: end;
+  min-height: 180px;
+}
+
+.grouped-bar-chart__group {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+}
+
+.grouped-bar-chart__group-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.grouped-bar-chart__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  height: 140px;
+  width: 100%;
+  justify-content: center;
+}
+
+.grouped-bar-chart__bar-wrap {
+  flex: 1;
+  max-width: 18px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.grouped-bar-chart__bar {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 4px 4px 0 0;
+}
+
+.grouped-bar-chart__bar--primary {
+  background: #3379f0;
+}
+
+.grouped-bar-chart__bar--secondary {
+  background: #e53535;
+}
+
+.grouped-bar-chart__bar--accent {
+  background: #12b2a0;
+}

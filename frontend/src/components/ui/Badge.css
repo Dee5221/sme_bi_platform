@@ -1,0 +1,43 @@
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.ui-badge--neutral {
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+}
+
+.ui-badge--blue {
+  background: rgba(51, 121, 240, 0.14);
+  color: #1e4c8a;
+}
+
+.ui-badge--green {
+  background: rgba(18, 178, 160, 0.14);
+  color: #0a7d70;
+}
+
+.ui-badge--orange {
+  background: rgba(235, 142, 9, 0.14);
+  color: #b45309;
+}
+
+.ui-badge--red {
+  background: rgba(229, 53, 53, 0.14);
+  color: #b91c1c;
+}
+
+.dashboard-hero .ui-badge--green {
+  background: rgba(18, 178, 160, 0.28);
+  color: #ecfeff;
+}
+
+.dashboard-hero .ui-badge--orange {
+  background: rgba(235, 142, 9, 0.3);
+  color: #fff7ed;
+}

@@ -1,0 +1,56 @@
+.user-details-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.user-details-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.user-details-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1rem;
+  align-items: start;
+}
+
+.user-details-main,
+.user-details-side {
+  display: grid;
+  gap: 1rem;
+}
+
+.user-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.user-details-field span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
+}
+
+.user-details-field strong {
+  font-size: 0.98rem;
+}
+
+.user-details-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 860px) {
+  .user-details-layout,
+  .user-details-grid {
+    grid-template-columns: 1fr;
+  }
+}

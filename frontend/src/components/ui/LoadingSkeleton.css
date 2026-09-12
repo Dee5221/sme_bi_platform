@@ -1,0 +1,21 @@
+.ui-skeleton {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.ui-skeleton__row {
+  height: 2.75rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, #e8eef8 0%, #f7f9fc 50%, #e8eef8 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

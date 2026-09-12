@@ -1,0 +1,43 @@
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 0.72rem 1.15rem;
+  font-weight: 700;
+  font-size: 0.88rem;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ui-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ui-btn:not(:disabled):hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.ui-btn--primary {
+  background: #1e4c8a;
+  color: #ffffff;
+}
+
+.ui-btn--secondary {
+  background: #ffffff;
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ui-btn--danger {
+  background: var(--accent-red);
+  color: #ffffff;
+}

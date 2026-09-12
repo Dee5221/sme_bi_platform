@@ -1,0 +1,145 @@
+/* Shared chrome for non-dashboard app pages */
+.app-shell__content > *:not(.dashboard-page) {
+  color: var(--text-primary);
+}
+
+.app-shell__content > *:not(.dashboard-page) .page-header h1 {
+  color: #0b233f;
+}
+
+.app-shell__content > *:not(.dashboard-page) .page-header p {
+  color: #6b7280;
+}
+
+.app-shell__content > *:not(.dashboard-page) .ui-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: var(--shadow-card);
+}
+
+.app-shell__content > *:not(.dashboard-page) .ui-card__header h2 {
+  color: #6b7280;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-shell__content select {
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  background: #f0f3f8;
+  color: #0b233f;
+}
+
+.app-shell__content select:focus {
+  outline: none;
+  border-color: rgba(30, 76, 138, 0.55);
+  box-shadow: 0 0 0 3px rgba(30, 76, 138, 0.12);
+}
+
+.app-shell__content [class$='-muted'],
+.app-shell__content [class*='-muted '] {
+  color: #6b7280;
+}
+
+.app-shell__content [class$='-back'],
+.app-shell__content [class*='-back '] {
+  color: #1e4c8a;
+}
+
+.app-shell__content .side-link a {
+  color: #3379f0;
+  font-weight: 700;
+}
+
+/* Analytics / report KPI blocks on non-dashboard pages */
+.analytics-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.analytics-kpi {
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem;
+  min-height: 120px;
+  border: none;
+  box-shadow: none;
+  color: #ffffff;
+}
+
+.analytics-kpi p {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.analytics-kpi h2 {
+  margin: 0.35rem 0 0.45rem;
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.analytics-kpi span,
+.analytics-kpi .analytics-context-list {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.analytics-kpi--revenue {
+  background: #3379f0;
+  border-top: none;
+}
+
+.analytics-kpi--revenue span,
+.analytics-kpi--revenue .analytics-context-list {
+  color: #163a8a;
+}
+
+.analytics-kpi--expense {
+  background: #e53535;
+  border-top: none;
+}
+
+.analytics-kpi--expense span,
+.analytics-kpi--expense .analytics-context-list {
+  color: #7a1414;
+}
+
+.analytics-kpi--net {
+  background: #12b2a0;
+  border-top: none;
+}
+
+.analytics-kpi--net span,
+.analytics-kpi--net .analytics-context-list {
+  color: #0a5c52;
+}
+
+.analytics-kpi--context {
+  background: #eb8e09;
+  border-top: none;
+}
+
+.analytics-kpi--context span,
+.analytics-kpi--context .analytics-context-list {
+  color: #8a4d05;
+}
+
+@media (max-width: 1080px) {
+  .analytics-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .analytics-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}

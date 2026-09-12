@@ -1,0 +1,40 @@
+.ui-toast-stack {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  display: grid;
+  gap: 0.65rem;
+  z-index: 1000;
+  width: min(22rem, calc(100vw - 2rem));
+}
+
+.ui-toast {
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  color: #fff;
+  box-shadow: var(--shadow-card);
+  animation: toast-in 0.2s ease;
+}
+
+.ui-toast--success {
+  background: #0a7d70;
+}
+
+.ui-toast--error {
+  background: #e53535;
+}
+
+.ui-toast--info {
+  background: #1e4c8a;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

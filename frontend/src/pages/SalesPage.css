@@ -1,0 +1,133 @@
+﻿.sales-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.sales-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.sales-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.sales-form__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.sales-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.sales-select span {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.sales-select select {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 0.95rem;
+  background: #f0f3f8;
+}
+
+.sales-lines {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sales-line {
+  display: grid;
+  grid-template-columns: 2fr 120px 1fr;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-muted);
+}
+
+.sales-line__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-bottom: 0.35rem;
+  font-weight: 700;
+}
+
+.sales-form__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sales-total {
+  color: var(--text-secondary);
+}
+
+.sales-toolbar {
+  margin-bottom: 1rem;
+}
+
+.sales-history-toolbar {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr auto;
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+  align-items: end;
+}
+
+.sales-muted {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.sales-pagination,
+.sales-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.sales-pagination {
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  color: var(--text-secondary);
+}
+
+.sales-detail {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.sales-detail p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.sales-detail__total {
+  text-align: right;
+  font-size: 1.05rem;
+}
+
+@media (max-width: 900px) {
+  .sales-form__meta,
+  .sales-line,
+  .sales-history-toolbar {
+    grid-template-columns: 1fr;
+  }
+}

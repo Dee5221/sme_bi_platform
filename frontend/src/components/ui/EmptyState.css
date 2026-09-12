@@ -1,0 +1,17 @@
+.ui-empty {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--text-secondary);
+}
+
+.ui-empty h3 {
+  margin: 0 0 0.5rem;
+  color: var(--text-secondary);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ui-empty p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
