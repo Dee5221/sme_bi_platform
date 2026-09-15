@@ -17,12 +17,14 @@ import './InventoryPage.css';
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const fieldName = item.loc[item.loc.length - 1];
+      next[fieldName] = item.msg;
+    }
   }
   return next;
 }
-
 export function StockOutPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -88,8 +90,8 @@ export function StockOutPage() {
 
     setSaving(true);
     try {
-      await inventoryApi.stockOut({
-        productId,
+      await inventoryApi.stockIn({
+        productId: Number(productId),
         quantity: qty,
         reason: reason || undefined,
       });

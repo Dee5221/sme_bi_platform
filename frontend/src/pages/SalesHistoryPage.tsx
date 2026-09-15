@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import * as saleApi from '../services/saleService';
-import type { Sale } from '../services/saleService';
+import type { Sale, SaleList } from '../services/saleService';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -13,6 +13,7 @@ import { Input } from '../components/ui/Input';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
+import { useToast } from '../components/ui/Toast';
 import './SalesPage.css';
 
 function formatMoney(value: number) {
@@ -29,13 +30,18 @@ function formatDate(value: string) {
 
 export function SalesHistoryPage() {
   const { hasPermission } = useAuth();
+  const { pushToast } = useToast();
   const canView = hasPermission('sales.view');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [sales, setSales] = useState<SaleList[]>([]);
+  
+  // Note: 'search' is kept for UI consistency, but omitted from the API call 
+  // as the current backend endpoint does not support text search yet.
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
@@ -45,7 +51,9 @@ export function SalesHistoryPage() {
     total: 0,
     totalPages: 1,
   });
+  
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -60,8 +68,8 @@ export function SalesHistoryPage() {
     }
     setError(null);
     try {
+      // The service automatically maps 'from'/'to' to 'start_date'/'end_date'
       const result = await saleApi.listSales({
-        search: debouncedSearch || undefined,
         from: from || undefined,
         to: to || undefined,
         page,
@@ -74,7 +82,7 @@ export function SalesHistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [canView, debouncedSearch, from, to, page]);
+  }, [canView, from, to, page]);
 
   useEffect(() => {
     void loadSales();
@@ -88,6 +96,18 @@ export function SalesHistoryPage() {
     setPage(1);
   }
 
+  async function handleViewSale(saleId: number) {
+    setLoadingDetail(true);
+    try {
+      const sale = await saleApi.getSale(saleId);
+      setSelectedSale(sale);
+    } catch (err) {
+      pushToast('Failed to load sale details.', 'error');
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
   if (!canView) {
     return <Alert tone="error">You do not have permission to view sales history.</Alert>;
   }
@@ -99,7 +119,7 @@ export function SalesHistoryPage() {
       </Link>
       <PageHeader
         title="Sales history"
-        subtitle="Look up past transactions by date, sale number, notes, or customer."
+        subtitle="Look up past transactions by date or customer."
       />
 
       <Card>
@@ -107,7 +127,7 @@ export function SalesHistoryPage() {
           <Input
             label="Search"
             name="search"
-            placeholder="Search sale number, notes, or customer"
+            placeholder="Search sale ID, notes, or customer"
             value={search}
             onChange={(e) => {
               setPage(1);
@@ -149,48 +169,52 @@ export function SalesHistoryPage() {
               rows={sales}
               rowKey={(row) => row.id}
               emptyTitle="No sales in this period"
-              emptyDescription="Adjust the date range or search to find earlier transactions."
+              emptyDescription="Adjust the date range to find earlier transactions."
               columns={[
                 {
                   key: 'number',
-                  header: 'Sale',
-                  render: (row) => (
+                  header: 'Sale ID',
+                  render: (row: SaleList) => (
                     <div>
-                      <strong>{row.saleNumber}</strong>
-                      <div className="sales-muted">{formatDate(row.soldAt)}</div>
+                      <strong>#{row.id}</strong>
+                      <div className="sales-muted">{formatDate(row.sale_datetime)}</div>
                     </div>
                   ),
                 },
                 {
                   key: 'customer',
                   header: 'Customer',
-                  render: (row) => row.customer?.name || 'Walk-in',
+                  render: (row: SaleList) => row.customer_name || 'Walk-in',
                 },
                 {
                   key: 'recordedBy',
                   header: 'Recorded by',
-                  render: (row) => row.createdBy?.name || '—',
+                  render: (row: SaleList) => row.user_name || '—',
                 },
                 {
                   key: 'items',
                   header: 'Items',
-                  render: (row) => row.items.length,
+                  render: (row: SaleList) => row.item_count,
                 },
                 {
                   key: 'total',
                   header: 'Total',
-                  render: (row) => formatMoney(row.total),
+                  render: (row: SaleList) => formatMoney(row.total_amount),
                 },
                 {
                   key: 'status',
                   header: 'Status',
-                  render: (row) => <Badge tone="green">{row.status}</Badge>,
+                  render: (row: SaleList) => <Badge tone="green">{row.status}</Badge>,
                 },
                 {
                   key: 'actions',
                   header: 'Actions',
-                  render: (row) => (
-                    <Button variant="ghost" onClick={() => setSelectedSale(row)}>
+                  render: (row: SaleList) => (
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => handleViewSale(row.id)}
+                      disabled={loadingDetail}
+                    >
                       View
                     </Button>
                   ),
@@ -225,26 +249,18 @@ export function SalesHistoryPage() {
 
       <Modal
         open={Boolean(selectedSale)}
-        title={selectedSale ? selectedSale.saleNumber : 'Sale'}
+        title={selectedSale ? `Sale #${selectedSale.id}` : 'Sale'}
         onClose={() => setSelectedSale(null)}
         width="lg"
       >
         {selectedSale ? (
           <div className="sales-detail">
-            <p>
-              <strong>Customer:</strong> {selectedSale.customer?.name || 'Walk-in'}
-            </p>
-            <p>
-              <strong>Sold:</strong> {formatDate(selectedSale.soldAt)}
-            </p>
-            <p>
-              <strong>Recorded by:</strong> {selectedSale.createdBy?.name || '—'}
-            </p>
-            {selectedSale.notes ? (
-              <p>
-                <strong>Notes:</strong> {selectedSale.notes}
-              </p>
-            ) : null}
+            <p><strong>Sale ID:</strong> #{selectedSale.id}</p>
+            <p><strong>Customer:</strong> {selectedSale.customer_name || 'Walk-in'}</p>
+            <p><strong>Date:</strong> {formatDate(selectedSale.sale_datetime)}</p>
+            <p><strong>Recorded by:</strong> {selectedSale.user_name || '—'}</p>
+            <p><strong>Payment:</strong> {selectedSale.payment_method}</p>
+            
             <DataTable
               rows={selectedSale.items}
               rowKey={(row) => row.id}
@@ -252,12 +268,12 @@ export function SalesHistoryPage() {
                 {
                   key: 'product',
                   header: 'Product',
-                  render: (row) => `${row.productName} (${row.productSku})`,
+                  render: (row) => `${row.product_name} (${row.sku})`,
                 },
                 {
                   key: 'price',
                   header: 'Unit price',
-                  render: (row) => formatMoney(row.unitPrice),
+                  render: (row) => formatMoney(row.unit_price),
                 },
                 {
                   key: 'qty',
@@ -266,13 +282,13 @@ export function SalesHistoryPage() {
                 },
                 {
                   key: 'line',
-                  header: 'Line total',
-                  render: (row) => formatMoney(row.lineTotal),
+                  header: 'Subtotal',
+                  render: (row) => formatMoney(row.subtotal),
                 },
               ]}
             />
             <div className="sales-detail__total">
-              Total: <strong>{formatMoney(selectedSale.total)}</strong>
+              Total: <strong>{formatMoney(selectedSale.total_amount)}</strong>
             </div>
           </div>
         ) : null}

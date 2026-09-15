@@ -1,26 +1,23 @@
 import { apiRequest } from '../lib/api';
-import type { AuthUser, LoginPayload, RegisterPayload } from '../types/auth';
-
-export function register(payload: RegisterPayload) {
-  return apiRequest<{ user: AuthUser }>('/api/auth/register', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
+import type { UserResponse, LoginPayload, TokenResponse } from '../types/auth';
 
 export function login(payload: LoginPayload) {
-  return apiRequest<{ user: AuthUser }>('/api/auth/login', {
+  // Backend returns { access_token, token_type } directly
+  return apiRequest<TokenResponse>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
 export function fetchMe() {
-  return apiRequest<{ user: AuthUser }>('/api/auth/me');
+  // Backend returns UserResponse directly (no { user: ... } wrapper)
+  return apiRequest<UserResponse>('/api/auth/me');
 }
 
 export function logout() {
-  return apiRequest<{ loggedOut: boolean }>('/api/auth/logout', {
+  // JWT is stateless; backend logout is just a success message.
+  // Actual state clearing happens in AuthContext.
+  return apiRequest<{ message: string }>('/api/auth/logout', {
     method: 'POST',
   });
 }

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from decimal import Decimal
 from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel, Field # Fixed typo: 'field' -> 'Field'
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
@@ -32,7 +34,6 @@ def list_inventory(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Query joins Product, Category, and Inventory to get a complete view
     query = db.query(
         Product.id.label("product_id"),
         Product.name.label("product_name"),
@@ -55,7 +56,8 @@ def list_inventory(
     
     response = []
     for row in results:
-        qty = Decimal(row.quantity_on_hand)
+        # Safely handle None from outer join
+        qty = Decimal(row.quantity_on_hand) if row.quantity_on_hand is not None else Decimal("0.00")
         response.append(InventoryResponse(
             product_id=row.product_id,
             product_name=row.product_name,
@@ -109,11 +111,87 @@ def get_stock_movements(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
         
-    movements = db.query(StockMovement).filter(
-        StockMovement.product_id == product_id
-    ).order_by(StockMovement.created_at.desc()).all()
+    movements = db.query(
+        StockMovement.id,
+        StockMovement.product_id,
+        Product.name.label("product_name"),
+        Product.sku,
+        StockMovement.user_id,
+        User.name.label("user_name"),
+        StockMovement.movement_type,
+        StockMovement.quantity,
+        StockMovement.reference,
+        StockMovement.reason,
+        StockMovement.created_at
+    ).join(Product, StockMovement.product_id == Product.id)\
+     .join(User, StockMovement.user_id == User.id)\
+     .filter(StockMovement.product_id == product_id, Product.business_id == current_user.business_id)\
+     .order_by(StockMovement.created_at.desc()).all()
     
     return movements
+
+# ==============================================================================
+# NEW: Global movements endpoint for the frontend movement history page
+# ==============================================================================
+@router.get("/movements", response_model=list[StockMovementResponse])
+def get_all_movements(
+    product_id: Optional[int] = Query(None),
+    movement_type: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(
+        StockMovement.id,
+        StockMovement.product_id,
+        Product.name.label("product_name"),
+        Product.sku,
+        StockMovement.user_id,
+        User.name.label("user_name"),
+        StockMovement.movement_type,
+        StockMovement.quantity,
+        StockMovement.reference,
+        StockMovement.reason,
+        StockMovement.created_at
+    ).join(Product, StockMovement.product_id == Product.id)\
+     .join(User, StockMovement.user_id == User.id)\
+     .filter(Product.business_id == current_user.business_id)
+     
+    if product_id:
+        query = query.filter(StockMovement.product_id == product_id)
+    if movement_type:
+        query = query.filter(StockMovement.movement_type == movement_type)
+        
+    return query.order_by(StockMovement.created_at.desc()).all()
+
+# ==============================================================================
+# NEW: Threshold update endpoint to map frontend's lowStockThreshold to backend's Product.reorder_level
+# ==============================================================================
+class ThresholdUpdateRequest(BaseModel):
+    lowStockThreshold: Decimal = Field(..., ge=0)
+
+@router.put("/{product_id}/threshold")
+@router.patch("/{product_id}/threshold")
+def update_threshold(
+    product_id: int,
+    payload: ThresholdUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["Business Owner", "Manager"]))
+):
+    product = db.query(Product).filter(
+        Product.id == product_id,
+        Product.business_id == current_user.business_id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    product.reorder_level = payload.lowStockThreshold
+    db.commit()
+    db.refresh(product)
+    return {"message": "Threshold updated", "reorder_level": float(product.reorder_level)}
+
+# ==============================================================================
+# Existing Stock Operations (Unchanged, but verified)
+# ==============================================================================
 
 @router.post("/{product_id}/stock-in", response_model=InventoryResponse)
 def stock_in(
@@ -129,7 +207,6 @@ def stock_in(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
         
-    # Lock the inventory row for update to prevent race conditions
     inventory = db.query(Inventory).filter(Inventory.product_id == product_id).with_for_update().first()
     
     if not inventory:
@@ -235,7 +312,7 @@ def stock_adjust(
             product_id=product_id,
             user_id=current_user.id,
             movement_type="ADJUSTMENT",
-            quantity=abs(delta), # Store absolute value as per DB constraint
+            quantity=abs(delta),
             reference="ADJUSTMENT",
             reason=operation.reason or f"Adjusted from {current_qty} to {operation.new_quantity}"
         )

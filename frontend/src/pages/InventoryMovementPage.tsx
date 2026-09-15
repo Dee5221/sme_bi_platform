@@ -142,58 +142,43 @@ export function InventoryMovementPage() {
               emptyTitle="No stock movements yet"
               emptyDescription="Stock in and stock out actions will appear here."
               columns={[
-                {
-                  key: 'when',
-                  header: 'When',
-                  render: (row) => formatDate(row.createdAt),
-                },
-                {
-                  key: 'product',
-                  header: 'Product',
-                  render: (row) => (
-                    <div>
-                      <strong>{row.product?.name || row.productId}</strong>
-                      {row.product?.sku ? (
-                        <div className="inventory-muted">{row.product.sku}</div>
-                      ) : null}
-                    </div>
-                  ),
-                },
-                {
-                  key: 'type',
-                  header: 'Type',
-                  render: (row) => (
-                    <Badge tone={row.type === 'STOCK_IN' ? 'green' : 'orange'}>
-                      {formatType(row.type)}
-                    </Badge>
-                  ),
-                },
-                {
-                  key: 'change',
-                  header: 'Change',
-                  render: (row) =>
-                    row.quantityChange > 0 ? `+${row.quantityChange}` : row.quantityChange,
-                },
-                {
-                  key: 'after',
-                  header: 'Balance after',
-                  render: (row) => row.quantityAfter,
-                },
-                {
-                  key: 'actor',
-                  header: 'Recorded by',
-                  render: (row) => row.actor?.name || '—',
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  render: (row) => (
-                    <Button variant="ghost" onClick={() => setSelectedMovement(row)}>
-                      View
-                    </Button>
-                  ),
-                },
-              ]}
+                    {
+                      key: 'when',
+                      header: 'When',
+                      render: (row: StockMovement) => new Date(row.created_at).toLocaleString(),
+                    },
+                    {
+                      key: 'product',
+                      header: 'Product',
+                      render: (row: StockMovement) => (
+                        <div>
+                          <strong>{row.product_name}</strong>
+                          <div className="inventory-muted">{row.sku}</div>
+                        </div>
+                      ),
+                    },
+                    {
+                      key: 'type',
+                      header: 'Type',
+                      render: (row: StockMovement) => (
+                        <Badge tone={row.movement_type === 'IN' ? 'green' : row.movement_type === 'OUT' ? 'orange' : 'neutral'}>
+                          {row.movement_type === 'IN' ? 'Stock in' : row.movement_type === 'OUT' ? 'Stock out' : 'Adjustment'}
+                        </Badge>
+                      ),
+                    },
+                    {
+                      key: 'change',
+                      header: 'Change',
+                      render: (row: StockMovement) =>
+                        row.movement_type === 'IN' ? `+${row.quantity}` : `-${row.quantity}`,
+                    },
+                    {
+                      key: 'actor',
+                      header: 'Recorded by',
+                      render: (row: StockMovement) => row.user_name || '—',
+                    },
+                    
+                  ]}
             />
 
             <div className="inventory-pagination">

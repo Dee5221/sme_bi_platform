@@ -20,12 +20,14 @@ type AdjustMode = 'STOCK_IN' | 'STOCK_OUT' | null;
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const fieldName = item.loc[item.loc.length - 1];
+      next[fieldName] = item.msg;
+    }
   }
   return next;
 }
-
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
@@ -245,38 +247,34 @@ export function OwnerInventoryPage() {
                 {
                   key: 'product',
                   header: 'Product',
-                  render: (row) => (
+                  render: (row: InventoryItem) => (
                     <div>
-                      <strong>{row.product.name}</strong>
-                      <div className="inventory-muted">{row.product.sku}</div>
+                      <strong>{row.product_name}</strong>
+                      <div className="inventory-muted">{row.sku}</div>
                     </div>
                   ),
                 },
                 {
                   key: 'qty',
                   header: 'Quantity',
-                  render: (row) => (
-                    <span>
-                      {row.quantity}
-                      {row.product.unit ? ` ${row.product.unit}` : ''}
-                    </span>
-                  ),
+                  render: (row: InventoryItem) => <span>{row.quantity_on_hand}</span>,
                 },
                 {
                   key: 'threshold',
                   header: 'Low-stock at',
-                  render: (row) => row.lowStockThreshold,
+                  render: (row: InventoryItem) => row.reorder_level,
                 },
                 {
                   key: 'status',
                   header: 'Status',
-                  render: (row) =>
-                    row.isLowStock ? (
-                      <Badge tone="orange">Low stock</Badge>
+                  render: (row: InventoryItem) =>
+                    row.stock_status === 'low_stock' || row.stock_status === 'out_of_stock' ? (
+                      <Badge tone="orange">{row.stock_status === 'out_of_stock' ? 'Out of stock' : 'Low stock'}</Badge>
                     ) : (
                       <Badge tone="green">OK</Badge>
                     ),
                 },
+                
                 {
                   key: 'actions',
                   header: 'Actions',

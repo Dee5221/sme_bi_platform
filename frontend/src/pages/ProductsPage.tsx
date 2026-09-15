@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ApiClientError, mediaUrl } from '../lib/api';
+import { ApiClientError } from '../lib/api';
 import * as productApi from '../services/productService';
 import type { Product, ProductCategory } from '../services/productService';
 import { Alert } from '../components/ui/Alert';
@@ -19,38 +19,40 @@ import './ProductsPage.css';
 type ProductForm = {
   name: string;
   sku: string;
-  description: string;
-  unit: string;
-  price: string;
+  cost_price: string;
+  selling_price: string;
+  reorder_level: string;
   categoryId: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'active' | 'inactive';
 };
 
 type CategoryForm = {
   name: string;
-  description: string;
 };
 
 const emptyProductForm: ProductForm = {
   name: '',
   sku: '',
-  description: '',
-  unit: '',
-  price: '',
+  cost_price: '0.00',
+  selling_price: '0.00',
+  reorder_level: '0.00',
   categoryId: '',
-  status: 'ACTIVE',
+  status: 'active',
 };
 
 const emptyCategoryForm: CategoryForm = {
   name: '',
-  description: '',
 };
 
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      // FastAPI returns loc as ['body', 'field_name'] or ['query', 'field_name']
+      const fieldName = item.loc[item.loc.length - 1];
+      next[fieldName] = item.msg;
+    }
   }
   return next;
 }
@@ -98,8 +100,6 @@ export function ProductsPage() {
   const [saving, setSaving] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Product | null>(null);
   const [deactivating, setDeactivating] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -124,7 +124,15 @@ export function ProductsPage() {
         }),
         productApi.listCategories(true),
       ]);
-      setProducts(productResult.items);
+      
+      // Enrich products with category names for the UI
+      const categoryMap = new Map(categoryResult.categories.map(c => [c.id, c.name]));
+      const enrichedProducts = productResult.items.map(p => ({
+        ...p,
+        category: p.category_id ? { id: p.category_id, name: categoryMap.get(p.category_id) || 'Unknown' } : null
+      }));
+
+      setProducts(enrichedProducts);
       setPagination(productResult.pagination);
       setCategories(categoryResult.categories);
     } catch (err) {
@@ -139,15 +147,13 @@ export function ProductsPage() {
   }, [loadData]);
 
   const activeCategories = useMemo(
-    () => categories.filter((category) => category.isActive),
+    () => categories.filter((category) => category.status === 'active'),
     [categories]
   );
 
   function openCreateProduct() {
     setEditingProduct(null);
     setProductForm(emptyProductForm);
-    setImageFile(null);
-    setImagePreview(null);
     setFormError(null);
     setFieldErrors({});
     setProductModalOpen(true);
@@ -158,37 +164,41 @@ export function ProductsPage() {
     setProductForm({
       name: product.name,
       sku: product.sku,
-      description: product.description || '',
-      unit: product.unit || '',
-      price: String(product.price),
-      categoryId: product.categoryId || '',
-      status: product.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+      cost_price: String(product.cost_price),
+      selling_price: String(product.selling_price),
+      reorder_level: String(product.reorder_level),
+      categoryId: String(product.category_id),
+      status: product.status,
     });
-    setImageFile(null);
-    setImagePreview(mediaUrl(product.imageUrl));
     setFormError(null);
     setFieldErrors({});
     setProductModalOpen(true);
-  }
-
-  function onProductImageChange(file: File | null) {
-    setImageFile(file);
-    if (!file) {
-      setImagePreview(editingProduct ? mediaUrl(editingProduct.imageUrl) : null);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setImagePreview(typeof reader.result === 'string' ? reader.result : null);
-    reader.readAsDataURL(file);
   }
 
   async function onSaveProduct(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
     setFieldErrors({});
-    const price = Number(productForm.price);
-    if (Number.isNaN(price)) {
-      setFieldErrors({ price: 'Enter a valid price.' });
+    
+    const costPrice = Number(productForm.cost_price);
+    const sellingPrice = Number(productForm.selling_price);
+    const reorderLevel = Number(productForm.reorder_level);
+    const categoryId = Number(productForm.categoryId);
+
+    if (Number.isNaN(costPrice) || costPrice < 0) {
+      setFieldErrors({ cost_price: 'Enter a valid cost price.' });
+      return;
+    }
+    if (Number.isNaN(sellingPrice) || sellingPrice < 0) {
+      setFieldErrors({ selling_price: 'Enter a valid selling price.' });
+      return;
+    }
+    if (Number.isNaN(reorderLevel) || reorderLevel < 0) {
+      setFieldErrors({ reorder_level: 'Enter a valid reorder level.' });
+      return;
+    }
+    if (Number.isNaN(categoryId)) {
+      setFieldErrors({ categoryId: 'Please select a category.' });
       return;
     }
 
@@ -197,26 +207,19 @@ export function ProductsPage() {
       const payload = {
         name: productForm.name,
         sku: productForm.sku,
-        description: productForm.description || undefined,
-        unit: productForm.unit || undefined,
-        price,
-        categoryId: productForm.categoryId || undefined,
-        ...(editingProduct && canDelete ? { status: productForm.status } : {}),
+        cost_price: costPrice,
+        selling_price: sellingPrice,
+        reorder_level: reorderLevel,
+        category_id: categoryId,
+        status: productForm.status,
       };
 
-      let productId = editingProduct?.id;
       if (editingProduct) {
         await productApi.updateProduct(editingProduct.id, payload);
         pushToast('Product updated.', 'success');
       } else {
-        const created = await productApi.createProduct(payload);
-        productId = created.product.id;
+        await productApi.createProduct(payload);
         pushToast('Product created.', 'success');
-      }
-
-      if (imageFile && productId) {
-        await productApi.uploadProductImage(productId, imageFile);
-        pushToast(editingProduct ? 'Product image updated.' : 'Product image uploaded.', 'success');
       }
 
       setProductModalOpen(false);
@@ -242,7 +245,7 @@ export function ProductsPage() {
     try {
       await productApi.createCategory({
         name: categoryForm.name,
-        description: categoryForm.description || undefined,
+        status: 'active',
       });
       pushToast('Category created.', 'success');
       setCategoryModalOpen(false);
@@ -336,9 +339,9 @@ export function ProductsPage() {
             >
               <option value="">All categories</option>
               {categories.map((category) => (
-                <option key={category.id} value={category.id}>
+                <option key={category.id} value={String(category.id)}>
                   {category.name}
-                  {!category.isActive ? ' (inactive)' : ''}
+                  {category.status === 'inactive' ? ' (inactive)' : ''}
                 </option>
               ))}
             </select>
@@ -362,13 +365,6 @@ export function ProductsPage() {
                   header: 'Product',
                   render: (row) => (
                     <div className="products-name-cell">
-                      <div className="products-thumb" aria-hidden="true">
-                        {mediaUrl(row.imageUrl) ? (
-                          <img src={mediaUrl(row.imageUrl) || ''} alt="" />
-                        ) : (
-                          <span>▦</span>
-                        )}
-                      </div>
                       <div>
                         <strong>{row.name}</strong>
                         <div className="products-muted">{row.sku}</div>
@@ -382,21 +378,16 @@ export function ProductsPage() {
                   render: (row) => row.category?.name || '—',
                 },
                 {
-                  key: 'price',
+                  key: 'selling_price',
                   header: 'Price',
-                  render: (row) => formatMoney(row.price),
-                },
-                {
-                  key: 'stock',
-                  header: 'Stock',
-                  render: (row) => row.inventory?.quantity ?? 0,
+                  render: (row) => formatMoney(row.selling_price),
                 },
                 {
                   key: 'status',
                   header: 'Status',
                   render: (row) => (
-                    <Badge tone={row.status === 'ACTIVE' ? 'green' : 'neutral'}>
-                      {row.status}
+                    <Badge tone={row.status === 'active' ? 'green' : 'neutral'}>
+                      {row.status === 'active' ? 'Active' : 'Inactive'}
                     </Badge>
                   ),
                 },
@@ -410,7 +401,7 @@ export function ProductsPage() {
                           Edit
                         </Button>
                       ) : null}
-                      {canDelete && row.status === 'ACTIVE' ? (
+                      {canDelete && row.status === 'active' ? (
                         <Button variant="ghost" onClick={() => setDeactivateTarget(row)}>
                           Deactivate
                         </Button>
@@ -454,36 +445,6 @@ export function ProductsPage() {
       >
         <form className="products-form" onSubmit={onSaveProduct} noValidate>
           {formError ? <Alert tone="error">{formError}</Alert> : null}
-          <div className="products-image-field">
-            <div className="products-image-preview" aria-hidden="true">
-              {imagePreview ? <img src={imagePreview} alt="" /> : <span>No image</span>}
-            </div>
-            <div className="products-image-field__meta">
-              <strong>Product image</strong>
-              <span>JPEG, PNG, WebP, or GIF · up to 5MB</span>
-              <label className="products-image-upload">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0] || null;
-                    event.target.value = '';
-                    onProductImageChange(file);
-                  }}
-                />
-                <span>{imageFile ? 'Change image' : 'Choose image'}</span>
-              </label>
-              {imageFile ? (
-                <button
-                  type="button"
-                  className="products-image-clear"
-                  onClick={() => onProductImageChange(null)}
-                >
-                  Remove selected image
-                </button>
-              ) : null}
-            </div>
-          </div>
           <div className="products-form__grid">
             <Input
               label="Name"
@@ -502,39 +463,55 @@ export function ProductsPage() {
               required
             />
             <Input
-              label="Price"
-              name="price"
+              label="Cost Price"
+              name="cost_price"
               type="number"
               min="0"
               step="0.01"
-              value={productForm.price}
-              onChange={(e) => setProductForm((c) => ({ ...c, price: e.target.value }))}
-              error={fieldErrors.price}
+              value={productForm.cost_price}
+              onChange={(e) => setProductForm((c) => ({ ...c, cost_price: e.target.value }))}
+              error={fieldErrors.cost_price}
               required
             />
             <Input
-              label="Unit"
-              name="unit"
-              placeholder="e.g. pcs, kg, bag"
-              value={productForm.unit}
-              onChange={(e) => setProductForm((c) => ({ ...c, unit: e.target.value }))}
-              error={fieldErrors.unit}
+              label="Selling Price"
+              name="selling_price"
+              type="number"
+              min="0"
+              step="0.01"
+              value={productForm.selling_price}
+              onChange={(e) => setProductForm((c) => ({ ...c, selling_price: e.target.value }))}
+              error={fieldErrors.selling_price}
+              required
+            />
+            <Input
+              label="Reorder Level"
+              name="reorder_level"
+              type="number"
+              min="0"
+              step="0.01"
+              value={productForm.reorder_level}
+              onChange={(e) => setProductForm((c) => ({ ...c, reorder_level: e.target.value }))}
+              error={fieldErrors.reorder_level}
+              required
             />
             <label className="products-select products-select--full">
-              <span>Category</span>
+              <span>Category *</span>
               <select
                 value={productForm.categoryId}
                 onChange={(e) =>
                   setProductForm((c) => ({ ...c, categoryId: e.target.value }))
                 }
+                required
               >
-                <option value="">No category</option>
+                <option value="">Select a category</option>
                 {activeCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
+                  <option key={category.id} value={String(category.id)}>
                     {category.name}
                   </option>
                 ))}
               </select>
+              {fieldErrors.category_id && <span className="input-error">{fieldErrors.category_id}</span>}
             </label>
             {editingProduct && canDelete ? (
               <label className="products-select">
@@ -544,24 +521,24 @@ export function ProductsPage() {
                   onChange={(e) =>
                     setProductForm((c) => ({
                       ...c,
-                      status: e.target.value as 'ACTIVE' | 'INACTIVE',
+                      status: e.target.value as 'active' | 'inactive',
                     }))
                   }
                 >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </label>
             ) : null}
             <Input
-              label="Description"
+              label="Description (Optional)"
               name="description"
-              value={productForm.description}
-              onChange={(e) =>
-                setProductForm((c) => ({ ...c, description: e.target.value }))
-              }
-              error={fieldErrors.description}
+              value={productForm.name} 
+              // Note: Backend doesn't store description in MVP, but we keep the field for UI consistency without sending it
+              onChange={(e) => {}} 
               className="products-form__full"
+              disabled
+              placeholder="Description field reserved for future enhancement"
             />
           </div>
           <div className="products-form__actions">
@@ -589,15 +566,6 @@ export function ProductsPage() {
             onChange={(e) => setCategoryForm((c) => ({ ...c, name: e.target.value }))}
             error={fieldErrors.name}
             required
-          />
-          <Input
-            label="Description"
-            name="description"
-            value={categoryForm.description}
-            onChange={(e) =>
-              setCategoryForm((c) => ({ ...c, description: e.target.value }))
-            }
-            error={fieldErrors.description}
           />
           <div className="products-form__actions">
             <Button variant="secondary" type="button" onClick={() => setCategoryModalOpen(false)}>

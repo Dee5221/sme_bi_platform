@@ -1,33 +1,44 @@
 import { apiRequest } from '../lib/api';
 
 export type SaleItem = {
-  id: string;
-  productId: string;
-  productName: string;
-  productSku: string;
-  unitPrice: number;
+  id: number;
+  product_id: number;
+  product_name: string;
+  sku: string;
   quantity: number;
-  lineTotal: number;
+  unit_price: number;
+  subtotal: number;
 };
 
 export type Sale = {
-  id: string;
-  saleNumber: string;
+  id: number;
+  business_id: number;
+  user_id: number;
+  user_name: string;
+  customer_id: number | null;
+  customer_name: string | null;
+  sale_datetime: string;
+  total_amount: number;
+  payment_method: string;
   status: string;
-  subtotal: number;
-  total: number;
-  notes: string | null;
-  soldAt: string;
-  customerId: string | null;
-  customer: { id: string; name: string } | null;
-  createdBy: { id: string; name: string } | null;
   items: SaleItem[];
 };
 
+export type SaleList = {
+  id: number;
+  sale_datetime: string;
+  total_amount: number;
+  payment_method: string;
+  status: string;
+  user_name: string;
+  customer_name: string | null;
+  item_count: number;
+};
+
 export type CreateSalePayload = {
-  customerId?: string;
-  notes?: string;
-  items: { productId: string; quantity: number }[];
+  customer_id?: number;
+  payment_method: string;
+  items: { product_id: number; quantity: number }[];
 };
 
 type Paginated<T> = {
@@ -41,30 +52,42 @@ type Paginated<T> = {
 };
 
 export function listSales(params: {
-  search?: string;
-  customerId?: string;
   from?: string;
   to?: string;
   page?: number;
   pageSize?: number;
 }) {
   const query = new URLSearchParams();
-  if (params.search) query.set('search', params.search);
-  if (params.customerId) query.set('customerId', params.customerId);
-  if (params.from) query.set('from', params.from);
-  if (params.to) query.set('to', params.to);
-  if (params.page) query.set('page', String(params.page));
-  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  if (params.from) query.set('start_date', params.from);
+  if (params.to) query.set('end_date', params.to);
+  
+  // Ensure page and pageSize are always sent if your backend expects them for consistency
+  query.set('page', String(params.page || 1));
+  query.set('pageSize', String(params.pageSize || 20));
+  
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return apiRequest<Paginated<Sale>>(`/api/sales${suffix}`);
+  
+  return apiRequest<SaleList[]>(`/api/sales/${suffix}`).then((data) => {
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 20;
+    return {
+      items: data,
+      pagination: {
+        page,
+        pageSize,
+        total: data.length,
+        totalPages: Math.ceil(data.length / pageSize) || 1,
+      },
+    };
+  });
 }
 
-export function getSale(id: string) {
-  return apiRequest<{ sale: Sale }>(`/api/sales/${id}`);
+export function getSale(id: number) {
+  return apiRequest<Sale>(`/api/sales/${id}`);
 }
 
 export function createSale(payload: CreateSalePayload) {
-  return apiRequest<{ sale: Sale }>('/api/sales', {
+  return apiRequest<Sale>('/api/sales/', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

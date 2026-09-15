@@ -19,7 +19,7 @@ import './SalesPage.css';
 
 type LineDraft = {
   key: string;
-  productId: string;
+  productId: number | '';
   quantity: string;
 };
 
@@ -34,8 +34,11 @@ function formatMoney(value: number) {
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const fieldName = item.loc[item.loc.length - 1];
+      next[fieldName] = item.msg;
+    }
   }
   return next;
 }
@@ -54,8 +57,8 @@ export function NewSalePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerId, setCustomerId] = useState('');
-  const [notes, setNotes] = useState('');
+  const [customerId, setCustomerId] = useState<number | ''>('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [lines, setLines] = useState<LineDraft[]>(emptyLines);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -69,8 +72,8 @@ export function NewSalePage() {
     }
     try {
       const [productsResult, customersResult] = await Promise.all([
-        productApi.listProducts({ status: 'ACTIVE', pageSize: 100 }),
-        customerApi.listCustomers({ status: 'ACTIVE', pageSize: 100 }),
+        productApi.listProducts({ status: 'active', pageSize: 100 }),
+        customerApi.listCustomers({ page: 1, pageSize: 100 }), // Adjusted to match F07/F06 service
       ]);
       setProducts(productsResult.items);
       setCustomers(customersResult.items);
@@ -93,10 +96,10 @@ export function NewSalePage() {
 
   const draftTotal = useMemo(() => {
     return lines.reduce((sum, line) => {
-      const product = productMap.get(line.productId);
+      const product = typeof line.productId === 'number' ? productMap.get(line.productId) : undefined;
       const qty = Number(line.quantity);
       if (!product || !Number.isFinite(qty) || qty <= 0) return sum;
-      return sum + product.price * qty;
+      return sum + product.selling_price * qty;
     }, 0);
   }, [lines, productMap]);
 
@@ -126,9 +129,9 @@ export function NewSalePage() {
     setFieldErrors({});
 
     const items = lines
-      .filter((line) => line.productId)
+      .filter((line): line is { key: string; productId: number; quantity: string } => typeof line.productId === 'number' && line.productId !== '')
       .map((line) => ({
-        productId: line.productId,
+        product_id: line.productId,
         quantity: Number(line.quantity),
       }));
 
@@ -144,11 +147,11 @@ export function NewSalePage() {
     setSaving(true);
     try {
       await saleApi.createSale({
-        customerId: customerId || undefined,
-        notes: notes || undefined,
+        customer_id: typeof customerId === 'number' ? customerId : undefined,
+        payment_method: paymentMethod,
         items,
       });
-      pushToast('Sale recorded.', 'success');
+      pushToast('Sale recorded successfully.', 'success');
       navigate('/app/sales');
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -192,14 +195,14 @@ export function NewSalePage() {
       </Link>
       <PageHeader
         title="New sale"
-        subtitle="Record a transaction. Prices are frozen at the time of sale and stock is deducted immediately."
+        subtitle="Record a transaction. Prices and totals are calculated securely by the system."
       />
 
       <Card>
         {products.length === 0 ? (
           <EmptyState
             title="No products available"
-            description="Add an active product with stock before recording a sale."
+            description="Add an active product before recording a sale."
             action={
               <Link to="/app/products">
                 <Button>Go to Products</Button>
@@ -212,7 +215,7 @@ export function NewSalePage() {
             <div className="sales-form__meta">
               <label className="sales-select">
                 <span>Customer (optional)</span>
-                <select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                <select value={customerId} onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : '')}>
                   <option value="">Walk-in / no customer</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
@@ -221,30 +224,32 @@ export function NewSalePage() {
                   ))}
                 </select>
               </label>
-              <Input
-                label="Notes"
-                name="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                error={fieldErrors.notes}
-              />
+              <label className="sales-select">
+                <span>Payment Method</span>
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} required>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="Mobile Money">Mobile Money</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                </select>
+              </label>
             </div>
 
             <div className="sales-lines">
               {lines.map((line) => {
-                const product = productMap.get(line.productId);
+                const product = typeof line.productId === 'number' ? productMap.get(line.productId) : undefined;
                 return (
                   <div className="sales-line" key={line.key}>
                     <label className="sales-select">
                       <span>Product</span>
                       <select
                         value={line.productId}
-                        onChange={(e) => updateLine(line.key, { productId: e.target.value })}
+                        onChange={(e) => updateLine(line.key, { productId: e.target.value ? Number(e.target.value) : '' })}
                       >
                         <option value="">Select product</option>
                         {products.map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.name} ({item.sku}) · stock {item.inventory?.quantity ?? 0}
+                            {item.name} ({item.sku})
                           </option>
                         ))}
                       </select>
@@ -259,7 +264,7 @@ export function NewSalePage() {
                       onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
                     />
                     <div className="sales-line__meta">
-                      <span>{product ? formatMoney(product.price) : '—'}</span>
+                      <span>{product ? formatMoney(product.selling_price) : '—'}</span>
                       <Button
                         type="button"
                         variant="ghost"
@@ -285,7 +290,7 @@ export function NewSalePage() {
                 <Button type="button" variant="secondary" onClick={() => navigate('/app/sales')}>
                   Cancel
                 </Button>
-                <Button type="submit" loading={saving}>
+                <Button type="submit" loading={saving} disabled={saving}>
                   Record sale
                 </Button>
               </div>

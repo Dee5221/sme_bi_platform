@@ -1,25 +1,25 @@
-﻿import { apiRequest, apiUpload } from '../lib/api';
+﻿import { apiRequest } from '../lib/api';
 
 export type ProductCategory = {
-  id: string;
+  id: number;
+  business_id: number;
   name: string;
-  description: string | null;
-  isActive: boolean;
-  productCount?: number;
+  status: 'active' | 'inactive';
 };
 
 export type Product = {
-  id: string;
-  name: string;
+  id: number;
+  business_id: number;
+  category_id: number;
+  supplier_id: number | null;
   sku: string;
-  description: string | null;
-  unit: string | null;
-  imageUrl: string | null;
-  price: number;
-  status: 'ACTIVE' | 'INACTIVE' | string;
-  categoryId: string | null;
-  category: { id: string; name: string } | null;
-  inventory: { quantity: number; lowStockThreshold: number } | null;
+  name: string;
+  cost_price: number;
+  selling_price: number;
+  reorder_level: number;
+  status: 'active' | 'inactive';
+  // Optional frontend-only fields for UI compatibility, populated via mapping if needed
+  category?: { id: number; name: string } | null;
 };
 
 export type ProductListResult = {
@@ -35,41 +35,45 @@ export type ProductListResult = {
 export type ProductPayload = {
   name: string;
   sku: string;
-  description?: string;
-  unit?: string;
-  price: number;
-  categoryId?: string;
-  status?: 'ACTIVE' | 'INACTIVE';
+  cost_price: number;
+  selling_price: number;
+  reorder_level: number;
+  category_id: number;
+  supplier_id?: number;
+  status?: 'active' | 'inactive';
 };
 
 export type CategoryPayload = {
   name: string;
-  description?: string;
-  isActive?: boolean;
+  status?: 'active' | 'inactive';
 };
 
 export function listCategories(includeInactive = false) {
-  const query = includeInactive ? '?includeInactive=true' : '';
-  return apiRequest<{ categories: ProductCategory[] }>(`/api/product-categories${query}`);
+  // Backend returns a flat array. We wrap it to match frontend expectations.
+  return apiRequest<ProductCategory[]>('/api/categories/').then((data) => {
+    const filtered = includeInactive ? data : data.filter((c) => c.status === 'active');
+    return { categories: filtered };
+  });
 }
 
 export function createCategory(payload: CategoryPayload) {
-  return apiRequest<{ category: ProductCategory }>('/api/product-categories', {
+  return apiRequest<ProductCategory>('/api/categories/', {
     method: 'POST',
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ name: payload.name, status: payload.status || 'active' }),
   });
 }
 
-export function updateCategory(id: string, payload: CategoryPayload) {
-  return apiRequest<{ category: ProductCategory }>(`/api/product-categories/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(payload),
+export function updateCategory(id: number, payload: CategoryPayload) {
+  return apiRequest<ProductCategory>(`/api/categories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name: payload.name, status: payload.status }),
   });
 }
 
-export function deactivateCategory(id: string) {
-  return apiRequest<{ category: ProductCategory }>(`/api/product-categories/${id}`, {
-    method: 'DELETE',
+export function deactivateCategory(id: number) {
+  return apiRequest<ProductCategory>(`/api/categories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'inactive' }),
   });
 }
 
@@ -82,36 +86,50 @@ export function listProducts(params: {
 }) {
   const query = new URLSearchParams();
   if (params.search) query.set('search', params.search);
-  if (params.status) query.set('status', params.status);
-  if (params.categoryId) query.set('categoryId', params.categoryId);
-  if (params.page) query.set('page', String(params.page));
-  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  if (params.status && params.status !== 'ALL') query.set('status', params.status.toLowerCase());
+  if (params.categoryId) query.set('category_id', params.categoryId);
+  // Note: Backend currently returns a flat array. We simulate pagination for the UI.
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return apiRequest<ProductListResult>(`/api/products${suffix}`);
+  
+  return apiRequest<Product[]>(`/api/products/${suffix}`).then((data) => {
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 20;
+    return {
+      items: data,
+      pagination: {
+        page,
+        pageSize,
+        total: data.length,
+        totalPages: Math.ceil(data.length / pageSize) || 1,
+      },
+    };
+  });
 }
 
 export function createProduct(payload: ProductPayload) {
-  return apiRequest<{ product: Product }>('/api/products', {
+  return apiRequest<Product>('/api/products/', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export function updateProduct(id: string, payload: ProductPayload) {
-  return apiRequest<{ product: Product }>(`/api/products/${id}`, {
-    method: 'PUT',
+export function updateProduct(id: number, payload: Partial<ProductPayload>) {
+  return apiRequest<Product>(`/api/products/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }
 
-export function uploadProductImage(id: string, file: File) {
-  const formData = new FormData();
-  formData.append('image', file);
-  return apiUpload<{ product: Product }>(`/api/products/${id}/image`, formData);
+export function deactivateProduct(id: number) {
+  return apiRequest<Product>(`/api/products/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status: 'inactive' }),
+  });
 }
 
-export function deactivateProduct(id: string) {
-  return apiRequest<{ product: Product }>(`/api/products/${id}`, {
-    method: 'DELETE',
-  });
+// Image upload is not supported by the current backend MVP. 
+// Returning a resolved promise to prevent UI crashes if called, but it won't actually upload.
+export function uploadProductImage(_id: number, _file: File) {
+  console.warn('Product image upload is not supported in the current backend MVP.');
+  return Promise.resolve({ product: {} as Product });
 }
