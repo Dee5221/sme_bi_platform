@@ -340,7 +340,7 @@ export function UsersPage() {
                           Edit
                         </Button>
                       ) : null}
-                      {canDelete && row.isActive && row.id !== currentUser?.id ? (
+                      {canDelete && row.isActive && String(row.id) !== String(currentUser?.id) ? (
                         <Button variant="ghost" onClick={() => setDeactivateTarget(row)}>
                           Deactivate
                         </Button>
@@ -439,7 +439,7 @@ export function UsersPage() {
                       isActive: e.target.value === 'ACTIVE',
                     }))
                   }
-                  disabled={editing.id === currentUser?.id}
+                  disabled={String(editing.id) === String(currentUser?.id)}
                 >
                   <option value="ACTIVE">ACTIVE</option>
                   <option value="INACTIVE">INACTIVE</option>

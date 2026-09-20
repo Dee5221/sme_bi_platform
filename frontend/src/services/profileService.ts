@@ -1,5 +1,5 @@
 ﻿import { apiRequest, apiUpload } from '../lib/api';
-import type { AuthUser } from '../types/auth';
+import type { UserResponse } from '../types/auth';
 
 export type UpdateProfilePayload = {
   firstName: string;
@@ -15,11 +15,11 @@ export type ChangePasswordPayload = {
 };
 
 export function fetchProfile() {
-  return apiRequest<{ user: AuthUser }>('/api/profile');
+  return apiRequest<{ user: UserResponse }>('/api/profile');
 }
 
 export function updateProfile(payload: UpdateProfilePayload) {
-  return apiRequest<{ user: AuthUser }>('/api/profile', {
+  return apiRequest<{ user: UserResponse }>('/api/profile', {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
@@ -35,5 +35,5 @@ export function changePassword(payload: ChangePasswordPayload) {
 export function uploadAvatar(file: File) {
   const formData = new FormData();
   formData.append('image', file);
-  return apiUpload<{ user: AuthUser }>('/api/profile/avatar', formData);
+  return apiUpload<{ user: UserResponse }>('/api/profile/avatar', formData);
 }

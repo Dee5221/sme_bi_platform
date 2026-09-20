@@ -27,6 +27,7 @@ function mapFieldErrors(details: unknown): Record<string, string> {
   }
   return next;
 }
+
 export function StaffInventoryPage() {
   const { hasPermission } = useAuth();
   const { pushToast } = useToast();
@@ -88,7 +89,7 @@ export function StaffInventoryPage() {
 
   function openThreshold(item: InventoryItem) {
     setThresholdItem(item);
-    setThresholdValue(String(item.lowStockThreshold));
+    setThresholdValue(String(item.reorder_level));
     setFormError(null);
     setFieldErrors({});
   }
@@ -104,7 +105,7 @@ export function StaffInventoryPage() {
     setSaving(true);
     setFormError(null);
     try {
-      await inventoryApi.updateThreshold(thresholdItem.id, value);
+      await inventoryApi.updateThreshold(thresholdItem.product_id, value);
       pushToast('Low-stock threshold updated.', 'success');
       setThresholdItem(null);
       await loadInventory();
@@ -184,7 +185,7 @@ export function StaffInventoryPage() {
               rowKey={(row) => row.id}
               emptyTitle="No inventory records"
               emptyDescription="Create products first. Each product starts with zero stock."
-             columns={[
+              columns={[
                 {
                   key: 'product',
                   header: 'Product',
@@ -210,12 +211,13 @@ export function StaffInventoryPage() {
                   header: 'Status',
                   render: (row: InventoryItem) =>
                     row.stock_status === 'low_stock' || row.stock_status === 'out_of_stock' ? (
-                      <Badge tone="orange">{row.stock_status === 'out_of_stock' ? 'Out of stock' : 'Low stock'}</Badge>
+                      <Badge tone="orange">
+                        {row.stock_status === 'out_of_stock' ? 'Out of stock' : 'Low stock'}
+                      </Badge>
                     ) : (
                       <Badge tone="green">OK</Badge>
                     ),
                 },
-                
                 {
                   key: 'actions',
                   header: 'Actions',
@@ -264,7 +266,7 @@ export function StaffInventoryPage() {
         <form className="inventory-form" onSubmit={onSubmitThreshold} noValidate>
           {formError ? <Alert tone="error">{formError}</Alert> : null}
           <p className="inventory-help">
-            Alert when {thresholdItem?.product.name} quantity is at or below this value.
+            Alert when {thresholdItem?.product_name} quantity is at or below this value.
           </p>
           <Input
             label="Low-stock threshold"

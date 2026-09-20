@@ -28,6 +28,7 @@ function mapFieldErrors(details: unknown): Record<string, string> {
   }
   return next;
 }
+
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
@@ -123,7 +124,7 @@ export function OwnerInventoryPage() {
 
   function openThreshold(item: InventoryItem) {
     setThresholdItem(item);
-    setThresholdValue(String(item.lowStockThreshold));
+    setThresholdValue(String(item.reorder_level));
     setFormError(null);
     setFieldErrors({});
   }
@@ -142,7 +143,7 @@ export function OwnerInventoryPage() {
     setFieldErrors({});
     try {
       const payload = {
-        productId: selectedItem.productId,
+        productId: selectedItem.product_id,
         quantity: qty,
         reason: reason || undefined,
       };
@@ -180,7 +181,7 @@ export function OwnerInventoryPage() {
     setSaving(true);
     setFormError(null);
     try {
-      await inventoryApi.updateThreshold(thresholdItem.id, value);
+      await inventoryApi.updateThreshold(thresholdItem.product_id, value);
       pushToast('Low-stock threshold updated.', 'success');
       setThresholdItem(null);
       await loadInventory();
@@ -269,12 +270,13 @@ export function OwnerInventoryPage() {
                   header: 'Status',
                   render: (row: InventoryItem) =>
                     row.stock_status === 'low_stock' || row.stock_status === 'out_of_stock' ? (
-                      <Badge tone="orange">{row.stock_status === 'out_of_stock' ? 'Out of stock' : 'Low stock'}</Badge>
+                      <Badge tone="orange">
+                        {row.stock_status === 'out_of_stock' ? 'Out of stock' : 'Low stock'}
+                      </Badge>
                     ) : (
                       <Badge tone="green">OK</Badge>
                     ),
                 },
-                
                 {
                   key: 'actions',
                   header: 'Actions',
@@ -333,34 +335,36 @@ export function OwnerInventoryPage() {
             {
               key: 'when',
               header: 'When',
-              render: (row) => formatDate(row.createdAt),
+              render: (row) => formatDate(row.created_at),
             },
             {
               key: 'product',
               header: 'Product',
-              render: (row) => row.product?.name || row.productId,
+              render: (row) => row.product_name || row.product_id,
             },
             {
               key: 'type',
               header: 'Type',
               render: (row) => (
-                <Badge tone={row.type === 'STOCK_IN' ? 'green' : 'orange'}>{row.type}</Badge>
+                <Badge tone={row.movement_type === 'STOCK_IN' ? 'green' : 'orange'}>
+                  {row.movement_type}
+                </Badge>
               ),
             },
             {
               key: 'change',
               header: 'Change',
-              render: (row) => (row.quantityChange > 0 ? `+${row.quantityChange}` : row.quantityChange),
+              render: (row) => (row.quantity > 0 ? `+${row.quantity}` : row.quantity),
             },
             {
               key: 'after',
               header: 'After',
-              render: (row) => row.quantityAfter,
+              render: (row) => row.quantity,
             },
             {
               key: 'actor',
               header: 'By',
-              render: (row) => row.actor?.name || '—',
+              render: (row) => row.user_name || '—',
             },
           ]}
         />
@@ -398,7 +402,8 @@ export function OwnerInventoryPage() {
         <form className="inventory-form" onSubmit={onSubmitAdjust} noValidate>
           {formError ? <Alert tone="error">{formError}</Alert> : null}
           <p className="inventory-help">
-            {selectedItem?.product.name} · current stock: <strong>{selectedItem?.quantity}</strong>
+            {selectedItem?.product_name} · current stock:{' '}
+            <strong>{selectedItem?.quantity_on_hand}</strong>
           </p>
           <Input
             label="Quantity"
@@ -444,7 +449,7 @@ export function OwnerInventoryPage() {
         <form className="inventory-form" onSubmit={onSubmitThreshold} noValidate>
           {formError ? <Alert tone="error">{formError}</Alert> : null}
           <p className="inventory-help">
-            Alert when {thresholdItem?.product.name} quantity is at or below this value.
+            Alert when {thresholdItem?.product_name} quantity is at or below this value.
           </p>
           <Input
             label="Low-stock threshold"

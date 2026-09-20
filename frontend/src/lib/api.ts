@@ -1,20 +1,25 @@
 ﻿const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
+// Helper for Member 2's UI components that expect media URLs
+export function mediaUrl(path?: string | null): string | null {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+}
+
 export class ApiClientError extends Error {
   status: number;
-  detail: unknown;
+  details: unknown; // Changed from 'detail' to 'details' to match UI expectations
 
-  constructor(status: number, message: string, detail?: unknown) {
+  constructor(status: number, message: string, details?: unknown) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
-    this.detail = detail;
+    this.details = details;
   }
 }
 
 function getToken(): string | null {
-  // Reads the JWT access token from localStorage. 
-  // F03 will handle setting this token upon successful login.
   return localStorage.getItem('access_token');
 }
 
@@ -24,43 +29,33 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers || {});
   
-  // 1. Attach JWT Bearer token if available
   const token = getToken();
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  // 2. Set Content-Type to JSON only if there's a body and it's not FormData
   if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  // 3. Execute request (removed credentials: 'include' as JWT is used)
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
   });
 
-  // 4. Parse response safely
   const contentType = response.headers.get('content-type');
   let data: unknown = null;
   
   if (contentType && contentType.includes('application/json')) {
-    try {
-      data = await response.json();
-    } catch {
-      data = null;
-    }
+    try { data = await response.json(); } catch { data = null; }
   }
 
-  // 5. Handle HTTP errors using FastAPI's native "detail" field
   if (!response.ok) {
     const detail = (data as any)?.detail || 'An unexpected error occurred';
     const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
-    throw new ApiClientError(response.status, message, detail);
+    throw new ApiClientError(response.status, message, detail); // Pass detail as 3rd arg
   }
 
-  // 6. Return raw data (object, array, or null) without artificial envelope
   return data as T;
 }
 
@@ -70,13 +65,10 @@ export async function apiUpload<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const headers = new Headers(options.headers || {});
-  
   const token = getToken();
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
-  
-  // Note: Do NOT set Content-Type for FormData; the browser sets it with the correct boundary.
 
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -87,11 +79,7 @@ export async function apiUpload<T>(
 
   if (!response.ok) {
     let data: unknown = null;
-    try {
-      data = await response.json();
-    } catch {
-      // ignore parsing error on failure
-    }
+    try { data = await response.json(); } catch {}
     const detail = (data as any)?.detail || 'Upload failed';
     const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
     throw new ApiClientError(response.status, message, detail);
@@ -101,6 +89,5 @@ export async function apiUpload<T>(
   if (contentType && contentType.includes('application/json')) {
     return (await response.json()) as T;
   }
-  
-  return {} as T; // Fallback for non-JSON success responses
+  return {} as T;
 }

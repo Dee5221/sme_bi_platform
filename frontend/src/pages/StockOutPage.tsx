@@ -25,6 +25,7 @@ function mapFieldErrors(details: unknown): Record<string, string> {
   }
   return next;
 }
+
 export function StockOutPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -63,7 +64,7 @@ export function StockOutPage() {
   }, [loadInventory]);
 
   const selectedItem = useMemo(
-    () => items.find((item) => item.productId === productId) ?? null,
+    () => items.find((item) => String(item.product_id) === productId) ?? null,
     [items, productId]
   );
 
@@ -83,8 +84,10 @@ export function StockOutPage() {
       setFieldErrors({ quantity: 'Enter a positive whole number.' });
       return;
     }
-    if (selectedItem && qty > selectedItem.quantity) {
-      setFieldErrors({ quantity: `Cannot remove more than current stock (${selectedItem.quantity}).` });
+    if (selectedItem && qty > selectedItem.quantity_on_hand) {
+      setFieldErrors({
+        quantity: `Cannot remove more than current stock (${selectedItem.quantity_on_hand}).`,
+      });
       return;
     }
 
@@ -161,20 +164,16 @@ export function StockOutPage() {
               <select value={productId} onChange={(e) => setProductId(e.target.value)} required>
                 <option value="">Select product</option>
                 {items.map((item) => (
-                  <option key={item.id} value={item.productId}>
-                    {item.product.name} ({item.product.sku}) · current stock {item.quantity}
-                    {item.product.unit ? ` ${item.product.unit}` : ''}
+                  <option key={item.product_id} value={item.product_id}>
+                    {item.product_name} ({item.sku}) · current stock {item.quantity_on_hand}
                   </option>
                 ))}
               </select>
             </label>
             {selectedItem ? (
               <p className="inventory-help">
-                Current stock for <strong>{selectedItem.product.name}</strong>:{' '}
-                <strong>
-                  {selectedItem.quantity}
-                  {selectedItem.product.unit ? ` ${selectedItem.product.unit}` : ''}
-                </strong>
+                Current stock for <strong>{selectedItem.product_name}</strong>:{' '}
+                <strong>{selectedItem.quantity_on_hand}</strong>
               </p>
             ) : null}
             <Input
@@ -183,7 +182,7 @@ export function StockOutPage() {
               type="number"
               min="1"
               step="1"
-              max={selectedItem ? selectedItem.quantity : undefined}
+              max={selectedItem ? selectedItem.quantity_on_hand : undefined}
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               error={fieldErrors.quantity}

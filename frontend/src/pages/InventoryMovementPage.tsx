@@ -14,14 +14,6 @@ import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
 import './InventoryPage.css';
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
-
-function formatType(type: string) {
-  return type === 'STOCK_IN' ? 'Stock in' : type === 'STOCK_OUT' ? 'Stock out' : type;
-}
-
 export function InventoryMovementPage() {
   const { hasPermission } = useAuth();
   const canView = hasPermission('inventory.view');
@@ -30,7 +22,7 @@ export function InventoryMovementPage() {
   const [error, setError] = useState<string | null>(null);
   const [products, setProducts] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [productId, setProductId] = useState('');
+  const [productId, setProductId] = useState<number | ''>('');
   const [type, setType] = useState('ALL');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
@@ -52,7 +44,7 @@ export function InventoryMovementPage() {
       const [inventoryResult, movementResult] = await Promise.all([
         inventoryApi.listInventory({ pageSize: 100 }),
         inventoryApi.listMovements({
-          productId: productId || undefined,
+          productId: typeof productId === 'number' ? productId : undefined,
           type: type === 'ALL' ? undefined : type,
           page,
           pageSize: 20,
@@ -100,13 +92,13 @@ export function InventoryMovementPage() {
               value={productId}
               onChange={(e) => {
                 setPage(1);
-                setProductId(e.target.value);
+                setProductId(e.target.value ? Number(e.target.value) : '');
               }}
             >
               <option value="">All products</option>
               {products.map((item) => (
-                <option key={item.id} value={item.productId}>
-                  {item.product.name} ({item.product.sku})
+                <option key={item.product_id} value={item.product_id}>
+                  {item.product_name} ({item.sku})
                 </option>
               ))}
             </select>
@@ -121,8 +113,9 @@ export function InventoryMovementPage() {
               }}
             >
               <option value="ALL">All types</option>
-              <option value="STOCK_IN">Stock in</option>
-              <option value="STOCK_OUT">Stock out</option>
+              <option value="IN">Stock in</option>
+              <option value="OUT">Stock out</option>
+              <option value="ADJUSTMENT">Adjustment</option>
             </select>
           </label>
           <Button type="button" variant="secondary" onClick={clearFilters}>
@@ -142,43 +135,51 @@ export function InventoryMovementPage() {
               emptyTitle="No stock movements yet"
               emptyDescription="Stock in and stock out actions will appear here."
               columns={[
-                    {
-                      key: 'when',
-                      header: 'When',
-                      render: (row: StockMovement) => new Date(row.created_at).toLocaleString(),
-                    },
-                    {
-                      key: 'product',
-                      header: 'Product',
-                      render: (row: StockMovement) => (
-                        <div>
-                          <strong>{row.product_name}</strong>
-                          <div className="inventory-muted">{row.sku}</div>
-                        </div>
-                      ),
-                    },
-                    {
-                      key: 'type',
-                      header: 'Type',
-                      render: (row: StockMovement) => (
-                        <Badge tone={row.movement_type === 'IN' ? 'green' : row.movement_type === 'OUT' ? 'orange' : 'neutral'}>
-                          {row.movement_type === 'IN' ? 'Stock in' : row.movement_type === 'OUT' ? 'Stock out' : 'Adjustment'}
-                        </Badge>
-                      ),
-                    },
-                    {
-                      key: 'change',
-                      header: 'Change',
-                      render: (row: StockMovement) =>
-                        row.movement_type === 'IN' ? `+${row.quantity}` : `-${row.quantity}`,
-                    },
-                    {
-                      key: 'actor',
-                      header: 'Recorded by',
-                      render: (row: StockMovement) => row.user_name || '—',
-                    },
-                    
-                  ]}
+                {
+                  key: 'when',
+                  header: 'When',
+                  render: (row) => new Date(row.created_at).toLocaleString(),
+                },
+                {
+                  key: 'product',
+                  header: 'Product',
+                  render: (row) => (
+                    <div>
+                      <strong>{row.product_name}</strong>
+                      <div className="inventory-muted">{row.sku}</div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'type',
+                  header: 'Type',
+                  render: (row) => (
+                    <Badge tone={row.movement_type === 'IN' ? 'green' : row.movement_type === 'OUT' ? 'orange' : 'neutral'}>
+                      {row.movement_type === 'IN' ? 'Stock in' : row.movement_type === 'OUT' ? 'Stock out' : 'Adjustment'}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: 'change',
+                  header: 'Change',
+                  render: (row) =>
+                    row.movement_type === 'IN' ? `+${row.quantity}` : `-${row.quantity}`,
+                },
+                {
+                  key: 'actor',
+                  header: 'Recorded by',
+                  render: (row) => row.user_name || '—',
+                },
+                {
+                  key: 'actions',
+                  header: 'Actions',
+                  render: (row) => (
+                    <Button variant="ghost" onClick={() => setSelectedMovement(row)}>
+                      View
+                    </Button>
+                  ),
+                },
+              ]}
             />
 
             <div className="inventory-pagination">
@@ -208,7 +209,7 @@ export function InventoryMovementPage() {
 
       <Modal
         open={Boolean(selectedMovement)}
-        title={selectedMovement ? formatType(selectedMovement.type) : 'Movement'}
+        title={selectedMovement ? (selectedMovement.movement_type === 'IN' ? 'Stock in' : selectedMovement.movement_type === 'OUT' ? 'Stock out' : 'Adjustment') : 'Movement'}
         onClose={() => setSelectedMovement(null)}
         width="lg"
       >
@@ -216,27 +217,17 @@ export function InventoryMovementPage() {
           <div className="inventory-detail">
             <p>
               <strong>Product:</strong>{' '}
-              {selectedMovement.product
-                ? `${selectedMovement.product.name} (${selectedMovement.product.sku})`
-                : selectedMovement.productId}
+              {selectedMovement.product_name} ({selectedMovement.sku})
             </p>
             <p>
-              <strong>When:</strong> {formatDate(selectedMovement.createdAt)}
+              <strong>When:</strong> {new Date(selectedMovement.created_at).toLocaleString()}
             </p>
             <p>
-              <strong>Recorded by:</strong> {selectedMovement.actor?.name || '—'}
+              <strong>Recorded by:</strong> {selectedMovement.user_name || '—'}
             </p>
             <p>
               <strong>Change:</strong>{' '}
-              {selectedMovement.quantityChange > 0
-                ? `+${selectedMovement.quantityChange}`
-                : selectedMovement.quantityChange}
-            </p>
-            <p>
-              <strong>Before:</strong> {selectedMovement.quantityBefore}
-            </p>
-            <p>
-              <strong>After:</strong> {selectedMovement.quantityAfter}
+              {selectedMovement.movement_type === 'IN' ? `+${selectedMovement.quantity}` : `-${selectedMovement.quantity}`}
             </p>
             {selectedMovement.reason ? (
               <p>

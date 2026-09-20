@@ -28,7 +28,10 @@ class InventoryResponse(BaseModel):
 class StockMovementResponse(BaseModel):
     id: int
     product_id: int
+    product_name: str          
+    sku: str                   
     user_id: int
+    user_name: str            
     movement_type: str
     quantity: Decimal
     reference: Optional[str] = None

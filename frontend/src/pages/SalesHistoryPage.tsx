@@ -36,12 +36,8 @@ export function SalesHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sales, setSales] = useState<SaleList[]>([]);
-  
-  // Note: 'search' is kept for UI consistency, but omitted from the API call 
-  // as the current backend endpoint does not support text search yet.
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  
+  // const [debouncedSearch, setDebouncedSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
@@ -51,14 +47,18 @@ export function SalesHistoryPage() {
     total: 0,
     totalPages: 1,
   });
-  
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  // Debounced search — currently disabled because the backend does not
+  // support a `search` param on listSales. Re-enable this block and the
+  // commented-out `search:` field in the listSales call below if/when
+  // the backend adds support.
+  //
+  // useEffect(() => {
+  //   const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+  //   return () => window.clearTimeout(timer);
+  // }, [search]);
 
   const loadSales = useCallback(async () => {
     if (!canView) {
@@ -68,8 +68,8 @@ export function SalesHistoryPage() {
     }
     setError(null);
     try {
-      // The service automatically maps 'from'/'to' to 'start_date'/'end_date'
       const result = await saleApi.listSales({
+        // search: debouncedSearch || undefined,
         from: from || undefined,
         to: to || undefined,
         page,
@@ -83,6 +83,8 @@ export function SalesHistoryPage() {
       setLoading(false);
     }
   }, [canView, from, to, page]);
+  // Note: `debouncedSearch` was previously in the deps array above; it is
+  // intentionally omitted now that the search param is disabled.
 
   useEffect(() => {
     void loadSales();
@@ -90,7 +92,7 @@ export function SalesHistoryPage() {
 
   function clearFilters() {
     setSearch('');
-    setDebouncedSearch('');
+    // setDebouncedSearch('');
     setFrom('');
     setTo('');
     setPage(1);
@@ -210,8 +212,8 @@ export function SalesHistoryPage() {
                   key: 'actions',
                   header: 'Actions',
                   render: (row: SaleList) => (
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       onClick={() => handleViewSale(row.id)}
                       disabled={loadingDetail}
                     >
@@ -260,7 +262,7 @@ export function SalesHistoryPage() {
             <p><strong>Date:</strong> {formatDate(selectedSale.sale_datetime)}</p>
             <p><strong>Recorded by:</strong> {selectedSale.user_name || '—'}</p>
             <p><strong>Payment:</strong> {selectedSale.payment_method}</p>
-            
+
             <DataTable
               rows={selectedSale.items}
               rowKey={(row) => row.id}

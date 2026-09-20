@@ -11,7 +11,7 @@ type Column<T> = {
 type Props<T> = {
   columns: Column<T>[];
   rows: T[];
-  rowKey: (row: T) => string;
+  rowKey: (row: T) => string | number;
   emptyTitle?: string;
   emptyDescription?: string;
 };

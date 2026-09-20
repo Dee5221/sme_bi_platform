@@ -60,7 +60,7 @@ export function StaffSalesPage() {
     setError(null);
     try {
       const result = await saleApi.listSales({
-        search: debouncedSearch || undefined,
+        from: undefined,
         page,
         pageSize: 20,
       });
@@ -71,7 +71,7 @@ export function StaffSalesPage() {
     } finally {
       setLoading(false);
     }
-  }, [canView, debouncedSearch, page]);
+  }, [canView, page]);
 
   useEffect(() => {
     void loadSales();
@@ -131,25 +131,25 @@ export function StaffSalesPage() {
                   header: 'Sale',
                   render: (row) => (
                     <div>
-                      <strong>{row.saleNumber}</strong>
-                      <div className="sales-muted">{formatDate(row.soldAt)}</div>
+                      <strong>{row.id}</strong>
+                      <div className="sales-muted">{formatDate(row.sale_datetime)}</div>
                     </div>
                   ),
                 },
                 {
                   key: 'customer',
                   header: 'Customer',
-                  render: (row) => row.customer?.name || 'Walk-in',
+                  render: (row) => row.customer_name || 'Walk-in',
                 },
                 {
                   key: 'items',
                   header: 'Items',
-                  render: (row) => row.items.length,
+                  render: (row) => row.item_count,
                 },
                 {
                   key: 'total',
                   header: 'Total',
-                  render: (row) => formatMoney(row.total),
+                  render: (row) => formatMoney(row.total_amount),
                 },
                 {
                   key: 'status',
@@ -195,24 +195,24 @@ export function StaffSalesPage() {
 
       <Modal
         open={Boolean(selectedSale)}
-        title={selectedSale ? selectedSale.saleNumber : 'Sale'}
+        title={selectedSale ? selectedSale.id : 'Sale'}
         onClose={() => setSelectedSale(null)}
         width="lg"
       >
         {selectedSale ? (
           <div className="sales-detail">
             <p>
-              <strong>Customer:</strong> {selectedSale.customer?.name || 'Walk-in'}
+              <strong>Customer:</strong> {selectedSale.customer_name || 'Walk-in'}
             </p>
             <p>
-              <strong>Sold:</strong> {formatDate(selectedSale.soldAt)}
+              <strong>Sold:</strong> {formatDate(selectedSale.sale_datetime)}
             </p>
             <p>
-              <strong>Recorded by:</strong> {selectedSale.createdBy?.name || '—'}
+              <strong>Recorded by:</strong> {selectedSale.user_name || '—'}
             </p>
-            {selectedSale.notes ? (
+            {selectedSale.payment_method ? (
               <p>
-                <strong>Notes:</strong> {selectedSale.notes}
+                <strong>Payment:</strong> {selectedSale.payment_method}
               </p>
             ) : null}
             <DataTable
@@ -222,12 +222,12 @@ export function StaffSalesPage() {
                 {
                   key: 'product',
                   header: 'Product',
-                  render: (row) => `${row.productName} (${row.productSku})`,
+                  render: (row) => `${row.product_name} (${row.sku})`,
                 },
                 {
                   key: 'price',
                   header: 'Unit price',
-                  render: (row) => formatMoney(row.unitPrice),
+                  render: (row) => formatMoney(row.unit_price),
                 },
                 {
                   key: 'qty',
@@ -237,12 +237,12 @@ export function StaffSalesPage() {
                 {
                   key: 'line',
                   header: 'Line total',
-                  render: (row) => formatMoney(row.lineTotal),
+                  render: (row) => formatMoney(row.subtotal),
                 },
               ]}
             />
             <div className="sales-detail__total">
-              Total: <strong>{formatMoney(selectedSale.total)}</strong>
+              Total: <strong>{formatMoney(selectedSale.total_amount)}</strong>
             </div>
           </div>
         ) : null}

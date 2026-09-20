@@ -206,7 +206,7 @@ export function UserDetailsPage() {
     );
   }
 
-  const isSelf = managedUser.id === currentUser?.id;
+  const isSelf = String(managedUser.id) === String(currentUser?.id);
 
   return (
     <div className="user-details-page">

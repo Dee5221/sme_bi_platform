@@ -31,18 +31,6 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
-function mapFieldErrors(details: unknown): Record<string, string> {
-  const next: Record<string, string> = {};
-  if (!Array.isArray(details)) return next;
-  for (const item of details as { loc?: string[]; msg?: string }[]) {
-    if (item.loc && item.msg) {
-      const fieldName = item.loc[item.loc.length - 1];
-      next[fieldName] = item.msg;
-    }
-  }
-  return next;
-}
-
 function emptyLines(): LineDraft[] {
   return [{ key: crypto.randomUUID(), productId: '', quantity: '1' }];
 }
@@ -61,7 +49,6 @@ export function NewSalePage() {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [lines, setLines] = useState<LineDraft[]>(emptyLines);
   const [formError, setFormError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
   const loadCatalog = useCallback(async () => {
@@ -73,7 +60,7 @@ export function NewSalePage() {
     try {
       const [productsResult, customersResult] = await Promise.all([
         productApi.listProducts({ status: 'active', pageSize: 100 }),
-        customerApi.listCustomers({ page: 1, pageSize: 100 }), // Adjusted to match F07/F06 service
+        customerApi.listCustomers({ page: 1, pageSize: 100 }),
       ]);
       setProducts(productsResult.items);
       setCustomers(customersResult.items);
@@ -126,10 +113,9 @@ export function NewSalePage() {
     event.preventDefault();
     if (!canCreate) return;
     setFormError(null);
-    setFieldErrors({});
 
     const items = lines
-      .filter((line): line is { key: string; productId: number; quantity: string } => typeof line.productId === 'number' && line.productId !== '')
+      .filter((line): line is { key: string; productId: number; quantity: string } => typeof line.productId === 'number')
       .map((line) => ({
         product_id: line.productId,
         quantity: Number(line.quantity),
@@ -156,7 +142,6 @@ export function NewSalePage() {
     } catch (err) {
       if (err instanceof ApiClientError) {
         setFormError(err.message);
-        setFieldErrors(mapFieldErrors(err.details));
       } else {
         setFormError('Unable to record sale.');
       }
@@ -215,7 +200,10 @@ export function NewSalePage() {
             <div className="sales-form__meta">
               <label className="sales-select">
                 <span>Customer (optional)</span>
-                <select value={customerId} onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : '')}>
+                <select
+                  value={customerId}
+                  onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : '')}
+                >
                   <option value="">Walk-in / no customer</option>
                   {customers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
@@ -226,7 +214,11 @@ export function NewSalePage() {
               </label>
               <label className="sales-select">
                 <span>Payment Method</span>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} required>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  required
+                >
                   <option value="Cash">Cash</option>
                   <option value="Card">Card</option>
                   <option value="Mobile Money">Mobile Money</option>
@@ -244,7 +236,11 @@ export function NewSalePage() {
                       <span>Product</span>
                       <select
                         value={line.productId}
-                        onChange={(e) => updateLine(line.key, { productId: e.target.value ? Number(e.target.value) : '' })}
+                        onChange={(e) =>
+                          updateLine(line.key, {
+                            productId: e.target.value ? Number(e.target.value) : '',
+                          })
+                        }
                       >
                         <option value="">Select product</option>
                         {products.map((item) => (

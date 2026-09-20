@@ -25,15 +25,6 @@ export type StockMovement = {
   created_at: string;
 };
 
-type Paginated<T> = {
-  items: T[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-  };
-};
 
 export function listInventory(params: {
   search?: string;
@@ -47,7 +38,6 @@ export function listInventory(params: {
   
   const suffix = query.toString() ? `?${query.toString()}` : '';
   
-  // Backend returns a flat array. We wrap it to match frontend pagination expectations.
   return apiRequest<InventoryItem[]>(`/api/inventory/${suffix}`).then((data) => {
     const page = params.page || 1;
     const pageSize = params.pageSize || 20;

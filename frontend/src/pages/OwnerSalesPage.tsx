@@ -21,7 +21,7 @@ import './SalesPage.css';
 
 type LineDraft = {
   key: string;
-  productId: string;
+  product_id: string;
   quantity: string;
 };
 
@@ -71,7 +71,7 @@ export function OwnerSalesPage() {
   const [customerId, setCustomerId] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([
-    { key: crypto.randomUUID(), productId: '', quantity: '1' },
+    { key: crypto.randomUUID(), product_id: '', quantity: '1' },
   ]);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -93,7 +93,7 @@ export function OwnerSalesPage() {
     try {
       const [salesResult, productsResult, customersResult] = await Promise.all([
         saleApi.listSales({
-          search: debouncedSearch || undefined,
+          from: undefined,
           page,
           pageSize: 20,
         }),
@@ -109,30 +109,30 @@ export function OwnerSalesPage() {
     } finally {
       setLoading(false);
     }
-  }, [canView, debouncedSearch, page]);
+  }, [canView, page]);
 
   useEffect(() => {
     void loadPage();
   }, [loadPage]);
 
   const productMap = useMemo(
-    () => new Map(products.map((product) => [product.id, product])),
+    () => new Map(products.map((product) => [String(product.id), product])),
     [products]
   );
 
   const draftTotal = useMemo(() => {
     return lines.reduce((sum, line) => {
-      const product = productMap.get(line.productId);
+      const product = productMap.get(line.product_id);
       const qty = Number(line.quantity);
       if (!product || !Number.isFinite(qty) || qty <= 0) return sum;
-      return sum + product.price * qty;
+      return sum + product.selling_price * qty;
     }, 0);
   }, [lines, productMap]);
 
   function addLine() {
     setLines((current) => [
       ...current,
-      { key: crypto.randomUUID(), productId: '', quantity: '1' },
+      { key: crypto.randomUUID(), product_id: '', quantity: '1' },
     ]);
   }
 
@@ -155,9 +155,9 @@ export function OwnerSalesPage() {
     setFieldErrors({});
 
     const items = lines
-      .filter((line) => line.productId)
+      .filter((line) => line.product_id)
       .map((line) => ({
-        productId: line.productId,
+        productId: line.product_id,
         quantity: Number(line.quantity),
       }));
 
@@ -180,7 +180,7 @@ export function OwnerSalesPage() {
       pushToast('Sale recorded.', 'success');
       setCustomerId('');
       setNotes('');
-      setLines([{ key: crypto.randomUUID(), productId: '', quantity: '1' }]);
+      setLines([{ key: crypto.randomUUID(), product_id: '', quantity: '1' }]);
       setLoading(true);
       await loadPage();
     } catch (err) {
@@ -237,21 +237,21 @@ export function OwnerSalesPage() {
 
             <div className="sales-lines">
               {lines.map((line) => {
-                const product = productMap.get(line.productId);
+                const product = productMap.get(line.product_id);
                 return (
                   <div className="sales-line" key={line.key}>
                     <label className="sales-select">
                       <span>Product</span>
                       <select
-                        value={line.productId}
+                        value={line.product_id}
                         onChange={(e) =>
-                          updateLine(line.key, { productId: e.target.value })
+                          updateLine(line.key, { product_id: e.target.value })
                         }
                       >
                         <option value="">Select product</option>
                         {products.map((item) => (
                           <option key={item.id} value={item.id}>
-                            {item.name} ({item.sku}) · stock {item.inventory?.quantity ?? 0}
+                            {item.name} ({item.sku}) · stock 0
                           </option>
                         ))}
                       </select>
@@ -266,7 +266,7 @@ export function OwnerSalesPage() {
                       onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
                     />
                     <div className="sales-line__meta">
-                      <span>{product ? formatMoney(product.price) : '—'}</span>
+                      <span>{product ? formatMoney(product.selling_price) : '—'}</span>
                       <Button
                         type="button"
                         variant="ghost"
@@ -327,20 +327,20 @@ export function OwnerSalesPage() {
                   header: 'Sale',
                   render: (row) => (
                     <div>
-                      <strong>{row.saleNumber}</strong>
-                      <div className="sales-muted">{formatDate(row.soldAt)}</div>
+                      <strong>{row.id}</strong>
+                      <div className="sales-muted">{formatDate(row.sale_datetime)}</div>
                     </div>
                   ),
                 },
                 {
                   key: 'customer',
                   header: 'Customer',
-                  render: (row) => row.customer?.name || 'Walk-in',
+                  render: (row) => row.customer_name || 'Walk-in',
                 },
                 {
                   key: 'total',
                   header: 'Total',
-                  render: (row) => formatMoney(row.total),
+                  render: (row) => formatMoney(row.total_amount),
                 },
                 {
                   key: 'status',
@@ -386,24 +386,24 @@ export function OwnerSalesPage() {
 
       <Modal
         open={Boolean(selectedSale)}
-        title={selectedSale ? selectedSale.saleNumber : 'Sale'}
+        title={selectedSale ? selectedSale.id : 'Sale'}
         onClose={() => setSelectedSale(null)}
         width="lg"
       >
         {selectedSale ? (
           <div className="sales-detail">
             <p>
-              <strong>Customer:</strong> {selectedSale.customer?.name || 'Walk-in'}
+              <strong>Customer:</strong> {selectedSale.customer_name || 'Walk-in'}
             </p>
             <p>
-              <strong>Sold:</strong> {formatDate(selectedSale.soldAt)}
+              <strong>Sold:</strong> {formatDate(selectedSale.sale_datetime)}
             </p>
             <p>
-              <strong>Recorded by:</strong> {selectedSale.createdBy?.name || '—'}
+              <strong>Recorded by:</strong> {selectedSale.user_name || '—'}
             </p>
-            {selectedSale.notes ? (
+            {selectedSale.payment_method ? (
               <p>
-                <strong>Notes:</strong> {selectedSale.notes}
+                <strong>Payment:</strong> {selectedSale.payment_method}
               </p>
             ) : null}
             <DataTable
@@ -413,12 +413,12 @@ export function OwnerSalesPage() {
                 {
                   key: 'product',
                   header: 'Product',
-                  render: (row) => `${row.productName} (${row.productSku})`,
+                  render: (row) => `${row.product_name} (${row.sku})`,
                 },
                 {
                   key: 'price',
                   header: 'Unit price',
-                  render: (row) => formatMoney(row.unitPrice),
+                  render: (row) => formatMoney(row.unit_price),
                 },
                 {
                   key: 'qty',
@@ -428,12 +428,12 @@ export function OwnerSalesPage() {
                 {
                   key: 'line',
                   header: 'Line total',
-                  render: (row) => formatMoney(row.lineTotal),
+                  render: (row) => formatMoney(row.subtotal),
                 },
               ]}
             />
             <div className="sales-detail__total">
-              Total: <strong>{formatMoney(selectedSale.total)}</strong>
+              Total: <strong>{formatMoney(selectedSale.total_amount)}</strong>
             </div>
           </div>
         ) : null}
