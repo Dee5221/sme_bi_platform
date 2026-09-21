@@ -22,3 +22,17 @@ export interface RegisterPayload {
   email: string;
   password: string;
 }
+
+export interface UserResponse {
+  id: number;
+  business_id: number;
+  name: string;
+  email: string;
+  role: Response;
+  status: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+}

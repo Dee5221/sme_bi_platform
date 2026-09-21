@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import * as saleApi from '../services/saleService';
-import type { Sale } from '../services/saleService';
+import type { Sale, SaleList } from '../services/saleService';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -13,6 +13,7 @@ import { Input } from '../components/ui/Input';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
+import { useToast } from '../components/ui/Toast';
 import './SalesPage.css';
 
 function formatMoney(value: number) {
@@ -29,14 +30,14 @@ function formatDate(value: string) {
 
 export function StaffSalesPage() {
   const { hasPermission } = useAuth();
+  const { pushToast } = useToast();
   const canView = hasPermission('sales.view');
   const canCreate = hasPermission('sales.create');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [sales, setSales] = useState<SaleList[]>([]);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -45,11 +46,7 @@ export function StaffSalesPage() {
     totalPages: 1,
   });
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const loadSales = useCallback(async () => {
     if (!canView) {
@@ -76,6 +73,18 @@ export function StaffSalesPage() {
   useEffect(() => {
     void loadSales();
   }, [loadSales]);
+
+  async function handleViewSale(saleId: number) {
+    setLoadingDetail(true);
+    try {
+      const fullSale = await saleApi.getSale(saleId);
+      setSelectedSale(fullSale);
+    } catch (err) {
+      pushToast('Failed to load sale details.', 'error');
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
 
   if (!canView) {
     return <Alert tone="error">You do not have permission to view sales.</Alert>;
@@ -105,7 +114,7 @@ export function StaffSalesPage() {
           <Input
             label="Search"
             name="search"
-            placeholder="Search sale number, notes, or customer"
+            placeholder="Search sale ID, notes, or customer"
             value={search}
             onChange={(e) => {
               setPage(1);
@@ -122,7 +131,7 @@ export function StaffSalesPage() {
           <>
             <DataTable
               rows={sales}
-              rowKey={(row) => row.id}
+              rowKey={(row) => String(row.id)}
               emptyTitle="No sales yet"
               emptyDescription="Record a sale to start today's transaction list."
               columns={[
@@ -131,7 +140,7 @@ export function StaffSalesPage() {
                   header: 'Sale',
                   render: (row) => (
                     <div>
-                      <strong>{row.id}</strong>
+                      <strong>#{row.id}</strong>
                       <div className="sales-muted">{formatDate(row.sale_datetime)}</div>
                     </div>
                   ),
@@ -160,7 +169,11 @@ export function StaffSalesPage() {
                   key: 'actions',
                   header: 'Actions',
                   render: (row) => (
-                    <Button variant="ghost" onClick={() => setSelectedSale(row)}>
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => handleViewSale(row.id)}
+                      disabled={loadingDetail}
+                    >
                       View
                     </Button>
                   ),
@@ -195,7 +208,7 @@ export function StaffSalesPage() {
 
       <Modal
         open={Boolean(selectedSale)}
-        title={selectedSale ? selectedSale.id : 'Sale'}
+        title={selectedSale ? `Sale #${selectedSale.id}` : 'Sale'}
         onClose={() => setSelectedSale(null)}
         width="lg"
       >
@@ -217,7 +230,7 @@ export function StaffSalesPage() {
             ) : null}
             <DataTable
               rows={selectedSale.items}
-              rowKey={(row) => row.id}
+              rowKey={(row) => String(row.id)}
               columns={[
                 {
                   key: 'product',
@@ -236,7 +249,7 @@ export function StaffSalesPage() {
                 },
                 {
                   key: 'line',
-                  header: 'Line total',
+                  header: 'Subtotal',
                   render: (row) => formatMoney(row.subtotal),
                 },
               ]}

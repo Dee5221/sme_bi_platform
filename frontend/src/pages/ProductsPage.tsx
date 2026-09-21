@@ -535,7 +535,7 @@ export function ProductsPage() {
               name="description"
               value={productForm.name} 
               // Note: Backend doesn't store description in MVP, but we keep the field for UI consistency without sending it
-              onChange={(e) => {}} 
+              onChange={() => {}} 
               className="products-form__full"
               disabled
               placeholder="Description field reserved for future enhancement"

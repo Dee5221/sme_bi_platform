@@ -12,6 +12,24 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { useToast } from '../components/ui/Toast';
 import './ProfilePage.css';
 
+function mapToAuthUser(raw: any, existingUser: any): any {
+  const nameParts = (raw.name || '').split(' ');
+  return {
+    ...raw,
+    businessId: raw.business_id,
+    firstName: nameParts[0] || raw.name,
+    lastName: nameParts.slice(1).join(' ') || '',
+    phone: raw.phone || existingUser?.phone || null,
+    avatarUrl: raw.avatarUrl || existingUser?.avatarUrl || null,
+    accountType: raw.role?.role_name || existingUser?.accountType,
+    isActive: raw.status === 'active',
+    roles: raw.roles || (raw.role?.role_name ? [raw.role.role_name] : []) || existingUser?.roles || [],
+    permissions: existingUser?.permissions || [],
+    business: existingUser?.business || { id: raw.business_id, name: 'Business' },
+    _raw: raw
+  };
+}
+
 type ProfileForm = {
   firstName: string;
   lastName: string;
@@ -34,8 +52,11 @@ const emptyPassword: PasswordForm = {
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const fieldName = item.loc[item.loc.length - 1];
+      next[fieldName] = item.msg;
+    }
   }
   return next;
 }
@@ -45,12 +66,14 @@ export function ProfilePage() {
   const { pushToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  
   const [profileForm, setProfileForm] = useState<ProfileForm>({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
   });
+  
   const [passwordForm, setPasswordForm] = useState<PasswordForm>(emptyPassword);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -61,8 +84,8 @@ export function ProfilePage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
 
-  const canView = hasPermission('profile.view');
-  const canUpdate = hasPermission('profile.update');
+  const canView = hasPermission('profile.view') || hasPermission('all');
+  const canUpdate = hasPermission('profile.update') || hasPermission('all');
 
   useEffect(() => {
     let active = true;
@@ -73,14 +96,18 @@ export function ProfilePage() {
         return;
       }
       try {
+        // Backend returns the user object directly, not wrapped in { user: ... }
         const result = await profileApi.fetchProfile();
         if (!active) return;
-        setUser(result.user);
+        
+        const mappedUser = mapToAuthUser(result, user);
+        setUser(mappedUser);
+        
         setProfileForm({
-          firstName: result.user.firstName,
-          lastName: result.user.lastName,
-          email: result.user.email,
-          phone: result.user.phone || '',
+          firstName: mappedUser.firstName || '',
+          lastName: mappedUser.lastName || '',
+          email: mappedUser.email || '',
+          phone: mappedUser.phone || '',
         });
         setLoadError(null);
       } catch (err) {
@@ -97,7 +124,7 @@ export function ProfilePage() {
     return () => {
       active = false;
     };
-  }, [canView, setUser]);
+  }, [canView, setUser, user]);
 
   async function onSaveProfile(event: FormEvent) {
     event.preventDefault();
@@ -112,7 +139,7 @@ export function ProfilePage() {
         email: profileForm.email,
         phone: profileForm.phone || undefined,
       });
-      setUser(result.user);
+      setUser(mapToAuthUser(result, user));
       pushToast('Profile updated.', 'success');
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -129,11 +156,23 @@ export function ProfilePage() {
   async function onChangePassword(event: FormEvent) {
     event.preventDefault();
     if (!canUpdate) return;
+    
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New passwords do not match.');
+      setPasswordFieldErrors({ confirmPassword: 'Passwords do not match.' });
+      return;
+    }
+
     setPasswordError(null);
     setPasswordFieldErrors({});
     setSavingPassword(true);
     try {
-      await profileApi.changePassword(passwordForm);
+      // Backend typically expects snake_case for password fields
+      await profileApi.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword,
+      });
       setPasswordForm(emptyPassword);
       pushToast('Password updated.', 'success');
     } catch (err) {
@@ -154,7 +193,7 @@ export function ProfilePage() {
     setUploadingAvatar(true);
     try {
       const result = await profileApi.uploadAvatar(file);
-      setUser(result.user);
+      setUser(mapToAuthUser(result, user));
       pushToast('Profile photo updated.', 'success');
     } catch (err) {
       setAvatarError(
@@ -225,12 +264,12 @@ export function ProfilePage() {
           <dl className="profile-summary">
             <div>
               <dt>Business</dt>
-              <dd>{user.business.name}</dd>
+              <dd>{user.business?.name || 'N/A'}</dd>
             </div>
             <div>
               <dt>Roles</dt>
               <dd className="profile-chips">
-                {user.roles.map((role) => (
+                {user.roles?.map((role: string) => (
                   <Badge key={role} tone="blue">
                     {role}
                   </Badge>

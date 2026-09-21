@@ -6,7 +6,7 @@ import type { Customer } from '../services/customerService';
 import * as productApi from '../services/productService';
 import type { Product } from '../services/productService';
 import * as saleApi from '../services/saleService';
-import type { Sale } from '../services/saleService';
+import type { Sale, SaleList } from '../services/saleService';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -40,8 +40,11 @@ function formatDate(value: string) {
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const fieldName = item.loc[item.loc.length - 1];
+      next[fieldName] = item.msg;
+    }
   }
   return next;
 }
@@ -55,11 +58,10 @@ export function OwnerSalesPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sales, setSales] = useState<Sale[]>([]);
+  const [sales, setSales] = useState<SaleList[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -69,19 +71,14 @@ export function OwnerSalesPage() {
   });
 
   const [customerId, setCustomerId] = useState('');
-  const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [lines, setLines] = useState<LineDraft[]>([
     { key: crypto.randomUUID(), product_id: '', quantity: '1' },
   ]);
   const [formError, setFormError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const loadPage = useCallback(async () => {
     if (!canView) {
@@ -93,12 +90,11 @@ export function OwnerSalesPage() {
     try {
       const [salesResult, productsResult, customersResult] = await Promise.all([
         saleApi.listSales({
-          from: undefined,
           page,
           pageSize: 20,
         }),
-        productApi.listProducts({ status: 'ACTIVE', pageSize: 100 }),
-        customerApi.listCustomers({ status: 'ACTIVE', pageSize: 100 }),
+        productApi.listProducts({ status: 'active', pageSize: 100 }),
+        customerApi.listCustomers({ page: 1, pageSize: 100 }),
       ]);
       setSales(salesResult.items);
       setPagination(salesResult.pagination);
@@ -152,12 +148,11 @@ export function OwnerSalesPage() {
     event.preventDefault();
     if (!canCreate) return;
     setFormError(null);
-    setFieldErrors({});
 
     const items = lines
       .filter((line) => line.product_id)
       .map((line) => ({
-        productId: line.product_id,
+        product_id: Number(line.product_id),
         quantity: Number(line.quantity),
       }));
 
@@ -172,26 +167,45 @@ export function OwnerSalesPage() {
 
     setSaving(true);
     try {
-      await saleApi.createSale({
-        customerId: customerId || undefined,
-        notes: notes || undefined,
+      const payload = {
+        customer_id: customerId ? Number(customerId) : undefined,
+        payment_method: paymentMethod,
         items,
-      });
+      };
+
+      await saleApi.createSale(payload);
       pushToast('Sale recorded.', 'success');
       setCustomerId('');
-      setNotes('');
+      setPaymentMethod('Cash');
       setLines([{ key: crypto.randomUUID(), product_id: '', quantity: '1' }]);
       setLoading(true);
       await loadPage();
     } catch (err) {
       if (err instanceof ApiClientError) {
-        setFormError(err.message);
-        setFieldErrors(mapFieldErrors(err.details));
+        const fieldErrors = mapFieldErrors(err.details);
+        if (Object.keys(fieldErrors).length > 0) {
+          const [field, message] = Object.entries(fieldErrors)[0];
+          setFormError(`${field}: ${message}`);
+        } else {
+          setFormError(err.message);
+        }
       } else {
         setFormError('Unable to record sale.');
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleViewSale(saleId: number) {
+    setLoadingDetail(true);
+    try {
+      const fullSale = await saleApi.getSale(saleId);
+      setSelectedSale(fullSale);
+    } catch (err) {
+      pushToast('Failed to load sale details.', 'error');
+    } finally {
+      setLoadingDetail(false);
     }
   }
 
@@ -226,13 +240,18 @@ export function OwnerSalesPage() {
                   ))}
                 </select>
               </label>
-              <Input
-                label="Notes"
-                name="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                error={fieldErrors.notes}
-              />
+              <label className="sales-select">
+                <span>Payment Method</span>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="Mobile Money">Mobile Money</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                </select>
+              </label>
             </div>
 
             <div className="sales-lines">
@@ -250,8 +269,8 @@ export function OwnerSalesPage() {
                       >
                         <option value="">Select product</option>
                         {products.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} ({item.sku}) · stock 0
+                          <option key={item.id} value={String(item.id)}>
+                            {item.name} ({item.sku})
                           </option>
                         ))}
                       </select>
@@ -288,7 +307,7 @@ export function OwnerSalesPage() {
               <div className="sales-total">
                 Estimated total: <strong>{formatMoney(draftTotal)}</strong>
               </div>
-              <Button type="submit" loading={saving}>
+              <Button type="submit" loading={saving} disabled={saving}>
                 Record sale
               </Button>
             </div>
@@ -301,7 +320,7 @@ export function OwnerSalesPage() {
           <Input
             label="Search"
             name="search"
-            placeholder="Search sale number, notes, or customer"
+            placeholder="Search sale ID, notes, or customer"
             value={search}
             onChange={(e) => {
               setPage(1);
@@ -318,7 +337,7 @@ export function OwnerSalesPage() {
           <>
             <DataTable
               rows={sales}
-              rowKey={(row) => row.id}
+              rowKey={(row) => String(row.id)}
               emptyTitle="No sales yet"
               emptyDescription="Record your first sale to start building revenue history."
               columns={[
@@ -327,7 +346,7 @@ export function OwnerSalesPage() {
                   header: 'Sale',
                   render: (row) => (
                     <div>
-                      <strong>{row.id}</strong>
+                      <strong>#{row.id}</strong>
                       <div className="sales-muted">{formatDate(row.sale_datetime)}</div>
                     </div>
                   ),
@@ -351,7 +370,11 @@ export function OwnerSalesPage() {
                   key: 'actions',
                   header: 'Actions',
                   render: (row) => (
-                    <Button variant="ghost" onClick={() => setSelectedSale(row)}>
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => handleViewSale(row.id)}
+                      disabled={loadingDetail}
+                    >
                       View
                     </Button>
                   ),
@@ -386,7 +409,7 @@ export function OwnerSalesPage() {
 
       <Modal
         open={Boolean(selectedSale)}
-        title={selectedSale ? selectedSale.id : 'Sale'}
+        title={selectedSale ? `Sale #${selectedSale.id}` : 'Sale'}
         onClose={() => setSelectedSale(null)}
         width="lg"
       >
@@ -401,14 +424,12 @@ export function OwnerSalesPage() {
             <p>
               <strong>Recorded by:</strong> {selectedSale.user_name || '—'}
             </p>
-            {selectedSale.payment_method ? (
-              <p>
-                <strong>Payment:</strong> {selectedSale.payment_method}
-              </p>
-            ) : null}
+            <p>
+              <strong>Payment:</strong> {selectedSale.payment_method}
+            </p>
             <DataTable
               rows={selectedSale.items}
-              rowKey={(row) => row.id}
+              rowKey={(row) => String(row.id)}
               columns={[
                 {
                   key: 'product',
@@ -427,7 +448,7 @@ export function OwnerSalesPage() {
                 },
                 {
                   key: 'line',
-                  header: 'Line total',
+                  header: 'Subtotal',
                   render: (row) => formatMoney(row.subtotal),
                 },
               ]}

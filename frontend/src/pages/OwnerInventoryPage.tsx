@@ -241,7 +241,7 @@ export function OwnerInventoryPage() {
           <>
             <DataTable
               rows={items}
-              rowKey={(row) => row.id}
+              rowKey={(row) => row.product_id}
               emptyTitle="No inventory records"
               emptyDescription="Create products first. Each product starts with zero stock."
               columns={[
@@ -346,7 +346,7 @@ export function OwnerInventoryPage() {
               key: 'type',
               header: 'Type',
               render: (row) => (
-                <Badge tone={row.movement_type === 'STOCK_IN' ? 'green' : 'orange'}>
+                <Badge tone={row.movement_type === 'IN' ? 'green' : 'orange'}>
                   {row.movement_type}
                 </Badge>
               ),

@@ -41,16 +41,6 @@ export type CreateSalePayload = {
   items: { product_id: number; quantity: number }[];
 };
 
-type Paginated<T> = {
-  items: T[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-  };
-};
-
 export function listSales(params: {
   from?: string;
   to?: string;

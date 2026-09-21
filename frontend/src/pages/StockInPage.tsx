@@ -64,7 +64,7 @@ export function StockInPage() {
   }, [loadInventory]);
 
   const selectedItem = useMemo(
-    () => items.find((item) => item.product_id === productId) ?? null,
+    () => items.find((item) => item.product_id === Number(productId)) ?? null,
     [items, productId]
   );
 

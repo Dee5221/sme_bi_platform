@@ -47,7 +47,6 @@ export function RegisterPage() {
     try {
       await register({
         businessName: form.businessName,
-        businessEmail: form.businessEmail || undefined,
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,

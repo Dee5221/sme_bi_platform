@@ -182,7 +182,7 @@ export function StaffInventoryPage() {
           <>
             <DataTable
               rows={items}
-              rowKey={(row) => row.id}
+              rowKey={(row) => row.product_id}
               emptyTitle="No inventory records"
               emptyDescription="Create products first. Each product starts with zero stock."
               columns={[

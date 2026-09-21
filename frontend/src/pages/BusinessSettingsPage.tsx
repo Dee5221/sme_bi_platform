@@ -25,8 +25,11 @@ type BusinessForm = {
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const fieldName = item.loc[item.loc.length - 1];
+      next[fieldName] = item.msg;
+    }
   }
   return next;
 }
@@ -38,8 +41,8 @@ function formatDate(value: string) {
 export function BusinessSettingsPage() {
   const { setUser, hasPermission } = useAuth();
   const { pushToast } = useToast();
-  const canView = hasPermission('business.view');
-  const canUpdate = hasPermission('business.update');
+  const canView = hasPermission('business.view') || hasPermission('all');
+  const canUpdate = hasPermission('business.update') || hasPermission('all');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -110,8 +113,28 @@ export function BusinessSettingsPage() {
         usdToZmwRate: rate,
       });
       setBusiness(result.business);
-      const session = await authApi.fetchMe();
-      setUser(session.user);
+      
+      // Refresh the user data in auth context
+      const session: any = await authApi.fetchMe();
+      const nameParts = session.name.split(' ');
+      setUser({
+        ...session,
+        businessId: session.business_id,
+        firstName: nameParts[0] || session.name,
+        lastName: nameParts.slice(1).join(' ') || '',
+        phone: null,
+        avatarUrl: null,
+        accountType: session.role?.role_name || '',
+        isActive: session.status === 'active',
+        roles: session.role?.role_name ? [session.role.role_name] : [],
+        permissions: [],
+        business: { 
+          id: session.business_id, 
+          name: result.business.name 
+        },
+        _raw: session
+      } as any);
+    
       pushToast('Business settings updated.', 'success');
     } catch (err) {
       if (err instanceof ApiClientError) {
