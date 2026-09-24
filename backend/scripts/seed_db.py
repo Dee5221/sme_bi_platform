@@ -4,7 +4,13 @@ from pathlib import Path
 # Add the backend directory to the Python path so the script can find the 'app' module
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy.orm import Session
+try:
+    from sqlalchemy.orm import Session
+except ModuleNotFoundError as exc:
+    raise ModuleNotFoundError(
+        "SQLAlchemy is not installed. Install the project dependencies before running this script."
+    ) from exc
+
 from app.core.database import SessionLocal
 from app.models.business import Business
 from app.models.role import Role
