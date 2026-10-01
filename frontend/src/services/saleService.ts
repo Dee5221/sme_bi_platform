@@ -50,18 +50,14 @@ export function listSales(params: {
   const query = new URLSearchParams();
   if (params.from) query.set('start_date', params.from);
   if (params.to) query.set('end_date', params.to);
-  
-  // Ensure page and pageSize are always sent if your backend expects them for consistency
-  query.set('page', String(params.page || 1));
-  query.set('pageSize', String(params.pageSize || 20));
-  
   const suffix = query.toString() ? `?${query.toString()}` : '';
   
   return apiRequest<SaleList[]>(`/api/sales/${suffix}`).then((data) => {
     const page = params.page || 1;
     const pageSize = params.pageSize || 20;
+    const start = (page - 1) * pageSize;
     return {
-      items: data,
+      items: data.slice(start, start + pageSize),
       pagination: {
         page,
         pageSize,

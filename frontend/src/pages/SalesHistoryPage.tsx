@@ -36,8 +36,6 @@ export function SalesHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sales, setSales] = useState<SaleList[]>([]);
-  const [search, setSearch] = useState('');
-  // const [debouncedSearch, setDebouncedSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
@@ -50,16 +48,6 @@ export function SalesHistoryPage() {
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  // Debounced search — currently disabled because the backend does not
-  // support a `search` param on listSales. Re-enable this block and the
-  // commented-out `search:` field in the listSales call below if/when
-  // the backend adds support.
-  //
-  // useEffect(() => {
-  //   const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-  //   return () => window.clearTimeout(timer);
-  // }, [search]);
-
   const loadSales = useCallback(async () => {
     if (!canView) {
       setError('You do not have permission to view sales history.');
@@ -69,7 +57,6 @@ export function SalesHistoryPage() {
     setError(null);
     try {
       const result = await saleApi.listSales({
-        // search: debouncedSearch || undefined,
         from: from || undefined,
         to: to || undefined,
         page,
@@ -83,16 +70,11 @@ export function SalesHistoryPage() {
       setLoading(false);
     }
   }, [canView, from, to, page]);
-  // Note: `debouncedSearch` was previously in the deps array above; it is
-  // intentionally omitted now that the search param is disabled.
-
   useEffect(() => {
     void loadSales();
   }, [loadSales]);
 
   function clearFilters() {
-    setSearch('');
-    // setDebouncedSearch('');
     setFrom('');
     setTo('');
     setPage(1);
@@ -126,16 +108,6 @@ export function SalesHistoryPage() {
 
       <Card>
         <div className="sales-history-toolbar">
-          <Input
-            label="Search"
-            name="search"
-            placeholder="Search sale ID, notes, or customer"
-            value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
-          />
           <Input
             label="From"
             name="from"
