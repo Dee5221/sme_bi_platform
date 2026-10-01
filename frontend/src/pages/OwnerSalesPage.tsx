@@ -61,7 +61,6 @@ export function OwnerSalesPage() {
   const [sales, setSales] = useState<SaleList[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -316,19 +315,6 @@ export function OwnerSalesPage() {
       ) : null}
 
       <Card title="Sales history">
-        <div className="sales-toolbar">
-          <Input
-            label="Search"
-            name="search"
-            placeholder="Search sale ID, notes, or customer"
-            value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
-          />
-        </div>
-
         {loading ? (
           <LoadingSkeleton rows={6} />
         ) : error ? (

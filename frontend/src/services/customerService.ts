@@ -1,7 +1,7 @@
 import { apiRequest } from '../lib/api';
 
 export type Customer = {
-  id: string;
+  id: number;
   name: string;
   email: string | null;
   phone: string | null;
@@ -22,29 +22,36 @@ export type CustomerPayload = {
   status?: 'ACTIVE' | 'INACTIVE';
 };
 
-type Paginated<T> = {
-  items: T[];
-  pagination: {
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-  };
-};
-
 export function listCustomers(params: {
   search?: string;
   status?: string;
   page?: number;
   pageSize?: number;
 }) {
-  const query = new URLSearchParams();
-  if (params.search) query.set('search', params.search);
-  if (params.status) query.set('status', params.status);
-  if (params.page) query.set('page', String(params.page));
-  if (params.pageSize) query.set('pageSize', String(params.pageSize));
-  const suffix = query.toString() ? `?${query.toString()}` : '';
-  return apiRequest<Paginated<Customer>>(`/api/customers${suffix}`);
+  return apiRequest<Customer[]>('/api/customers/').then((customers) => {
+    const search = params.search?.trim().toLowerCase();
+    const filtered = search
+      ? customers.filter((customer) =>
+          [customer.name, customer.email, customer.phone]
+            .filter(Boolean)
+            .some((value) => value!.toLowerCase().includes(search))
+        )
+      : customers;
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 20;
+    const start = (page - 1) * pageSize;
+    const items = filtered.slice(start, start + pageSize);
+
+    return {
+      items,
+      pagination: {
+        page,
+        pageSize,
+        total: filtered.length,
+        totalPages: Math.ceil(filtered.length / pageSize) || 1,
+      },
+    };
+  });
 }
 
 export function createCustomer(payload: CustomerPayload) {
@@ -54,14 +61,14 @@ export function createCustomer(payload: CustomerPayload) {
   });
 }
 
-export function updateCustomer(id: string, payload: CustomerPayload) {
+export function updateCustomer(id: number, payload: CustomerPayload) {
   return apiRequest<{ customer: Customer }>(`/api/customers/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload),
   });
 }
 
-export function deactivateCustomer(id: string) {
+export function deactivateCustomer(id: number) {
   return apiRequest<{ customer: Customer }>(`/api/customers/${id}`, {
     method: 'DELETE',
   });
