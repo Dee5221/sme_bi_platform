@@ -56,9 +56,7 @@ export function listInventory(params: {
 export function listMovements(params: {
   productId?: number;
   type?: string;
-  page?: number;
-  pageSize?: number;
-}) {
+} = {}) {
   const query = new URLSearchParams();
   if (params.productId) query.set('product_id', String(params.productId));
   if (params.type) query.set('movement_type', params.type);
@@ -66,20 +64,18 @@ export function listMovements(params: {
   const suffix = query.toString() ? `?${query.toString()}` : '';
   
   return apiRequest<StockMovement[]>(`/api/inventory/movements${suffix}`).then((data) => {
-    const page = params.page || 1;
-    const pageSize = params.pageSize || 20;
+    // Mock pagination response for the DataTable
     return {
       items: data,
       pagination: {
-        page,
-        pageSize,
+        page: 1,
+        pageSize: data.length,
         total: data.length,
-        totalPages: Math.ceil(data.length / pageSize) || 1,
+        totalPages: 1,
       },
     };
   });
 }
-
 export function stockIn(payload: { productId: number; quantity: number; reason?: string; reference?: string }) {
   return apiRequest<InventoryItem>(`/api/inventory/${payload.productId}/stock-in`, {
     method: 'POST',

@@ -1,28 +1,21 @@
 import { useAuth } from '../context/AuthContext';
 import { AdminDashboardPage } from './AdminDashboardPage';
-import { CustomerDashboardPage } from './CustomerDashboardPage';
 import { OwnerDashboardPage } from './OwnerDashboardPage';
 import { StaffDashboardPage } from './StaffDashboardPage';
-import { SupplierDashboardPage } from './SupplierDashboardPage';
 
 export function DashboardPage() {
   const { hasPermission } = useAuth();
 
-  if (hasPermission('portal.purchases.view')) {
-    return <CustomerDashboardPage />;
-  }
-
-  if (hasPermission('portal.products.view')) {
-    return <SupplierDashboardPage />;
-  }
-
+  // Admin gets the admin dashboard
   if (hasPermission('users.view')) {
     return <AdminDashboardPage />;
   }
 
+  // Owner gets the owner dashboard
   if (hasPermission('expenses.view')) {
     return <OwnerDashboardPage />;
   }
 
+  // Staff gets the staff dashboard
   return <StaffDashboardPage />;
 }

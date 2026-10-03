@@ -1,241 +1,163 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
-import * as staffDashboardApi from '../services/staffDashboardService';
-import type { StaffDashboardData } from '../services/staffDashboardService';
-import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
+import * as salesApi from '../services/saleService';
 import { Card } from '../components/ui/Card';
-import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { PageHeader } from '../components/ui/PageHeader';
-import './DashboardPage.css';
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
+import { Badge } from '../components/ui/Badge';
+import './dashboard.css';
 
 export function StaffDashboardPage() {
-  const { user, hasPermission } = useAuth();
-  const canView = hasPermission('dashboard.view') && hasPermission('sales.view');
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<StaffDashboardData | null>(null);
+  const [recentSales, setRecentSales] = useState<any[]>([]);
+  const [todaySales, setTodaySales] = useState(0);
+  const [todayRevenue, setTodayRevenue] = useState(0);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!canView) {
-        setError('You do not have permission to view the dashboard.');
-        setLoading(false);
-        return;
-      }
-      try {
-        const result = await staffDashboardApi.fetchStaffDashboard();
-        if (active) {
-          setDashboard(result.dashboard);
-          setError(null);
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof ApiClientError ? err.message : 'Unable to load staff dashboard.'
-          );
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [canView]);
+    loadDashboardData();
+  }, []);
 
-  if (!canView) {
-    return <Alert tone="error">You do not have permission to view the dashboard.</Alert>;
+  async function loadDashboardData() {
+    try {
+      setLoading(true);
+
+      const salesData = await salesApi.listSales({}).catch(() => []);
+      
+      // Handle both flat array and paginated {items: []} responses
+      const sales: any[] = Array.isArray(salesData)
+        ? salesData
+        : (salesData as any)?.items || [];
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todaySalesList = sales.filter((sale: any) => {
+        const saleDate = new Date(sale.sale_datetime);
+        return saleDate >= today;
+      });
+
+      setTodaySales(todaySalesList.length);
+      setTodayRevenue(todaySalesList.reduce((sum: number, sale: any) => sum + (sale.total_amount || 0), 0));
+      setRecentSales(sales.slice(0, 5));
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (loading) {
     return (
-      <Card>
-        <LoadingSkeleton rows={8} />
-      </Card>
+      <div className="dashboard-page">
+        <div className="dashboard-header">
+          <div>
+            <h1 className="dashboard-title">Dashboard</h1>
+            <p className="dashboard-subtitle">Welcome back, {user?.email || 'User'}</p>
+          </div>
+        </div>
+        <div className="dashboard-content">
+          <LoadingSkeleton rows={6} />
+        </div>
+      </div>
     );
   }
 
-  if (error || !dashboard) {
-    return <Alert tone="error">{error || 'Staff dashboard unavailable.'}</Alert>;
-  }
-
-  const { kpis, inventoryHealth, lowStockItems, recentSales, business } = dashboard;
-
   return (
     <div className="dashboard-page">
-      <section className="dashboard-hero">
-        <PageHeader
-          title={`Welcome, ${user?.firstName || 'Staff'}`}
-          subtitle={`${business.name} · daily operations overview`}
-        />
+      <div className="dashboard-header">
+        <div>
+          <h1 className="dashboard-title">Dashboard</h1>
+          <p className="dashboard-subtitle">
+            Welcome back, {user?.email || 'User'}. Here's your activity overview.
+          </p>
+        </div>
+      </div>
 
-        <div className="dashboard-hero__grid">
-          <section className="dashboard-hero__kpis" aria-label="Daily operations indicators">
-            <article className="kpi-card kpi-card--red">
-              <p className="kpi-card__label">Today's sales</p>
-              <h2>{formatMoney(kpis.todayRevenue)}</h2>
-              <p className="kpi-card__meta">
-                {kpis.todaySaleCount} sale{kpis.todaySaleCount === 1 ? '' : 's'} today
-              </p>
-            </article>
-            <article className="kpi-card kpi-card--blue">
-              <p className="kpi-card__label">This month</p>
-              <h2>{formatMoney(kpis.monthRevenue)}</h2>
-              <p className="kpi-card__meta">
-                {kpis.monthSaleCount} sale{kpis.monthSaleCount === 1 ? '' : 's'} this month
-              </p>
-            </article>
-            <article className="kpi-card kpi-card--orange">
-              <p className="kpi-card__label">Products</p>
-              <h2>{kpis.activeProducts}</h2>
-              <p className="kpi-card__meta">Active catalog items</p>
-            </article>
-            <article className="kpi-card kpi-card--teal">
-              <p className="kpi-card__label">Low stock</p>
-              <h2>{kpis.lowStockCount}</h2>
-              <p className="kpi-card__meta">Products at or below threshold</p>
-            </article>
-          </section>
-
-          <div className="dashboard-hero__panel">
-            <p className="dashboard-hero__panel-title">Inventory health</p>
-            <div className="health-block">
-              <div className="health-block__row">
-                <span>
-                  {inventoryHealth.healthyProducts} of {inventoryHealth.trackedProducts} healthy
-                </span>
-                <Badge tone={inventoryHealth.percentHealthy < 75 ? 'orange' : 'green'}>
-                  {inventoryHealth.percentHealthy}% ok
-                </Badge>
-              </div>
-              <div className="health-bar" aria-hidden="true">
-                <div
-                  className="health-bar__fill"
-                  style={{ width: `${inventoryHealth.percentHealthy}%` }}
-                />
-              </div>
+      <div className="dashboard-content">
+        {/* Quick Stats */}
+        <div className="dashboard-kpi-grid">
+          <Card className="dashboard-kpi-card">
+            <div className="dashboard-kpi-icon dashboard-kpi-icon--sales">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </div>
-            <section className="shortcut-grid" aria-label="Staff shortcuts" style={{ marginTop: '1rem' }}>
-              <Link className="shortcut-card" to="/app/sales/new">
-                New sale
-              </Link>
-              <Link className="shortcut-card" to="/app/products">
-                Products
-              </Link>
-              <Link className="shortcut-card" to="/app/inventory">
-                Inventory
-              </Link>
-              <Link className="shortcut-card" to="/app/customers">
-                Customers
-              </Link>
-            </section>
+            <div className="dashboard-kpi-content">
+              <div className="dashboard-kpi-label">Today's Sales</div>
+              <div className="dashboard-kpi-value">{todaySales}</div>
+              <div className="dashboard-kpi-trend">Transactions today</div>
+            </div>
+          </Card>
+
+          <Card className="dashboard-kpi-card">
+            <div className="dashboard-kpi-icon dashboard-kpi-icon--revenue">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="dashboard-kpi-content">
+              <div className="dashboard-kpi-label">Today's Revenue</div>
+              <div className="dashboard-kpi-value">
+                K{todayRevenue.toLocaleString('en-ZM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="dashboard-kpi-trend">Sales completed today</div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Recent Sales */}
+        <Card className="dashboard-card">
+          <div className="dashboard-card-header">
+            <h2 className="dashboard-card-title">Recent Sales</h2>
+            <Link to="/app/sales" className="dashboard-card-link">View all</Link>
           </div>
-
-          <aside className="dashboard-side">
-            <Link to="/app/sales/new" className="dash-cta">
-              <span className="dash-cta__icon" aria-hidden="true">
-                ↑
-              </span>
-              <strong>Add new sale</strong>
-              <span>Record a transaction for this business</span>
-            </Link>
-          </aside>
-        </div>
-      </section>
-
-      <section className="dashboard-data">
-        <p className="dashboard-data__tagline">
-          Forecast your business growth and readily track here!!
-        </p>
-
-        <div className="dashboard-data__grid">
-          <Card title="Recent sales">
+          <div className="dashboard-card-body">
             {recentSales.length === 0 ? (
-              <EmptyState
-                title="No sales yet"
-                description="Record a sale to see recent activity here."
-                action={
-                  <Link to="/app/sales">
-                    <Button>Go to Sales</Button>
-                  </Link>
-                }
-              />
+              <div className="dashboard-empty-state">
+                <p>No sales recorded yet</p>
+              </div>
             ) : (
-              <>
-                <ul className="recent-list">
-                  {recentSales.map((sale) => (
-                    <li key={sale.id} className="recent-list__item">
-                      <div className="recent-list__icon" aria-hidden="true">
-                        $
-                      </div>
-                      <div className="recent-list__body">
-                        <strong>{sale.saleNumber}</strong>
-                        <span>
-                          {sale.customerName} · {sale.itemCount} item
-                          {sale.itemCount === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                      <div className="recent-list__meta">
-                        <strong>{formatMoney(sale.total)}</strong>
-                        <span>{formatDate(sale.soldAt)}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <div className="table-total">
-                  <span>Total</span>
-                  <span className="table-total__value">
-                    {formatMoney(recentSales.reduce((sum, sale) => sum + sale.total, 0))}
-                  </span>
-                </div>
-              </>
+              <div className="dashboard-table-wrapper">
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Customer</th>
+                      <th>Items</th>
+                      <th>Payment</th>
+                      <th className="dashboard-table-th--right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSales.map((sale: any) => (
+                      <tr key={sale.id}>
+                        <td className="dashboard-table-td--muted">
+                          {new Date(sale.sale_datetime).toLocaleDateString('en-ZM', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </td>
+                        <td>{sale.customer?.name || 'Walk-in Customer'}</td>
+                        <td className="dashboard-table-td--muted">
+                          {sale.items?.length || 0} item{(sale.items?.length || 0) !== 1 ? 's' : ''}
+                        </td>
+                        <td>
+                          <Badge tone="neutral">{sale.payment_method}</Badge>
+                        </td>
+                        <td className="dashboard-table-td--right dashboard-table-td--bold">
+                          K{(sale.total_amount || 0).toLocaleString('en-ZM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-          </Card>
-
-          <Card title="Low stock alerts">
-            {lowStockItems.length === 0 ? (
-              <EmptyState
-                title="No low-stock products"
-                description="Inventory levels are above their thresholds."
-              />
-            ) : (
-              <>
-                <div className="chip-list">
-                  {lowStockItems.map((item) => (
-                    <div key={item.inventoryId} className="stock-chip">
-                      <strong>{item.productName}</strong>
-                      <span>
-                        {item.quantity} left · alert at {item.lowStockThreshold}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="side-link">
-                  <Link to="/app/inventory">Manage inventory →</Link>
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
-      </section>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

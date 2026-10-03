@@ -1,224 +1,150 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
-import * as adminDashboardApi from '../services/adminDashboardService';
-import type { AdminDashboardData } from '../services/adminDashboardService';
-import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
+import * as usersApi from '../services/userService';
+import * as salesApi from '../services/saleService';
 import { Card } from '../components/ui/Card';
-import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { PageHeader } from '../components/ui/PageHeader';
-import './DashboardPage.css';
+import { Badge } from '../components/ui/Badge';
+import './dashboard.css';
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  status: string;
+  role?: { role_name: string };
 }
-
-function formatAction(action: string) {
-  return action.replace(/_/g, ' ').toLowerCase();
-}
-
-type QuickLink = {
-  to: string;
-  label: string;
-  permission: string;
-};
-
-const quickLinks: QuickLink[] = [
-  { to: '/app/users', label: 'Users', permission: 'users.view' },
-  { to: '/app/roles', label: 'Roles & Permissions', permission: 'roles.view' },
-  { to: '/app/activity-log', label: 'Activity Log', permission: 'audit.view' },
-  {
-    to: '/app/business-settings',
-    label: 'Business Settings',
-    permission: 'business.update',
-  },
-];
 
 export function AdminDashboardPage() {
-  const { user, hasPermission } = useAuth();
-  const canView = hasPermission('users.view');
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
-
-  const visibleQuickLinks = useMemo(
-    () => quickLinks.filter((item) => hasPermission(item.permission)),
-    [hasPermission]
-  );
+  const [users, setUsers] = useState<User[]>([]);
+  const [totalSales, setTotalSales] = useState(0);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!canView) {
-        setError('You do not have permission to view the administrator dashboard.');
-        setLoading(false);
-        return;
-      }
-      try {
-        const result = await adminDashboardApi.fetchAdminDashboard();
-        if (active) {
-          setDashboard(result.dashboard);
-          setError(null);
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof ApiClientError ? err.message : 'Unable to load administrator dashboard.'
-          );
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [canView]);
+    loadDashboardData();
+  }, []);
 
-  if (!canView) {
-    return (
-      <Alert tone="error">You do not have permission to view the administrator dashboard.</Alert>
-    );
+  async function loadDashboardData() {
+    try {
+      setLoading(true);
+
+      const [usersData, salesData] = await Promise.all([
+        usersApi.listUsers({}).catch(() => []),
+        salesApi.listSales({}).catch(() => ({ items: [] })),
+      ]);
+
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setTotalSales(salesData.items?.length || 0);
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (loading) {
     return (
-      <Card>
-        <LoadingSkeleton rows={8} />
-      </Card>
+      <div className="dashboard-page">
+        <div className="dashboard-header">
+          <div>
+            <h1 className="dashboard-title">Dashboard</h1>
+            <p className="dashboard-subtitle">Welcome back, {user?.email || 'User'}</p>
+          </div>
+        </div>
+        <div className="dashboard-content">
+          <LoadingSkeleton rows={6} />
+        </div>
+      </div>
     );
   }
 
-  if (error || !dashboard) {
-    return <Alert tone="error">{error || 'Administrator dashboard unavailable.'}</Alert>;
-  }
-
-  const { kpis, recentActivity, period, business } = dashboard;
-
   return (
     <div className="dashboard-page">
-      <section className="dashboard-hero">
-        <PageHeader
-          title={`Welcome, ${user?.firstName || 'Administrator'}`}
-          subtitle={`${business.name} · system administration overview`}
-        />
-
-        <div className="dashboard-hero__grid">
-          <section className="dashboard-hero__kpis" aria-label="Administration indicators">
-            <article className="kpi-card kpi-card--blue">
-              <p className="kpi-card__label">Active users</p>
-              <h2>{kpis.activeUsers}</h2>
-              <p className="kpi-card__meta">Accounts currently enabled</p>
-            </article>
-            <article className="kpi-card kpi-card--orange">
-              <p className="kpi-card__label">Inactive users</p>
-              <h2>{kpis.inactiveUsers}</h2>
-              <p className="kpi-card__meta">Deactivated accounts</p>
-            </article>
-            <article className="kpi-card kpi-card--teal">
-              <p className="kpi-card__label">Roles in use</p>
-              <h2>{kpis.rolesInUse}</h2>
-              <p className="kpi-card__meta">Assigned across this business</p>
-            </article>
-            <article className="kpi-card kpi-card--red">
-              <p className="kpi-card__label">Activity events</p>
-              <h2>{kpis.auditEventsLast7Days}</h2>
-              <p className="kpi-card__meta">{period.label.toLowerCase()}</p>
-            </article>
-          </section>
-
-          <div className="dashboard-hero__panel">
-            <p className="dashboard-hero__panel-title">Business status</p>
-            <div className="health-block">
-              <div className="health-block__row">
-                <span>{business.name}</span>
-                <Badge tone={business.isActive ? 'green' : 'orange'}>
-                  {business.isActive ? 'Active' : 'Inactive'}
-                </Badge>
-              </div>
-              {business.email ? <p className="kpi-card__meta">{business.email}</p> : null}
-              {business.phone ? <p className="kpi-card__meta">{business.phone}</p> : null}
-              <p className="kpi-card__meta">Created {formatDate(business.createdAt)}</p>
-            </div>
-            {visibleQuickLinks.length > 0 ? (
-              <section className="shortcut-grid" aria-label="Administration shortcuts" style={{ marginTop: '1rem' }}>
-                {visibleQuickLinks.map((item) => (
-                  <Link key={item.to} className="shortcut-card" to={item.to}>
-                    {item.label}
-                  </Link>
-                ))}
-              </section>
-            ) : null}
-          </div>
-
-          <aside className="dashboard-side">
-            <Card title="Access overview">
-              <div className="chip-list">
-                <div className="stock-chip">
-                  <strong>{kpis.activeUsers + kpis.inactiveUsers} total users</strong>
-                  <span>
-                    {kpis.activeUsers} active · {kpis.inactiveUsers} inactive
-                  </span>
-                </div>
-                <div className="stock-chip">
-                  <strong>{kpis.rolesInUse} roles assigned</strong>
-                  <span>Across users in this business workspace</span>
-                </div>
-              </div>
-              {hasPermission('audit.view') ? (
-                <div className="side-link">
-                  <Link to="/app/activity-log">View full activity log →</Link>
-                </div>
-              ) : null}
-            </Card>
-          </aside>
+      <div className="dashboard-header">
+        <div>
+          <h1 className="dashboard-title">Dashboard</h1>
+          <p className="dashboard-subtitle">
+            Welcome back, {user?.email || 'User'}. System administration overview.
+          </p>
         </div>
-      </section>
+      </div>
 
-      <section className="dashboard-data">
-        <p className="dashboard-data__tagline">
-          Forecast your business growth and readily track here!!
-        </p>
+      <div className="dashboard-content">
+        {/* Quick Stats */}
+        <div className="dashboard-kpi-grid">
+          <Card className="dashboard-kpi-card">
+            <div className="dashboard-kpi-icon dashboard-kpi-icon--sales">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="dashboard-kpi-content">
+              <div className="dashboard-kpi-label">Total Users</div>
+              <div className="dashboard-kpi-value">{users.length}</div>
+              <div className="dashboard-kpi-trend">Registered accounts</div>
+            </div>
+          </Card>
 
-        <div className="dashboard-data__grid dashboard-data__full">
-          <Card title="Recent activity">
-            {recentActivity.length === 0 ? (
-              <EmptyState
-                title="No activity recorded yet"
-                description="User actions and system events will appear here as your team uses the platform."
-              />
-            ) : (
-              <ul className="recent-list">
-                {recentActivity.map((entry) => (
-                  <li key={entry.id} className="recent-list__item">
-                    <div className="recent-list__icon" aria-hidden="true">
-                      •
-                    </div>
-                    <div className="recent-list__body">
-                      <strong>{formatAction(entry.action)}</strong>
-                      <span>
-                        {entry.entity}
-                        {entry.entityId ? ` · ${entry.entityId}` : ''} · {entry.actorName}
-                      </span>
-                    </div>
-                    <div className="recent-list__meta">
-                      <span>{formatDate(entry.createdAt)}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {hasPermission('business.update') ? (
-              <div className="side-link">
-                <Link to="/app/business-settings">Manage business settings →</Link>
-              </div>
-            ) : null}
+          <Card className="dashboard-kpi-card">
+            <div className="dashboard-kpi-icon dashboard-kpi-icon--revenue">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="dashboard-kpi-content">
+              <div className="dashboard-kpi-label">Total Sales</div>
+              <div className="dashboard-kpi-value">{totalSales}</div>
+              <div className="dashboard-kpi-trend">All transactions</div>
+            </div>
           </Card>
         </div>
-      </section>
+
+        {/* Users List */}
+        <Card className="dashboard-card">
+          <div className="dashboard-card-header">
+            <h2 className="dashboard-card-title">System Users</h2>
+            <Link to="/app/users" className="dashboard-card-link">Manage users</Link>
+          </div>
+          <div className="dashboard-card-body">
+            {users.length === 0 ? (
+              <div className="dashboard-empty-state">
+                <p>No users found</p>
+              </div>
+            ) : (
+              <div className="dashboard-table-wrapper">
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.slice(0, 10).map((u) => (
+                      <tr key={u.id}>
+                        <td>{u.name}</td>
+                        <td className="dashboard-table-td--muted">{u.email}</td>
+                        <td>
+                          <Badge tone="blue">{u.role?.role_name || 'N/A'}</Badge>
+                        </td>
+                        <td>
+                          <Badge tone={u.status === 'active' ? 'green' : 'orange'}>
+                            {u.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
