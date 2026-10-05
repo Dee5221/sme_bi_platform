@@ -35,9 +35,9 @@ export function listInventory(params: {
   const query = new URLSearchParams();
   if (params.search) query.set('search', params.search);
   if (params.lowStockOnly) query.set('low_stock_only', 'true');
-  
+
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  
+
   return apiRequest<InventoryItem[]>(`/api/inventory/${suffix}`).then((data) => {
     const page = params.page || 1;
     const pageSize = params.pageSize || 20;
@@ -60,9 +60,9 @@ export function listMovements(params: {
   const query = new URLSearchParams();
   if (params.productId) query.set('product_id', String(params.productId));
   if (params.type) query.set('movement_type', params.type);
-  
+
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  
+
   return apiRequest<StockMovement[]>(`/api/inventory/movements${suffix}`).then((data) => {
     // Mock pagination response for the DataTable
     return {

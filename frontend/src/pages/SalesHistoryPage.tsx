@@ -1,272 +1,413 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
-import * as saleApi from '../services/saleService';
-import type { Sale, SaleList } from '../services/saleService';
-import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
+import { useEffect, useState, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import * as saleService from '../services/saleService';
+import type { Sale } from '../services/saleService';
 import { Card } from '../components/ui/Card';
-import { DataTable } from '../components/ui/DataTable';
-import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { Modal } from '../components/ui/Modal';
-import { PageHeader } from '../components/ui/PageHeader';
-import { useToast } from '../components/ui/Toast';
 import './SalesPage.css';
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
+const ITEMS_PER_PAGE = 15;
 
 export function SalesHistoryPage() {
-  const { hasPermission } = useAuth();
-  const { pushToast } = useToast();
-  const canView = hasPermission('sales.view');
-
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [sales, setSales] = useState<SaleList[]>([]);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    totalPages: 1,
-  });
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
 
-  const loadSales = useCallback(async () => {
-    if (!canView) {
-      setError('You do not have permission to view sales history.');
-      setLoading(false);
-      return;
-    }
-    setError(null);
-    try {
-      const result = await saleApi.listSales({
-        from: from || undefined,
-        to: to || undefined,
-        page,
-        pageSize: 20,
-      });
-      setSales(result.items);
-      setPagination(result.pagination);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Unable to load sales history.');
-    } finally {
-      setLoading(false);
-    }
-  }, [canView, from, to, page]);
+  const startDate = searchParams.get('start_date') || '';
+  const endDate = searchParams.get('end_date') || '';
+  const statusFilter = searchParams.get('status_filter') || '';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+
   useEffect(() => {
-    void loadSales();
-  }, [loadSales]);
+    async function loadSales() {
+      try {
+        setLoading(true);
+        setError(null);
+        const params: saleService.ListSalesParams = {};
+        if (startDate) params.start_date = startDate;
+        if (endDate) params.end_date = endDate;
+        if (statusFilter) params.status_filter = statusFilter;
 
-  function clearFilters() {
-    setFrom('');
-    setTo('');
-    setPage(1);
+        const data = await saleService.listSales(params);
+        const items = Array.isArray(data) ? data : [];
+
+        // Sort by date descending (most recent first)
+        items.sort(
+          (a, b) =>
+            new Date(b.sale_datetime).getTime() -
+            new Date(a.sale_datetime).getTime()
+        );
+        setSales(items);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load sales history');
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadSales();
+  }, [startDate, endDate, statusFilter]);
+
+  const filteredSales = useMemo(() => sales, [sales]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSales.length / ITEMS_PER_PAGE));
+  const paginatedSales = filteredSales.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  function handleFilterChange(key: string, value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    params.set('page', '1');
+    setSearchParams(params);
   }
 
-  async function handleViewSale(saleId: number) {
-    setLoadingDetail(true);
-    try {
-      const sale = await saleApi.getSale(saleId);
-      setSelectedSale(sale);
-    } catch (err) {
-      pushToast('Failed to load sale details.', 'error');
-    } finally {
-      setLoadingDetail(false);
+  function handlePageChange(page: number) {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', page.toString());
+    setSearchParams(params);
+  }
+
+  function getStatusBadge(status: string) {
+    switch (status) {
+      case 'completed':
+        return <Badge tone="green">Completed</Badge>;
+      case 'pending':
+        return <Badge tone="orange">Pending</Badge>;
+      case 'cancelled':
+        return <Badge tone="red">Cancelled</Badge>;
+      case 'refunded':
+        return <Badge tone="neutral">Refunded</Badge>;
+      default:
+        return <Badge tone="neutral">{status}</Badge>;
     }
   }
 
-  if (!canView) {
-    return <Alert tone="error">You do not have permission to view sales history.</Alert>;
+  function formatCurrency(amount: number) {
+    return `K${Number(amount || 0).toLocaleString('en-ZM', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  if (loading) {
+    return (
+      <div className="sales-page">
+        <div className="page-header">
+          <div className="page-header__content">
+            <h1 className="page-title">Sales History</h1>
+            <p className="page-subtitle">Review all completed transactions.</p>
+          </div>
+          <div className="page-header__actions">
+            <Link to="/app/sales/new">
+              <Button>New Sale</Button>
+            </Link>
+          </div>
+        </div>
+        <Card>
+          <LoadingSkeleton rows={10} />
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="sales-page">
-      <Link className="sales-back" to="/app/sales">
-        ← Back to sales
-      </Link>
-      <PageHeader
-        title="Sales history"
-        subtitle="Look up past transactions by date or customer."
-      />
+      <div className="page-header">
+        <div className="page-header__content">
+          <h1 className="page-title">Sales History</h1>
+          <p className="page-subtitle">
+            Review all completed transactions.
+            {filteredSales.length > 0 && (
+              <span> {filteredSales.length} sale{filteredSales.length !== 1 ? 's' : ''} total.</span>
+            )}
+          </p>
+        </div>
+        <div className="page-header__actions">
+          <Link to="/app/sales/new">
+            <Button>New Sale</Button>
+          </Link>
+        </div>
+      </div>
+
+      {error && (
+        <div className="error-state" role="alert">
+          <h3 className="error-state__title">Unable to load sales</h3>
+          <p className="error-state__description">{error}</p>
+        </div>
+      )}
+
+      <div className="filter-bar">
+        <div className="filter-bar__field">
+          <label className="filter-bar__label" htmlFor="filter-start">
+            Start Date
+          </label>
+          <input
+            id="filter-start"
+            type="date"
+            className="filter-bar__input"
+            value={startDate}
+            onChange={(e) => handleFilterChange('start_date', e.target.value)}
+          />
+        </div>
+        <div className="filter-bar__field">
+          <label className="filter-bar__label" htmlFor="filter-end">
+            End Date
+          </label>
+          <input
+            id="filter-end"
+            type="date"
+            className="filter-bar__input"
+            value={endDate}
+            onChange={(e) => handleFilterChange('end_date', e.target.value)}
+          />
+        </div>
+        <div className="filter-bar__field">
+          <label className="filter-bar__label" htmlFor="filter-status">
+            Status
+          </label>
+          <select
+            id="filter-status"
+            className="filter-bar__select"
+            value={statusFilter}
+            onChange={(e) => handleFilterChange('status_filter', e.target.value)}
+          >
+            <option value="">All Statuses</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="refunded">Refunded</option>
+          </select>
+        </div>
+      </div>
 
       <Card>
-        <div className="sales-history-toolbar">
-          <Input
-            label="From"
-            name="from"
-            type="date"
-            value={from}
-            onChange={(e) => {
-              setPage(1);
-              setFrom(e.target.value);
-            }}
-          />
-          <Input
-            label="To"
-            name="to"
-            type="date"
-            value={to}
-            onChange={(e) => {
-              setPage(1);
-              setTo(e.target.value);
-            }}
-          />
-          <Button type="button" variant="secondary" onClick={clearFilters}>
-            Clear
-          </Button>
-        </div>
-
-        {loading ? (
-          <LoadingSkeleton rows={6} />
-        ) : error ? (
-          <Alert tone="error">{error}</Alert>
+        {paginatedSales.length === 0 ? (
+          <div className="empty-state">
+            <h3 className="empty-state__title">No sales found</h3>
+            <p className="empty-state__description">
+              {sales.length === 0
+                ? 'Sales transactions will appear here once your first sale has been completed.'
+                : 'No sales match the current filters. Try adjusting your date range or status.'}
+            </p>
+            <div className="empty-state__action">
+              <Link to="/app/sales/new">
+                <Button>Create New Sale</Button>
+              </Link>
+            </div>
+          </div>
         ) : (
           <>
-            <DataTable
-              rows={sales}
-              rowKey={(row) => row.id}
-              emptyTitle="No sales in this period"
-              emptyDescription="Adjust the date range to find earlier transactions."
-              columns={[
-                {
-                  key: 'number',
-                  header: 'Sale ID',
-                  render: (row: SaleList) => (
-                    <div>
-                      <strong>#{row.id}</strong>
-                      <div className="sales-muted">{formatDate(row.sale_datetime)}</div>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'customer',
-                  header: 'Customer',
-                  render: (row: SaleList) => row.customer_name || 'Walk-in',
-                },
-                {
-                  key: 'recordedBy',
-                  header: 'Recorded by',
-                  render: (row: SaleList) => row.user_name || '—',
-                },
-                {
-                  key: 'items',
-                  header: 'Items',
-                  render: (row: SaleList) => row.item_count,
-                },
-                {
-                  key: 'total',
-                  header: 'Total',
-                  render: (row: SaleList) => formatMoney(row.total_amount),
-                },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  render: (row: SaleList) => <Badge tone="green">{row.status}</Badge>,
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  render: (row: SaleList) => (
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleViewSale(row.id)}
-                      disabled={loadingDetail}
-                    >
-                      View
-                    </Button>
-                  ),
-                },
-              ]}
-            />
-
-            <div className="sales-pagination">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} sales
-              </span>
-              <div className="sales-actions">
-                <Button
-                  variant="secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((current) => current + 1)}
-                >
-                  Next
-                </Button>
-              </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Sale ID</th>
+                    <th>Customer</th>
+                    <th>Items</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                    <th className="data-table__right">Total</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedSales.map((sale) => (
+                    <tr key={sale.id}>
+                      <td className="data-table__muted">
+                        {new Date(sale.sale_datetime).toLocaleString('en-ZM', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="data-table__bold">#{sale.id}</td>
+                      <td>{sale.customer?.name || 'Walk-in'}</td>
+                      <td className="data-table__muted">
+                        {sale.items?.length || 0} item
+                        {sale.items?.length !== 1 ? 's' : ''}
+                      </td>
+                      <td>
+                        <Badge tone="neutral">{sale.payment_method}</Badge>
+                      </td>
+                      <td>{getStatusBadge(sale.status)}</td>
+                      <td className="data-table__right data-table__bold data-table__numeric">
+                        {formatCurrency(sale.total_amount)}
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="sales-action-link"
+                          onClick={() => setSelectedSale(sale)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+
+            {totalPages > 1 && (
+              <div className="pagination">
+                <div className="pagination__info">
+                  Showing {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredSales.length)} to{' '}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredSales.length)} of{' '}
+                  {filteredSales.length} sales
+                </div>
+                <div className="pagination__controls">
+                  <Button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="pagination__page">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </Card>
 
-      <Modal
-        open={Boolean(selectedSale)}
-        title={selectedSale ? `Sale #${selectedSale.id}` : 'Sale'}
-        onClose={() => setSelectedSale(null)}
-        width="lg"
-      >
-        {selectedSale ? (
-          <div className="sales-detail">
-            <p><strong>Sale ID:</strong> #{selectedSale.id}</p>
-            <p><strong>Customer:</strong> {selectedSale.customer_name || 'Walk-in'}</p>
-            <p><strong>Date:</strong> {formatDate(selectedSale.sale_datetime)}</p>
-            <p><strong>Recorded by:</strong> {selectedSale.user_name || '—'}</p>
-            <p><strong>Payment:</strong> {selectedSale.payment_method}</p>
+      {/* Sale Detail Modal */}
+      {selectedSale && (
+        <div
+          className="sale-modal-overlay"
+          onClick={() => setSelectedSale(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sale-modal-title"
+        >
+          <div
+            className="sale-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sale-modal__header">
+              <div>
+                <h2 id="sale-modal-title" className="sale-modal__title">
+                  Sale #{selectedSale.id}
+                </h2>
+                <p className="sale-modal__subtitle">
+                  {new Date(selectedSale.sale_datetime).toLocaleString('en-ZM', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="sale-modal__close"
+                onClick={() => setSelectedSale(null)}
+                aria-label="Close sale details"
+              >
+                ✕
+              </button>
+            </div>
 
-            <DataTable
-              rows={selectedSale.items}
-              rowKey={(row) => row.id}
-              columns={[
-                {
-                  key: 'product',
-                  header: 'Product',
-                  render: (row) => `${row.product_name} (${row.sku})`,
-                },
-                {
-                  key: 'price',
-                  header: 'Unit price',
-                  render: (row) => formatMoney(row.unit_price),
-                },
-                {
-                  key: 'qty',
-                  header: 'Qty',
-                  render: (row) => row.quantity,
-                },
-                {
-                  key: 'line',
-                  header: 'Subtotal',
-                  render: (row) => formatMoney(row.subtotal),
-                },
-              ]}
-            />
-            <div className="sales-detail__total">
-              Total: <strong>{formatMoney(selectedSale.total_amount)}</strong>
+            <div className="sale-modal__body">
+              <div className="sale-modal__info-grid">
+                <div className="sale-modal__info-item">
+                  <span className="sale-modal__info-label">Status</span>
+                  {getStatusBadge(selectedSale.status)}
+                </div>
+                <div className="sale-modal__info-item">
+                  <span className="sale-modal__info-label">Customer</span>
+                  <span>{selectedSale.customer?.name || 'Walk-in Customer'}</span>
+                </div>
+                <div className="sale-modal__info-item">
+                  <span className="sale-modal__info-label">Payment</span>
+                  <span>{selectedSale.payment_method}</span>
+                </div>
+                <div className="sale-modal__info-item">
+                  <span className="sale-modal__info-label">Recorded By</span>
+                  <span>{selectedSale.user?.name || selectedSale.user?.email || '—'}</span>
+                </div>
+              </div>
+
+              <h3 className="sale-modal__section-title">Items</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th className="data-table__right">Unit Price</th>
+                      <th className="data-table__right">Qty</th>
+                      <th className="data-table__right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selectedSale.items || []).map((item) => (
+                      <tr key={item.id}>
+                        <td>{item.product?.name || `Product #${item.product_id}`}</td>
+                        <td className="data-table__right data-table__numeric">
+                          {formatCurrency(item.unit_price)}
+                        </td>
+                        <td className="data-table__right data-table__numeric">
+                          {item.quantity}
+                        </td>
+                        <td className="data-table__right data-table__numeric data-table__bold">
+                          {formatCurrency(item.subtotal)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="data-table__right"
+                        style={{ fontWeight: 700, fontSize: '15px' }}
+                      >
+                        Total:
+                      </td>
+                      <td
+                        className="data-table__right data-table__numeric"
+                        style={{ fontWeight: 700, fontSize: '15px' }}
+                      >
+                        {formatCurrency(selectedSale.total_amount)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            <div className="sale-modal__footer">
+              <Button onClick={() => setSelectedSale(null)}>Close</Button>
             </div>
           </div>
-        ) : null}
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

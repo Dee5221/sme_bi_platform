@@ -124,7 +124,7 @@ export function ProductsPage() {
         }),
         productApi.listCategories(true),
       ]);
-      
+
       // Enrich products with category names for the UI
       const categoryMap = new Map(categoryResult.categories.map(c => [c.id, c.name]));
       const enrichedProducts = productResult.items.map(p => ({
@@ -179,7 +179,7 @@ export function ProductsPage() {
     event.preventDefault();
     setFormError(null);
     setFieldErrors({});
-    
+
     const costPrice = Number(productForm.cost_price);
     const sellingPrice = Number(productForm.selling_price);
     const reorderLevel = Number(productForm.reorder_level);
@@ -533,9 +533,9 @@ export function ProductsPage() {
             <Input
               label="Description (Optional)"
               name="description"
-              value={productForm.name} 
+              value={productForm.name}
               // Note: Backend doesn't store description in MVP, but we keep the field for UI consistency without sending it
-              onChange={() => {}} 
+              onChange={() => {}}
               className="products-form__full"
               disabled
               placeholder="Description field reserved for future enhancement"

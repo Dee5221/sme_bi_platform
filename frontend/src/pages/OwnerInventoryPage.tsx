@@ -1,477 +1,506 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import * as inventoryApi from '../services/inventoryService';
-import type { InventoryItem, StockMovement } from '../services/inventoryService';
-import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { DataTable } from '../components/ui/DataTable';
-import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { Modal } from '../components/ui/Modal';
-import { PageHeader } from '../components/ui/PageHeader';
-import { useToast } from '../components/ui/Toast';
-import './InventoryPage.css';
+import { Input } from '../components/ui/Input';
+import './inventory.css';
 
-type AdjustMode = 'STOCK_IN' | 'STOCK_OUT' | null;
-
-function mapFieldErrors(details: unknown): Record<string, string> {
-  const next: Record<string, string> = {};
-  if (!Array.isArray(details)) return next;
-  for (const item of details as { loc?: string[]; msg?: string }[]) {
-    if (item.loc && item.msg) {
-      const fieldName = item.loc[item.loc.length - 1];
-      next[fieldName] = item.msg;
-    }
-  }
-  return next;
+interface InventoryItem {
+  id: number;
+  product_id: number;
+  quantity_on_hand: number;
+  updated_at: string;
+  product?: {
+    id: number;
+    name: string;
+    sku: string;
+    cost_price: number;
+    selling_price: number;
+    reorder_level: number;
+    status: string;
+    category?: {
+      id: number;
+      name: string;
+    };
+  };
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+interface StockMovement {
+  id: number;
+  product_id: number;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  quantity: number;
+  reference?: string | null;
+  reason?: string | null;
+  created_at: string;
+  product?: {
+    id: number;
+    name: string;
+    sku: string;
+  };
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
 }
+
+const INVENTORY_PER_PAGE = 20;
+const MOVEMENTS_PER_PAGE = 10;
 
 export function OwnerInventoryPage() {
-  const { hasPermission } = useAuth();
-  const { pushToast } = useToast();
-
-  const canView = hasPermission('inventory.view');
-  const canAdjust = hasPermission('inventory.adjust');
-
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    totalPages: 1,
-  });
-  const [movementPage, setMovementPage] = useState(1);
-  const [movementPagination, setMovementPagination] = useState({
-    page: 1,
-    pageSize: 10,
-    total: 0,
-    totalPages: 1,
-  });
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'inventory' | 'movements'>('inventory');
 
-  const [adjustMode, setAdjustMode] = useState<AdjustMode>(null);
-  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
-  const [quantity, setQuantity] = useState('');
-  const [reason, setReason] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  // Get filter params from URL
+  const searchQuery = searchParams.get('search') || '';
+  const statusFilter = searchParams.get('status') || '';
+  const categoryFilter = searchParams.get('category') || '';
+  const stockFilter = searchParams.get('stock') || '';
+  const inventoryPage = parseInt(searchParams.get('inventory_page') || '1', 10);
+  const movementPage = parseInt(searchParams.get('movement_page') || '1', 10);
 
-  const [thresholdItem, setThresholdItem] = useState<InventoryItem | null>(null);
-  const [thresholdValue, setThresholdValue] = useState('');
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  const loadInventory = useCallback(async () => {
-    if (!canView) {
-      setError('You do not have permission to view inventory.');
-      setLoading(false);
-      return;
-    }
-    setError(null);
-    try {
-      const [inventoryResult, movementResult] = await Promise.all([
-        inventoryApi.listInventory({
-          search: debouncedSearch || undefined,
-          lowStockOnly,
-          page,
-          pageSize: 20,
-        }),
-        inventoryApi.listMovements({
-          page: movementPage,
-          pageSize: 10,
-        }),
-      ]);
-      setItems(inventoryResult.items);
-      setPagination(inventoryResult.pagination);
-      setMovements(movementResult.items);
-      setMovementPagination(movementResult.pagination);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Unable to load inventory.');
-    } finally {
-      setLoading(false);
-    }
-  }, [canView, debouncedSearch, lowStockOnly, page, movementPage]);
-
-  useEffect(() => {
-    void loadInventory();
-  }, [loadInventory]);
-
-  function openAdjust(mode: AdjustMode, item: InventoryItem) {
-    setAdjustMode(mode);
-    setSelectedItem(item);
-    setQuantity('');
-    setReason('');
-    setFormError(null);
-    setFieldErrors({});
-  }
-
-  function openThreshold(item: InventoryItem) {
-    setThresholdItem(item);
-    setThresholdValue(String(item.reorder_level));
-    setFormError(null);
-    setFieldErrors({});
-  }
-
-  async function onSubmitAdjust(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedItem || !adjustMode) return;
-    const qty = Number(quantity);
-    if (!Number.isInteger(qty) || qty <= 0) {
-      setFieldErrors({ quantity: 'Enter a positive whole number.' });
-      return;
+  // Client-side filtering for inventory
+  const filteredInventory = inventory.filter((item) => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch =
+        item.product?.name.toLowerCase().includes(query) ||
+        item.product?.sku.toLowerCase().includes(query);
+      if (!matchesSearch) return false;
     }
 
-    setSaving(true);
-    setFormError(null);
-    setFieldErrors({});
-    try {
-      const payload = {
-        productId: selectedItem.product_id,
-        quantity: qty,
-        reason: reason || undefined,
-      };
-      if (adjustMode === 'STOCK_IN') {
-        await inventoryApi.stockIn(payload);
-        pushToast('Stock increased.', 'success');
-      } else {
-        await inventoryApi.stockOut(payload);
-        pushToast('Stock decreased.', 'success');
+    if (statusFilter && item.product?.status !== statusFilter) return false;
+
+    if (categoryFilter && item.product?.category?.name !== categoryFilter) return false;
+
+    if (stockFilter) {
+      const quantity = item.quantity_on_hand;
+      const reorderLevel = item.product?.reorder_level || 0;
+
+      switch (stockFilter) {
+        case 'low':
+          if (quantity > reorderLevel) return false;
+          break;
+        case 'out':
+          if (quantity > 0) return false;
+          break;
+        case 'healthy':
+          if (quantity <= reorderLevel) return false;
+          break;
       }
-      setAdjustMode(null);
-      setSelectedItem(null);
+    }
+
+    return true;
+  });
+
+  // Client-side pagination for inventory
+  const totalInventoryPages = Math.max(1, Math.ceil(filteredInventory.length / INVENTORY_PER_PAGE));
+  const paginatedInventory = filteredInventory.slice(
+    (inventoryPage - 1) * INVENTORY_PER_PAGE,
+    inventoryPage * INVENTORY_PER_PAGE
+  );
+
+  // Client-side pagination for movements
+  const totalMovementPages = Math.max(1, Math.ceil(movements.length / MOVEMENTS_PER_PAGE));
+  const paginatedMovements = movements.slice(
+    (movementPage - 1) * MOVEMENTS_PER_PAGE,
+    movementPage * MOVEMENTS_PER_PAGE
+  );
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    try {
       setLoading(true);
-      await loadInventory();
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setFormError(err.message);
-        setFieldErrors(mapFieldErrors(err.details));
-      } else {
-        setFormError('Unable to update stock.');
-      }
+      setError(null);
+
+      // Backend doesn't support pagination on movements - fetch all and paginate client-side
+      const [inventoryData, movementsData] = await Promise.all([
+        inventoryApi.listInventory({}),
+        inventoryApi.listMovements({}),
+      ]);
+
+      setInventory(Array.isArray(inventoryData) ? inventoryData : (inventoryData as any)?.items || []);
+      setMovements(Array.isArray(movementsData) ? movementsData : (movementsData as any)?.items || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load inventory data');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   }
 
-  async function onSubmitThreshold(event: FormEvent) {
-    event.preventDefault();
-    if (!thresholdItem) return;
-    const value = Number(thresholdValue);
-    if (!Number.isInteger(value) || value < 0) {
-      setFieldErrors({ lowStockThreshold: 'Enter a non-negative whole number.' });
-      return;
+  function handleFilterChange(key: string, value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
     }
-    setSaving(true);
-    setFormError(null);
-    try {
-      await inventoryApi.updateThreshold(thresholdItem.product_id, value);
-      pushToast('Low-stock threshold updated.', 'success');
-      setThresholdItem(null);
-      await loadInventory();
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setFormError(err.message);
-        setFieldErrors(mapFieldErrors(err.details));
-      } else {
-        setFormError('Unable to update threshold.');
-      }
-    } finally {
-      setSaving(false);
+    // Reset to page 1 when filters change
+    params.set('inventory_page', '1');
+    setSearchParams(params);
+  }
+
+  function handleInventoryPageChange(page: number) {
+    const params = new URLSearchParams(searchParams);
+    params.set('inventory_page', page.toString());
+    setSearchParams(params);
+  }
+
+  function handleMovementPageChange(page: number) {
+    const params = new URLSearchParams(searchParams);
+    params.set('movement_page', page.toString());
+    setSearchParams(params);
+  }
+
+  function getStockStatus(item: InventoryItem) {
+    const quantity = item.quantity_on_hand;
+    const reorderLevel = item.product?.reorder_level || 0;
+
+    if (quantity === 0) {
+      return <Badge tone="red">Out of Stock</Badge>;
+    } else if (quantity <= reorderLevel) {
+      return <Badge tone="orange">Low Stock</Badge>;
+    } else {
+      return <Badge tone="green">In Stock</Badge>;
     }
   }
 
-  if (!canView) {
-    return <Alert tone="error">You do not have permission to view inventory.</Alert>;
+  function getMovementTypeBadge(type: string) {
+    switch (type) {
+      case 'IN':
+        return <Badge tone="green">IN</Badge>;
+      case 'OUT':
+        return <Badge tone="red">OUT</Badge>;
+      case 'ADJUSTMENT':
+        return <Badge tone="orange">ADJUSTMENT</Badge>;
+      default:
+        return <Badge tone="neutral">{type}</Badge>;
+    }
+  }
+
+  // Get unique categories for filter
+  const categories = Array.from(
+    new Set(
+      inventory
+        .map((item) => item.product?.category?.name)
+        .filter((name): name is string => !!name)
+    )
+  ).sort();
+
+  if (loading) {
+    return (
+      <div className="inventory-page">
+        <div className="inventory-header">
+          <h1 className="inventory-title">Inventory Management</h1>
+        </div>
+        <Card>
+          <LoadingSkeleton rows={10} />
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="inventory-page">
-      <PageHeader
-        title="Inventory"
-        subtitle="Monitor stock levels, record movements, and manage low-stock alerts."
-      />
-
-      <Card>
-        <div className="inventory-toolbar">
-          <Input
-            label="Search"
-            name="search"
-            placeholder="Search product or SKU"
-            value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
-          />
-          <label className="inventory-toggle">
-            <input
-              type="checkbox"
-              checked={lowStockOnly}
-              onChange={(e) => {
-                setPage(1);
-                setLowStockOnly(e.target.checked);
-              }}
-            />
-            <span>Show low stock only</span>
-          </label>
+      <div className="inventory-header">
+        <div>
+          <h1 className="inventory-title">Inventory Management</h1>
+          <p className="inventory-subtitle">
+            Monitor stock levels and track inventory movements
+          </p>
         </div>
+        <div className="inventory-header-actions">
+          <Link to="/app/inventory/movements">
+            <Button>View All Movements</Button>
+          </Link>
+          <Link to="/app/inventory/adjust">
+            <Button>Adjust Stock</Button>
+          </Link>
+        </div>
+      </div>
 
-        {loading ? (
-          <LoadingSkeleton rows={6} />
-        ) : error ? (
-          <Alert tone="error">{error}</Alert>
-        ) : (
-          <>
-            <DataTable
-              rows={items}
-              rowKey={(row) => row.product_id}
-              emptyTitle="No inventory records"
-              emptyDescription="Create products first. Each product starts with zero stock."
-              columns={[
-                {
-                  key: 'product',
-                  header: 'Product',
-                  render: (row: InventoryItem) => (
-                    <div>
-                      <strong>{row.product_name}</strong>
-                      <div className="inventory-muted">{row.sku}</div>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'qty',
-                  header: 'Quantity',
-                  render: (row: InventoryItem) => <span>{row.quantity_on_hand}</span>,
-                },
-                {
-                  key: 'threshold',
-                  header: 'Low-stock at',
-                  render: (row: InventoryItem) => row.reorder_level,
-                },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  render: (row: InventoryItem) =>
-                    row.stock_status === 'low_stock' || row.stock_status === 'out_of_stock' ? (
-                      <Badge tone="orange">
-                        {row.stock_status === 'out_of_stock' ? 'Out of stock' : 'Low stock'}
-                      </Badge>
-                    ) : (
-                      <Badge tone="green">OK</Badge>
-                    ),
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  render: (row) =>
-                    canAdjust ? (
-                      <div className="inventory-actions">
-                        <Button variant="ghost" onClick={() => openAdjust('STOCK_IN', row)}>
-                          Stock in
-                        </Button>
-                        <Button variant="ghost" onClick={() => openAdjust('STOCK_OUT', row)}>
-                          Stock out
-                        </Button>
-                        <Button variant="ghost" onClick={() => openThreshold(row)}>
-                          Threshold
-                        </Button>
-                      </div>
-                    ) : (
-                      '—'
-                    ),
-                },
-              ]}
-            />
+      {error && (
+        <div className="inventory-alert inventory-alert--error">
+          {error}
+        </div>
+      )}
 
-            <div className="inventory-pagination">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} items
-              </span>
-              <div className="inventory-actions">
-                <Button
-                  variant="secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+      {/* Tabs */}
+      <div className="inventory-tabs">
+        <button
+          className={`inventory-tab ${activeTab === 'inventory' ? 'inventory-tab--active' : ''}`}
+          onClick={() => setActiveTab('inventory')}
+        >
+          Stock Levels ({filteredInventory.length})
+        </button>
+        <button
+          className={`inventory-tab ${activeTab === 'movements' ? 'inventory-tab--active' : ''}`}
+          onClick={() => setActiveTab('movements')}
+        >
+          Recent Movements ({movements.length})
+        </button>
+      </div>
+
+      {activeTab === 'inventory' && (
+        <>
+          {/* Filters */}
+          <Card className="inventory-filters">
+            <div className="inventory-filter-grid">
+              <Input
+                label="Search"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+                placeholder="Search by name or SKU"
+              />
+              <div className="inventory-filter-field">
+                <label className="inventory-filter-label">Status</label>
+                <select
+                  className="inventory-filter-select"
+                  value={statusFilter}
+                  onChange={(e) => handleFilterChange('status', e.target.value)}
                 >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((current) => current + 1)}
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div className="inventory-filter-field">
+                <label className="inventory-filter-label">Category</label>
+                <select
+                  className="inventory-filter-select"
+                  value={categoryFilter}
+                  onChange={(e) => handleFilterChange('category', e.target.value)}
                 >
-                  Next
-                </Button>
+                  <option value="">All Categories</option>
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="inventory-filter-field">
+                <label className="inventory-filter-label">Stock Level</label>
+                <select
+                  className="inventory-filter-select"
+                  value={stockFilter}
+                  onChange={(e) => handleFilterChange('stock', e.target.value)}
+                >
+                  <option value="">All Levels</option>
+                  <option value="healthy">Healthy</option>
+                  <option value="low">Low Stock</option>
+                  <option value="out">Out of Stock</option>
+                </select>
               </div>
             </div>
-          </>
-        )}
-      </Card>
+          </Card>
 
-      <Card title="Recent movements">
-        <DataTable
-          rows={movements}
-          rowKey={(row) => row.id}
-          emptyTitle="No stock movements yet"
-          emptyDescription="Stock in and stock out actions will appear here."
-          columns={[
-            {
-              key: 'when',
-              header: 'When',
-              render: (row) => formatDate(row.created_at),
-            },
-            {
-              key: 'product',
-              header: 'Product',
-              render: (row) => row.product_name || row.product_id,
-            },
-            {
-              key: 'type',
-              header: 'Type',
-              render: (row) => (
-                <Badge tone={row.movement_type === 'IN' ? 'green' : 'orange'}>
-                  {row.movement_type}
-                </Badge>
-              ),
-            },
-            {
-              key: 'change',
-              header: 'Change',
-              render: (row) => (row.quantity > 0 ? `+${row.quantity}` : row.quantity),
-            },
-            {
-              key: 'after',
-              header: 'After',
-              render: (row) => row.quantity,
-            },
-            {
-              key: 'actor',
-              header: 'By',
-              render: (row) => row.user_name || '—',
-            },
-          ]}
-        />
-        <div className="inventory-pagination">
-          <span>
-            Page {movementPagination.page} of {movementPagination.totalPages}
-          </span>
-          <div className="inventory-actions">
-            <Button
-              variant="secondary"
-              disabled={movementPage <= 1}
-              onClick={() => setMovementPage((current) => Math.max(1, current - 1))}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={movementPage >= movementPagination.totalPages}
-              onClick={() => setMovementPage((current) => current + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      </Card>
+          {/* Inventory Table */}
+          <Card>
+            {paginatedInventory.length === 0 ? (
+              <div className="inventory-empty">
+                <p>No inventory items found</p>
+              </div>
+            ) : (
+              <>
+                <div className="inventory-table-wrapper">
+                  <table className="inventory-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>SKU</th>
+                        <th>Quantity</th>
+                        <th>Reorder Level</th>
+                        <th>Status</th>
+                        <th>Last Updated</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedInventory.map((item) => (
+                        <tr key={item.id}>
+                          <td>
+                            <div className="inventory-product-cell">
+                              <div className="inventory-product-name">
+                                {item.product?.name || `Product #${item.product_id}`}
+                              </div>
+                              <div className="inventory-product-prices">
+                                Cost: K{(item.product?.cost_price || 0).toFixed(2)} |{' '}
+                                Sell: K{(item.product?.selling_price || 0).toFixed(2)}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="inventory-table-td--muted">
+                            {item.product?.category?.name || '—'}
+                          </td>
+                          <td className="inventory-table-td--muted">
+                            {item.product?.sku || '—'}
+                          </td>
+                          <td className="inventory-table-td--bold">
+                            {item.quantity_on_hand}
+                          </td>
+                          <td className="inventory-table-td--muted">
+                            {item.product?.reorder_level || 0}
+                          </td>
+                          <td>{getStockStatus(item)}</td>
+                          <td className="inventory-table-td--muted">
+                            {new Date(item.updated_at).toLocaleDateString('en-ZM', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </td>
+                          <td>
+                            <Link
+                              to={`/app/inventory/adjust?product_id=${item.product_id}`}
+                              className="inventory-action-link"
+                            >
+                              Adjust
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-      <Modal
-        open={Boolean(adjustMode && selectedItem)}
-        title={adjustMode === 'STOCK_IN' ? 'Stock in' : 'Stock out'}
-        onClose={() => {
-          setAdjustMode(null);
-          setSelectedItem(null);
-        }}
-      >
-        <form className="inventory-form" onSubmit={onSubmitAdjust} noValidate>
-          {formError ? <Alert tone="error">{formError}</Alert> : null}
-          <p className="inventory-help">
-            {selectedItem?.product_name} · current stock:{' '}
-            <strong>{selectedItem?.quantity_on_hand}</strong>
-          </p>
-          <Input
-            label="Quantity"
-            name="quantity"
-            type="number"
-            min="1"
-            step="1"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            error={fieldErrors.quantity}
-            required
-          />
-          <Input
-            label="Reason (optional)"
-            name="reason"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            error={fieldErrors.reason}
-          />
-          <div className="inventory-form__actions">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setAdjustMode(null);
-                setSelectedItem(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={saving}>
-              Confirm
-            </Button>
-          </div>
-        </form>
-      </Modal>
+                {/* Pagination */}
+                {totalInventoryPages > 1 && (
+                  <div className="inventory-pagination">
+                    <div className="inventory-pagination-info">
+                      Showing {Math.min((inventoryPage - 1) * INVENTORY_PER_PAGE + 1, filteredInventory.length)} to{' '}
+                      {Math.min(inventoryPage * INVENTORY_PER_PAGE, filteredInventory.length)} of{' '}
+                      {filteredInventory.length} items
+                    </div>
+                    <div className="inventory-pagination-controls">
+                      <Button
+                        onClick={() => handleInventoryPageChange(inventoryPage - 1)}
+                        disabled={inventoryPage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="inventory-pagination-page">
+                        Page {inventoryPage} of {totalInventoryPages}
+                      </span>
+                      <Button
+                        onClick={() => handleInventoryPageChange(inventoryPage + 1)}
+                        disabled={inventoryPage === totalInventoryPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        </>
+      )}
 
-      <Modal
-        open={Boolean(thresholdItem)}
-        title="Update low-stock threshold"
-        onClose={() => setThresholdItem(null)}
-      >
-        <form className="inventory-form" onSubmit={onSubmitThreshold} noValidate>
-          {formError ? <Alert tone="error">{formError}</Alert> : null}
-          <p className="inventory-help">
-            Alert when {thresholdItem?.product_name} quantity is at or below this value.
-          </p>
-          <Input
-            label="Low-stock threshold"
-            name="lowStockThreshold"
-            type="number"
-            min="0"
-            step="1"
-            value={thresholdValue}
-            onChange={(e) => setThresholdValue(e.target.value)}
-            error={fieldErrors.lowStockThreshold}
-            required
-          />
-          <div className="inventory-form__actions">
-            <Button type="button" variant="secondary" onClick={() => setThresholdItem(null)}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={saving}>
-              Save threshold
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {activeTab === 'movements' && (
+        <Card>
+          {paginatedMovements.length === 0 ? (
+            <div className="inventory-empty">
+              <p>No stock movements found</p>
+            </div>
+          ) : (
+            <>
+              <div className="inventory-table-wrapper">
+                <table className="inventory-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Product</th>
+                      <th>Type</th>
+                      <th>Quantity</th>
+                      <th>Reference</th>
+                      <th>User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedMovements.map((movement) => (
+                      <tr key={movement.id}>
+                        <td className="inventory-table-td--muted">
+                          {new Date(movement.created_at).toLocaleString('en-ZM', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td>
+                          <div className="inventory-product-cell">
+                            <div className="inventory-product-name">
+                              {movement.product?.name || `Product #${movement.product_id}`}
+                            </div>
+                            {movement.product?.sku && (
+                              <div className="inventory-product-sku">
+                                {movement.product.sku}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td>{getMovementTypeBadge(movement.movement_type)}</td>
+                        <td className="inventory-table-td--bold">
+                          {movement.quantity}
+                        </td>
+                        <td className="inventory-table-td--muted">
+                          {movement.reference || '—'}
+                        </td>
+                        <td className="inventory-table-td--muted">
+                          {movement.user?.name || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {totalMovementPages > 1 && (
+                <div className="inventory-pagination">
+                  <div className="inventory-pagination-info">
+                    Showing {Math.min((movementPage - 1) * MOVEMENTS_PER_PAGE + 1, movements.length)} to{' '}
+                    {Math.min(movementPage * MOVEMENTS_PER_PAGE, movements.length)} of{' '}
+                    {movements.length} movements
+                  </div>
+                  <div className="inventory-pagination-controls">
+                    <Button
+                      onClick={() => handleMovementPageChange(movementPage - 1)}
+                      disabled={movementPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="inventory-pagination-page">
+                      Page {movementPage} of {totalMovementPages}
+                    </span>
+                    <Button
+                      onClick={() => handleMovementPageChange(movementPage + 1)}
+                      disabled={movementPage === totalMovementPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

@@ -1,80 +1,84 @@
 import { apiRequest } from '../lib/api';
 
-export type SaleItem = {
-  id: number;
+// ============================================================================
+// Types — Match backend contract exactly
+// ============================================================================
+
+export interface SaleItemPayload {
   product_id: number;
-  product_name: string;
-  sku: string;
+  quantity: number;
+}
+
+export interface CreateSalePayload {
+  customer_id?: number;
+  payment_method: string;
+  items: SaleItemPayload[];
+}
+
+export interface SaleItem {
+  id: number;
+  sale_id: number;
+  product_id: number;
   quantity: number;
   unit_price: number;
   subtotal: number;
-};
+  product?: {
+    id: number;
+    name: string;
+    sku: string;
+  } | null;
+}
 
-export type Sale = {
+export interface Sale {
   id: number;
   business_id: number;
   user_id: number;
-  user_name: string;
-  customer_id: number | null;
-  customer_name: string | null;
+  customer_id?: number | null;
   sale_datetime: string;
   total_amount: number;
   payment_method: string;
   status: string;
   items: SaleItem[];
-};
-
-export type SaleList = {
-  id: number;
-  sale_datetime: string;
-  total_amount: number;
-  payment_method: string;
-  status: string;
-  user_name: string;
-  customer_name: string | null;
-  item_count: number;
-};
-
-export type CreateSalePayload = {
-  customer_id?: number;
-  payment_method: string;
-  items: { product_id: number; quantity: number }[];
-};
-
-export function listSales(params: {
-  from?: string;
-  to?: string;
-  page?: number;
-  pageSize?: number;
-}) {
-  const query = new URLSearchParams();
-  if (params.from) query.set('start_date', params.from);
-  if (params.to) query.set('end_date', params.to);
-  const suffix = query.toString() ? `?${query.toString()}` : '';
-  
-  return apiRequest<SaleList[]>(`/api/sales/${suffix}`).then((data) => {
-    const page = params.page || 1;
-    const pageSize = params.pageSize || 20;
-    const start = (page - 1) * pageSize;
-    return {
-      items: data.slice(start, start + pageSize),
-      pagination: {
-        page,
-        pageSize,
-        total: data.length,
-        totalPages: Math.ceil(data.length / pageSize) || 1,
-      },
-    };
-  });
+  customer?: {
+    id: number;
+    name: string;
+  } | null;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  } | null;
 }
 
-export function getSale(id: number) {
-  return apiRequest<Sale>(`/api/sales/${id}`);
+export interface ListSalesParams {
+  start_date?: string;
+  end_date?: string;
+  status_filter?: string;
+  user_id?: number;
 }
 
-export function createSale(payload: CreateSalePayload) {
+// ============================================================================
+// API calls — Backend returns flat Sale[] array, NOT paginated
+// ============================================================================
+
+export function createSale(payload: CreateSalePayload): Promise<Sale> {
   return apiRequest<Sale>('/api/sales/', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export function listSales(params?: ListSalesParams): Promise<Sale[]> {
+  const query = new URLSearchParams();
+  if (params?.start_date) query.set('start_date', params.start_date);
+  if (params?.end_date) query.set('end_date', params.end_date);
+  if (params?.status_filter) query.set('status_filter', params.status_filter);
+  if (params?.user_id) query.set('user_id', String(params.user_id));
+
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return apiRequest<Sale[]>(`/api/sales/${suffix}`);
+}
+
+export function getSale(id: number): Promise<Sale> {
+  return apiRequest<Sale>(`/api/sales/${id}`);
 }

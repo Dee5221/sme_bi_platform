@@ -1,450 +1,311 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
-import * as customerApi from '../services/customerService';
-import type { Customer } from '../services/customerService';
-import * as productApi from '../services/productService';
-import type { Product } from '../services/productService';
-import * as saleApi from '../services/saleService';
-import type { Sale, SaleList } from '../services/saleService';
-import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
+import * as salesApi from '../services/saleService';
 import { Card } from '../components/ui/Card';
-import { DataTable } from '../components/ui/DataTable';
-import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { Modal } from '../components/ui/Modal';
-import { PageHeader } from '../components/ui/PageHeader';
-import { useToast } from '../components/ui/Toast';
-import './SalesPage.css';
+import { Input } from '../components/ui/Input';
+import './sales.css';
 
-type LineDraft = {
-  key: string;
-  product_id: string;
-  quantity: string;
-};
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
+interface Sale {
+  id: number;
+  sale_datetime: string;
+  total_amount: number;
+  payment_method: string;
+  status: string;
+  customer?: {
+    id: number;
+    name: string;
+  } | null;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  items: Array<{
+    id: number;
+    product_id: number;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+    product?: {
+      id: number;
+      name: string;
+      sku: string;
+    };
+  }>;
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
-
-function mapFieldErrors(details: unknown): Record<string, string> {
-  const next: Record<string, string> = {};
-  if (!Array.isArray(details)) return next;
-  for (const item of details as { loc?: string[]; msg?: string }[]) {
-    if (item.loc && item.msg) {
-      const fieldName = item.loc[item.loc.length - 1];
-      next[fieldName] = item.msg;
-    }
-  }
-  return next;
-}
+const ITEMS_PER_PAGE = 20;
 
 export function OwnerSalesPage() {
   const { hasPermission } = useAuth();
-  const { pushToast } = useToast();
-
-  const canView = hasPermission('sales.view');
-  const canCreate = hasPermission('sales.create');
-
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [sales, setSales] = useState<SaleList[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    totalPages: 1,
+
+  // Get filter params from URL
+  const startDate = searchParams.get('start_date') || '';
+  const endDate = searchParams.get('end_date') || '';
+  const statusFilter = searchParams.get('status') || '';
+  const userId = searchParams.get('user_id') || '';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+
+  // Client-side filtering
+  const filteredSales = sales.filter((sale) => {
+    if (startDate) {
+      const saleDate = new Date(sale.sale_datetime);
+      const start = new Date(startDate);
+      if (saleDate < start) return false;
+    }
+
+    if (endDate) {
+      const saleDate = new Date(sale.sale_datetime);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      if (saleDate > end) return false;
+    }
+
+    if (statusFilter && sale.status !== statusFilter) return false;
+
+    if (userId && sale.user?.id !== parseInt(userId, 10)) return false;
+
+    return true;
   });
 
-  const [customerId, setCustomerId] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [lines, setLines] = useState<LineDraft[]>([
-    { key: crypto.randomUUID(), product_id: '', quantity: '1' },
-  ]);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-
-  const loadPage = useCallback(async () => {
-    if (!canView) {
-      setError('You do not have permission to view sales.');
-      setLoading(false);
-      return;
-    }
-    setError(null);
-    try {
-      const [salesResult, productsResult, customersResult] = await Promise.all([
-        saleApi.listSales({
-          page,
-          pageSize: 20,
-        }),
-        productApi.listProducts({ status: 'active', pageSize: 100 }),
-        customerApi.listCustomers({ page: 1, pageSize: 100 }),
-      ]);
-      setSales(salesResult.items);
-      setPagination(salesResult.pagination);
-      setProducts(productsResult.items);
-      setCustomers(customersResult.items);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Unable to load sales.');
-    } finally {
-      setLoading(false);
-    }
-  }, [canView, page]);
-
-  useEffect(() => {
-    void loadPage();
-  }, [loadPage]);
-
-  const productMap = useMemo(
-    () => new Map(products.map((product) => [String(product.id), product])),
-    [products]
+  // Client-side pagination
+  const totalPages = Math.max(1, Math.ceil(filteredSales.length / ITEMS_PER_PAGE));
+  const paginatedSales = filteredSales.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
 
-  const draftTotal = useMemo(() => {
-    return lines.reduce((sum, line) => {
-      const product = productMap.get(line.product_id);
-      const qty = Number(line.quantity);
-      if (!product || !Number.isFinite(qty) || qty <= 0) return sum;
-      return sum + product.selling_price * qty;
-    }, 0);
-  }, [lines, productMap]);
+  useEffect(() => {
+    loadSales();
+  }, []);
 
-  function addLine() {
-    setLines((current) => [
-      ...current,
-      { key: crypto.randomUUID(), product_id: '', quantity: '1' },
-    ]);
-  }
-
-  function updateLine(key: string, patch: Partial<LineDraft>) {
-    setLines((current) =>
-      current.map((line) => (line.key === key ? { ...line, ...patch } : line))
-    );
-  }
-
-  function removeLine(key: string) {
-    setLines((current) =>
-      current.length <= 1 ? current : current.filter((line) => line.key !== key)
-    );
-  }
-
-  async function onCreateSale(event: FormEvent) {
-    event.preventDefault();
-    if (!canCreate) return;
-    setFormError(null);
-
-    const items = lines
-      .filter((line) => line.product_id)
-      .map((line) => ({
-        product_id: Number(line.product_id),
-        quantity: Number(line.quantity),
-      }));
-
-    if (items.length === 0) {
-      setFormError('Add at least one product line.');
-      return;
-    }
-    if (items.some((item) => !Number.isInteger(item.quantity) || item.quantity <= 0)) {
-      setFormError('Quantities must be positive whole numbers.');
-      return;
-    }
-
-    setSaving(true);
+  async function loadSales() {
     try {
-      const payload = {
-        customer_id: customerId ? Number(customerId) : undefined,
-        payment_method: paymentMethod,
-        items,
-      };
-
-      await saleApi.createSale(payload);
-      pushToast('Sale recorded.', 'success');
-      setCustomerId('');
-      setPaymentMethod('Cash');
-      setLines([{ key: crypto.randomUUID(), product_id: '', quantity: '1' }]);
       setLoading(true);
-      await loadPage();
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        const fieldErrors = mapFieldErrors(err.details);
-        if (Object.keys(fieldErrors).length > 0) {
-          const [field, message] = Object.entries(fieldErrors)[0];
-          setFormError(`${field}: ${message}`);
-        } else {
-          setFormError(err.message);
-        }
-      } else {
-        setFormError('Unable to record sale.');
-      }
+      setError(null);
+      // Backend doesn't support pagination - fetch all and paginate client-side
+      const data = await salesApi.listSales({});
+      const items = Array.isArray(data) ? data : (data as any)?.items || [];
+      setSales(items);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load sales');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   }
 
-  async function handleViewSale(saleId: number) {
-    setLoadingDetail(true);
-    try {
-      const fullSale = await saleApi.getSale(saleId);
-      setSelectedSale(fullSale);
-    } catch (err) {
-      pushToast('Failed to load sale details.', 'error');
-    } finally {
-      setLoadingDetail(false);
+  function handleFilterChange(key: string, value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    // Reset to page 1 when filters change
+    params.set('page', '1');
+    setSearchParams(params);
+  }
+
+  function handlePageChange(page: number) {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', page.toString());
+    setSearchParams(params);
+  }
+
+  function getStatusBadge(status: string) {
+    switch (status) {
+      case 'completed':
+        return <Badge tone="green">Completed</Badge>;
+      case 'pending':
+        return <Badge tone="orange">Pending</Badge>;
+      case 'cancelled':
+        return <Badge tone="red">Cancelled</Badge>;
+      case 'refunded':
+        return <Badge tone="neutral">Refunded</Badge>;
+      default:
+        return <Badge tone="neutral">{status}</Badge>;
     }
   }
 
-  if (!canView) {
-    return <Alert tone="error">You do not have permission to view sales.</Alert>;
+  if (loading) {
+    return (
+      <div className="sales-page">
+        <div className="sales-header">
+          <h1 className="sales-title">Sales History</h1>
+        </div>
+        <Card>
+          <LoadingSkeleton rows={10} />
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="sales-page">
-      <PageHeader
-        title="Sales"
-        subtitle="Record sales and review completed transaction history."
-      />
+      <div className="sales-header">
+        <div>
+          <h1 className="sales-title">Sales History</h1>
+          <p className="sales-subtitle">
+            View and manage all sales transactions
+          </p>
+        </div>
+        {hasPermission('sales.create') && (
+          <Link to="/app/sales/new">
+            <Button>New Sale</Button>
+          </Link>
+        )}
+      </div>
 
-      {canCreate ? (
-        <Card title="New sale">
-          <form className="sales-form" onSubmit={onCreateSale} noValidate>
-            {formError ? <Alert tone="error">{formError}</Alert> : null}
+      {error && (
+        <div className="sales-alert sales-alert--error">
+          {error}
+        </div>
+      )}
 
-            <div className="sales-form__meta">
-              <label className="sales-select">
-                <span>Customer (optional)</span>
-                <select
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                >
-                  <option value="">Walk-in / no customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="sales-select">
-                <span>Payment Method</span>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="Card">Card</option>
-                  <option value="Mobile Money">Mobile Money</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                </select>
-              </label>
-            </div>
+      {/* Filters */}
+      <Card className="sales-filters">
+        <div className="sales-filter-grid">
+          <Input
+            label="Start Date"
+            type="date"
+            value={startDate}
+            onChange={(e) => handleFilterChange('start_date', e.target.value)}
+          />
+          <Input
+            label="End Date"
+            type="date"
+            value={endDate}
+            onChange={(e) => handleFilterChange('end_date', e.target.value)}
+          />
+          <div className="sales-filter-field">
+            <label className="sales-filter-label">Status</label>
+            <select
+              className="sales-filter-select"
+              value={statusFilter}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+            >
+              <option value="">All Status</option>
+              <option value="completed">Completed</option>
+              <option value="pending">Pending</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+          <Input
+            label="User ID"
+            type="number"
+            value={userId}
+            onChange={(e) => handleFilterChange('user_id', e.target.value)}
+            placeholder="Filter by user"
+          />
+        </div>
+      </Card>
 
-            <div className="sales-lines">
-              {lines.map((line) => {
-                const product = productMap.get(line.product_id);
-                return (
-                  <div className="sales-line" key={line.key}>
-                    <label className="sales-select">
-                      <span>Product</span>
-                      <select
-                        value={line.product_id}
-                        onChange={(e) =>
-                          updateLine(line.key, { product_id: e.target.value })
-                        }
-                      >
-                        <option value="">Select product</option>
-                        {products.map((item) => (
-                          <option key={item.id} value={String(item.id)}>
-                            {item.name} ({item.sku})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <Input
-                      label="Qty"
-                      name={`qty-${line.key}`}
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={line.quantity}
-                      onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                    />
-                    <div className="sales-line__meta">
-                      <span>{product ? formatMoney(product.selling_price) : '—'}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => removeLine(line.key)}
-                        disabled={lines.length <= 1}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="sales-form__footer">
-              <Button type="button" variant="secondary" onClick={addLine}>
-                Add line
-              </Button>
-              <div className="sales-total">
-                Estimated total: <strong>{formatMoney(draftTotal)}</strong>
-              </div>
-              <Button type="submit" loading={saving} disabled={saving}>
-                Record sale
-              </Button>
-            </div>
-          </form>
-        </Card>
-      ) : null}
-
-      <Card title="Sales history">
-        {loading ? (
-          <LoadingSkeleton rows={6} />
-        ) : error ? (
-          <Alert tone="error">{error}</Alert>
+      {/* Sales Table */}
+      <Card>
+        {paginatedSales.length === 0 ? (
+          <div className="sales-empty">
+            <p>No sales found</p>
+          </div>
         ) : (
           <>
-            <DataTable
-              rows={sales}
-              rowKey={(row) => String(row.id)}
-              emptyTitle="No sales yet"
-              emptyDescription="Record your first sale to start building revenue history."
-              columns={[
-                {
-                  key: 'number',
-                  header: 'Sale',
-                  render: (row) => (
-                    <div>
-                      <strong>#{row.id}</strong>
-                      <div className="sales-muted">{formatDate(row.sale_datetime)}</div>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'customer',
-                  header: 'Customer',
-                  render: (row) => row.customer_name || 'Walk-in',
-                },
-                {
-                  key: 'total',
-                  header: 'Total',
-                  render: (row) => formatMoney(row.total_amount),
-                },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  render: (row) => <Badge tone="green">{row.status}</Badge>,
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  render: (row) => (
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleViewSale(row.id)}
-                      disabled={loadingDetail}
-                    >
-                      View
-                    </Button>
-                  ),
-                },
-              ]}
-            />
-
-            <div className="sales-pagination">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} sales
-              </span>
-              <div className="sales-actions">
-                <Button
-                  variant="secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((current) => current + 1)}
-                >
-                  Next
-                </Button>
-              </div>
+            <div className="sales-table-wrapper">
+              <table className="sales-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Sale ID</th>
+                    <th>Customer</th>
+                    <th>Items</th>
+                    <th>Payment</th>
+                    <th>Status</th>
+                    <th>User</th>
+                    <th className="sales-table-th--right">Total</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedSales.map((sale) => (
+                    <tr key={sale.id}>
+                      <td className="sales-table-td--muted">
+                        {new Date(sale.sale_datetime).toLocaleString('en-ZM', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="sales-table-td--bold">#{sale.id}</td>
+                      <td>{sale.customer?.name || 'Walk-in Customer'}</td>
+                      <td className="sales-table-td--muted">
+                        {sale.items.length} item{sale.items.length !== 1 ? 's' : ''}
+                      </td>
+                      <td>
+                        <Badge tone="neutral">{sale.payment_method}</Badge>
+                      </td>
+                      <td>{getStatusBadge(sale.status)}</td>
+                      <td className="sales-table-td--muted">
+                        {sale.user?.name || '—'}
+                      </td>
+                      <td className="sales-table-td--right sales-table-td--bold">
+                        K{sale.total_amount.toLocaleString('en-ZM', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td>
+                        <Link
+                          to={`/app/sales/${sale.id}`}
+                          className="sales-action-link"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="sales-pagination">
+                <div className="sales-pagination-info">
+                  Showing {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredSales.length)} to{' '}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredSales.length)} of{' '}
+                  {filteredSales.length} sales
+                </div>
+                <div className="sales-pagination-controls">
+                  <Button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="sales-pagination-page">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </Card>
-
-      <Modal
-        open={Boolean(selectedSale)}
-        title={selectedSale ? `Sale #${selectedSale.id}` : 'Sale'}
-        onClose={() => setSelectedSale(null)}
-        width="lg"
-      >
-        {selectedSale ? (
-          <div className="sales-detail">
-            <p>
-              <strong>Customer:</strong> {selectedSale.customer_name || 'Walk-in'}
-            </p>
-            <p>
-              <strong>Sold:</strong> {formatDate(selectedSale.sale_datetime)}
-            </p>
-            <p>
-              <strong>Recorded by:</strong> {selectedSale.user_name || '—'}
-            </p>
-            <p>
-              <strong>Payment:</strong> {selectedSale.payment_method}
-            </p>
-            <DataTable
-              rows={selectedSale.items}
-              rowKey={(row) => String(row.id)}
-              columns={[
-                {
-                  key: 'product',
-                  header: 'Product',
-                  render: (row) => `${row.product_name} (${row.sku})`,
-                },
-                {
-                  key: 'price',
-                  header: 'Unit price',
-                  render: (row) => formatMoney(row.unit_price),
-                },
-                {
-                  key: 'qty',
-                  header: 'Qty',
-                  render: (row) => row.quantity,
-                },
-                {
-                  key: 'line',
-                  header: 'Subtotal',
-                  render: (row) => formatMoney(row.subtotal),
-                },
-              ]}
-            />
-            <div className="sales-detail__total">
-              Total: <strong>{formatMoney(selectedSale.total_amount)}</strong>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
     </div>
   );
 }

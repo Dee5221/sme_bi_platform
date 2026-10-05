@@ -40,7 +40,7 @@ function mapBackendUser(backendUser: any): AuthUser {
     email: backendUser.email,
     avatarUrl: null,
     isActive: backendUser.status === 'active',
-    business: { id: backendUser.business_id, name: 'Demo Business' }, 
+    business: { id: backendUser.business_id, name: 'Demo Business' },
     roles: [backendUser.role?.role_name || 'Staff'],
     permissions: getPermissionsForRole(backendUser.role?.role_name || 'Staff'),
   };

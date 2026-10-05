@@ -1,242 +1,263 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import * as inventoryApi from '../services/inventoryService';
-import type { InventoryItem, StockMovement } from '../services/inventoryService';
-import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { DataTable } from '../components/ui/DataTable';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { Modal } from '../components/ui/Modal';
-import { PageHeader } from '../components/ui/PageHeader';
-import './InventoryPage.css';
+import { Input } from '../components/ui/Input';
+import './inventory.css';
+
+interface StockMovement {
+  id: number;
+  product_id: number;
+  movement_type: 'IN' | 'OUT' | 'ADJUSTMENT';
+  quantity: number;
+  reference?: string | null;
+  reason?: string | null;
+  created_at: string;
+  product?: {
+    id: number;
+    name: string;
+    sku: string;
+  };
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+}
+
+const ITEMS_PER_PAGE = 20;
 
 export function InventoryMovementPage() {
-  const { hasPermission } = useAuth();
-  const canView = hasPermission('inventory.view');
-
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [products, setProducts] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
-  const [productId, setProductId] = useState<number | ''>('');
-  const [type, setType] = useState('ALL');
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    totalPages: 1,
-  });
-  const [selectedMovement, setSelectedMovement] = useState<StockMovement | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const loadMovements = useCallback(async () => {
-    if (!canView) {
-      setError('You do not have permission to view inventory movements.');
-      setLoading(false);
-      return;
-    }
-    setError(null);
+  // Get filter params from URL
+  const productId = searchParams.get('product_id');
+  const movementType = searchParams.get('movement_type');
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+
+  // Client-side filtering
+  const filteredMovements = movements.filter((m) => {
+    if (productId && m.product_id !== parseInt(productId, 10)) return false;
+    if (movementType && m.movement_type !== movementType) return false;
+    return true;
+  });
+
+  // Client-side pagination
+  const totalPages = Math.max(1, Math.ceil(filteredMovements.length / ITEMS_PER_PAGE));
+  const paginatedMovements = filteredMovements.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    loadMovements();
+  }, []);
+
+  async function loadMovements() {
     try {
-      const [inventoryResult, movementResult] = await Promise.all([
-        inventoryApi.listInventory({ pageSize: 100 }),
-        inventoryApi.listMovements({
-          productId: typeof productId === 'number' ? productId : undefined,
-          type: type === 'ALL' ? undefined : type,
-          page,
-          pageSize: 20,
-        }),
-      ]);
-      setProducts(inventoryResult.items);
-      setMovements(movementResult.items);
-      setPagination(movementResult.pagination);
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Unable to load inventory movements.');
+      setLoading(true);
+      setError(null);
+      // Backend doesn't support pagination - fetch all and paginate client-side
+      const data = await inventoryApi.listMovements({});
+      const items = Array.isArray(data) ? data : (data as any)?.items || [];
+      setMovements(items);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load movements');
     } finally {
       setLoading(false);
     }
-  }, [canView, productId, type, page]);
-
-  useEffect(() => {
-    void loadMovements();
-  }, [loadMovements]);
-
-  function clearFilters() {
-    setProductId('');
-    setType('ALL');
-    setPage(1);
   }
 
-  if (!canView) {
-    return <Alert tone="error">You do not have permission to view inventory movements.</Alert>;
+  function handleFilterChange(key: string, value: string) {
+    const params = new URLSearchParams(searchParams);
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    // Reset to page 1 when filters change
+    params.set('page', '1');
+    setSearchParams(params);
+  }
+
+  function handlePageChange(page: number) {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', page.toString());
+    setSearchParams(params);
+  }
+
+  function getMovementTypeBadge(type: string) {
+    switch (type) {
+      case 'IN':
+        return <Badge tone="green">IN</Badge>;
+      case 'OUT':
+        return <Badge tone="red">OUT</Badge>;
+      case 'ADJUSTMENT':
+        return <Badge tone="orange">ADJUSTMENT</Badge>;
+      default:
+        return <Badge tone="neutral">{type}</Badge>;
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="inventory-page">
+        <div className="inventory-header">
+          <h1 className="inventory-title">Stock Movements</h1>
+        </div>
+        <Card>
+          <LoadingSkeleton rows={10} />
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="inventory-page">
-      <Link className="inventory-back" to="/app/inventory">
-        ← Back to inventory
-      </Link>
-      <PageHeader
-        title="Inventory movement"
-        subtitle="Review stock in and stock out activity for this business."
-      />
+      <div className="inventory-header">
+        <div>
+          <h1 className="inventory-title">Stock Movements</h1>
+          <p className="inventory-subtitle">
+            Track all inventory movements and stock changes
+          </p>
+        </div>
+        <Link to="/app/inventory">
+          <Button>Back to Inventory</Button>
+        </Link>
+      </div>
 
-      <Card>
-        <div className="inventory-movements-toolbar">
-          <label className="inventory-select">
-            <span>Product</span>
+      {error && (
+        <div className="inventory-alert inventory-alert--error">
+          {error}
+        </div>
+      )}
+
+      {/* Filters */}
+      <Card className="inventory-filters">
+        <div className="inventory-filter-grid">
+          <Input
+            label="Product ID"
+            type="number"
+            value={productId || ''}
+            onChange={(e) => handleFilterChange('product_id', e.target.value)}
+            placeholder="Filter by product"
+          />
+          <div className="inventory-filter-field">
+            <label className="inventory-filter-label">Movement Type</label>
             <select
-              value={productId}
-              onChange={(e) => {
-                setPage(1);
-                setProductId(e.target.value ? Number(e.target.value) : '');
-              }}
+              className="inventory-filter-select"
+              value={movementType || ''}
+              onChange={(e) => handleFilterChange('movement_type', e.target.value)}
             >
-              <option value="">All products</option>
-              {products.map((item) => (
-                <option key={item.product_id} value={item.product_id}>
-                  {item.product_name} ({item.sku})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="inventory-select">
-            <span>Type</span>
-            <select
-              value={type}
-              onChange={(e) => {
-                setPage(1);
-                setType(e.target.value);
-              }}
-            >
-              <option value="ALL">All types</option>
-              <option value="IN">Stock in</option>
-              <option value="OUT">Stock out</option>
+              <option value="">All Types</option>
+              <option value="IN">Stock In</option>
+              <option value="OUT">Stock Out</option>
               <option value="ADJUSTMENT">Adjustment</option>
             </select>
-          </label>
-          <Button type="button" variant="secondary" onClick={clearFilters}>
-            Clear
-          </Button>
+          </div>
         </div>
+      </Card>
 
-        {loading ? (
-          <LoadingSkeleton rows={8} />
-        ) : error ? (
-          <Alert tone="error">{error}</Alert>
+      {/* Movements Table */}
+      <Card>
+        {paginatedMovements.length === 0 ? (
+          <div className="inventory-empty">
+            <p>No stock movements found</p>
+          </div>
         ) : (
           <>
-            <DataTable
-              rows={movements}
-              rowKey={(row) => row.id}
-              emptyTitle="No stock movements yet"
-              emptyDescription="Stock in and stock out actions will appear here."
-              columns={[
-                {
-                  key: 'when',
-                  header: 'When',
-                  render: (row) => new Date(row.created_at).toLocaleString(),
-                },
-                {
-                  key: 'product',
-                  header: 'Product',
-                  render: (row) => (
-                    <div>
-                      <strong>{row.product_name}</strong>
-                      <div className="inventory-muted">{row.sku}</div>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'type',
-                  header: 'Type',
-                  render: (row) => (
-                    <Badge tone={row.movement_type === 'IN' ? 'green' : row.movement_type === 'OUT' ? 'orange' : 'neutral'}>
-                      {row.movement_type === 'IN' ? 'Stock in' : row.movement_type === 'OUT' ? 'Stock out' : 'Adjustment'}
-                    </Badge>
-                  ),
-                },
-                {
-                  key: 'change',
-                  header: 'Change',
-                  render: (row) =>
-                    row.movement_type === 'IN' ? `+${row.quantity}` : `-${row.quantity}`,
-                },
-                {
-                  key: 'actor',
-                  header: 'Recorded by',
-                  render: (row) => row.user_name || '—',
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  render: (row) => (
-                    <Button variant="ghost" onClick={() => setSelectedMovement(row)}>
-                      View
-                    </Button>
-                  ),
-                },
-              ]}
-            />
-
-            <div className="inventory-pagination">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} movements
-              </span>
-              <div className="inventory-actions">
-                <Button
-                  variant="secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((current) => current + 1)}
-                >
-                  Next
-                </Button>
-              </div>
+            <div className="inventory-table-wrapper">
+              <table className="inventory-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Product</th>
+                    <th>Type</th>
+                    <th>Quantity</th>
+                    <th>Reference</th>
+                    <th>Reason</th>
+                    <th>User</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedMovements.map((movement) => (
+                    <tr key={movement.id}>
+                      <td className="inventory-table-td--muted">
+                        {new Date(movement.created_at).toLocaleString('en-ZM', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td>
+                        <div className="inventory-product-cell">
+                          <div className="inventory-product-name">
+                            {movement.product?.name || `Product #${movement.product_id}`}
+                          </div>
+                          {movement.product?.sku && (
+                            <div className="inventory-product-sku">
+                              {movement.product.sku}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td>{getMovementTypeBadge(movement.movement_type)}</td>
+                      <td className="inventory-table-td--bold">
+                        {movement.quantity}
+                      </td>
+                      <td className="inventory-table-td--muted">
+                        {movement.reference || '—'}
+                      </td>
+                      <td className="inventory-table-td--muted">
+                        {movement.reason || '—'}
+                      </td>
+                      <td className="inventory-table-td--muted">
+                        {movement.user?.name || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="inventory-pagination">
+                <div className="inventory-pagination-info">
+                  Showing {Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredMovements.length)} to{' '}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredMovements.length)} of{' '}
+                  {filteredMovements.length} movements
+                </div>
+                <div className="inventory-pagination-controls">
+                  <Button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="inventory-pagination-page">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </Card>
-
-      <Modal
-        open={Boolean(selectedMovement)}
-        title={selectedMovement ? (selectedMovement.movement_type === 'IN' ? 'Stock in' : selectedMovement.movement_type === 'OUT' ? 'Stock out' : 'Adjustment') : 'Movement'}
-        onClose={() => setSelectedMovement(null)}
-        width="lg"
-      >
-        {selectedMovement ? (
-          <div className="inventory-detail">
-            <p>
-              <strong>Product:</strong>{' '}
-              {selectedMovement.product_name} ({selectedMovement.sku})
-            </p>
-            <p>
-              <strong>When:</strong> {new Date(selectedMovement.created_at).toLocaleString()}
-            </p>
-            <p>
-              <strong>Recorded by:</strong> {selectedMovement.user_name || '—'}
-            </p>
-            <p>
-              <strong>Change:</strong>{' '}
-              {selectedMovement.movement_type === 'IN' ? `+${selectedMovement.quantity}` : `-${selectedMovement.quantity}`}
-            </p>
-            {selectedMovement.reason ? (
-              <p>
-                <strong>Reason:</strong> {selectedMovement.reason}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </Modal>
     </div>
   );
 }

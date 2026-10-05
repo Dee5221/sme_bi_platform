@@ -1,299 +1,409 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
-import * as customerApi from '../services/customerService';
-import type { Customer } from '../services/customerService';
-import * as productApi from '../services/productService';
-import type { Product } from '../services/productService';
-import * as saleApi from '../services/saleService';
-import { Alert } from '../components/ui/Alert';
-import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
-import { EmptyState } from '../components/ui/EmptyState';
-import { Input } from '../components/ui/Input';
-import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { PageHeader } from '../components/ui/PageHeader';
+import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as productService from '../services/productService';
+import * as customerService from '../services/customerService';
+import * as saleService from '../services/saleService';
 import { useToast } from '../components/ui/Toast';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Card } from '../components/ui/Card';
+import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
+import { ApiClientError } from '../lib/api';
 import './SalesPage.css';
 
-type LineDraft = {
-  key: string;
-  productId: number | '';
-  quantity: string;
-};
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
-function emptyLines(): LineDraft[] {
-  return [{ key: crypto.randomUUID(), productId: '', quantity: '1' }];
+interface CartItem {
+  product: any;
+  quantity: number;
 }
 
 export function NewSalePage() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
   const { pushToast } = useToast();
-  const canCreate = hasPermission('sales.create');
 
+  const [products, setProducts] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerId, setCustomerId] = useState<number | ''>('');
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [lines, setLines] = useState<LineDraft[]>(emptyLines);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
 
-  const loadCatalog = useCallback(async () => {
-    if (!canCreate) {
-      setLoadError('You do not have permission to record a sale.');
-      setLoading(false);
-      return;
-    }
-    try {
-      const [productsResult, customersResult] = await Promise.all([
-        productApi.listProducts({ status: 'active', pageSize: 100 }),
-        customerApi.listCustomers({ page: 1, pageSize: 100 }),
-      ]);
-      setProducts(productsResult.items);
-      setCustomers(customersResult.items);
-      setLoadError(null);
-    } catch (err) {
-      setLoadError(err instanceof ApiClientError ? err.message : 'Unable to load sale catalog.');
-    } finally {
-      setLoading(false);
-    }
-  }, [canCreate]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
-    void loadCatalog();
-  }, [loadCatalog]);
+    async function loadData() {
+      try {
+        const [prods, custs] = await Promise.all([
+          productService.listProducts({ status: 'active' }).catch(() => []),
+          customerService.listCustomers({}).catch(() => []),
+        ]);
 
-  const productMap = useMemo(
-    () => new Map(products.map((product) => [product.id, product])),
-    [products]
+        const prodList = Array.isArray(prods) ? prods : (prods as any)?.items || [];
+        const custList = Array.isArray(custs) ? custs : (custs as any)?.items || [];
+
+        setProducts(prodList);
+        setCustomers(custList);
+      } catch (err) {
+        console.error('Failed to load POS data', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery) return products;
+    const q = searchQuery.toLowerCase();
+    return products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.sku && p.sku.toLowerCase().includes(q))
+    );
+  }, [products, searchQuery]);
+
+  // Display-only total — backend is authoritative
+  const cartDisplayTotal = useMemo(() => {
+    return cart.reduce(
+      (sum, item) => sum + Number(item.product.selling_price || 0) * item.quantity,
+      0
+    );
+  }, [cart]);
+
+  const cartItemCount = useMemo(
+    () => cart.reduce((sum, item) => sum + item.quantity, 0),
+    [cart]
   );
 
-  const draftTotal = useMemo(() => {
-    return lines.reduce((sum, line) => {
-      const product = typeof line.productId === 'number' ? productMap.get(line.productId) : undefined;
-      const qty = Number(line.quantity);
-      if (!product || !Number.isFinite(qty) || qty <= 0) return sum;
-      return sum + product.selling_price * qty;
-    }, 0);
-  }, [lines, productMap]);
-
-  function addLine() {
-    setLines((current) => [
-      ...current,
-      { key: crypto.randomUUID(), productId: '', quantity: '1' },
-    ]);
-  }
-
-  function updateLine(key: string, patch: Partial<LineDraft>) {
-    setLines((current) =>
-      current.map((line) => (line.key === key ? { ...line, ...patch } : line))
-    );
-  }
-
-  function removeLine(key: string) {
-    setLines((current) =>
-      current.length <= 1 ? current : current.filter((line) => line.key !== key)
-    );
-  }
-
-  async function onCreateSale(event: FormEvent) {
-    event.preventDefault();
-    if (!canCreate) return;
-    setFormError(null);
-
-    const items = lines
-      .filter((line): line is { key: string; productId: number; quantity: string } => typeof line.productId === 'number')
-      .map((line) => ({
-        product_id: line.productId,
-        quantity: Number(line.quantity),
-      }));
-
-    if (items.length === 0) {
-      setFormError('Add at least one product line.');
-      return;
-    }
-    if (items.some((item) => !Number.isInteger(item.quantity) || item.quantity <= 0)) {
-      setFormError('Quantities must be positive whole numbers.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await saleApi.createSale({
-        customer_id: typeof customerId === 'number' ? customerId : undefined,
-        payment_method: paymentMethod,
-        items,
-      });
-      pushToast('Sale recorded successfully.', 'success');
-      navigate('/app/sales');
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setFormError(err.message);
-      } else {
-        setFormError('Unable to record sale.');
+  function addToCart(product: any) {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
       }
-    } finally {
-      setSaving(false);
-    }
+      return [...prev, { product, quantity: 1 }];
+    });
   }
 
-  if (!canCreate) {
-    return <Alert tone="error">You do not have permission to record a sale.</Alert>;
+  function updateQuantity(productId: number, quantity: number) {
+    if (isNaN(quantity) || quantity <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    setCart((prev) =>
+      prev.map((item) =>
+        item.product.id === productId ? { ...item, quantity } : item
+      )
+    );
+  }
+
+  function removeFromCart(productId: number) {
+    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  }
+
+  function clearCart() {
+    setCart([]);
+    setSelectedCustomerId(null);
+    setPaymentMethod('Cash');
+    setSubmitError(null);
+  }
+
+  async function handleCheckout() {
+    setSubmitError(null);
+
+    if (cart.length === 0) {
+      setSubmitError('Cart is empty. Add at least one product to proceed.');
+      return;
+    }
+
+    const invalidItem = cart.find(
+      (item) => !item.product?.id || item.quantity <= 0 || isNaN(item.quantity)
+    );
+    if (invalidItem) {
+      setSubmitError(
+        `Invalid quantity for ${invalidItem.product?.name || 'a product'}.`
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // Build payload — matches backend contract exactly
+      const payload: saleService.CreateSalePayload = {
+        payment_method: paymentMethod,
+        items: cart.map((item) => ({
+          product_id: Number(item.product.id),
+          quantity: Number(item.quantity),
+        })),
+      };
+
+      // customer_id is optional — only include if selected
+      if (selectedCustomerId !== null) {
+        payload.customer_id = Number(selectedCustomerId);
+      }
+
+      await saleService.createSale(payload);
+
+      pushToast('Sale completed successfully.', 'success');
+      // Clear cart only AFTER success
+      clearCart();
+      navigate('/app/sales/history');
+    } catch (err: any) {
+      // Preserve cart on failure so user can retry
+      let message = 'Unable to complete sale. Please try again.';
+
+      if (err instanceof ApiClientError) {
+        // Extract useful backend error message
+        const details = err.details;
+        if (Array.isArray(details) && details.length > 0) {
+          const firstMsg = details[0]?.msg || details[0]?.message;
+          if (firstMsg) message = firstMsg;
+        } else if (err.message) {
+          message = err.message;
+        }
+
+        // Friendly rewrites for common cases
+        const lower = message.toLowerCase();
+        if (lower.includes('stock') || lower.includes('inventory')) {
+          message = 'Insufficient stock is available for one or more selected products.';
+        } else if (lower.includes('customer')) {
+          message = 'The selected customer could not be found. Please choose a different customer.';
+        } else if (lower.includes('product')) {
+          message = 'One or more products are unavailable. Please review your cart.';
+        }
+      }
+
+      setSubmitError(message);
+      pushToast(message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (loading) {
     return (
-      <Card>
-        <LoadingSkeleton rows={8} />
-      </Card>
-    );
-  }
-
-  if (loadError) {
-    return (
       <div className="sales-page">
-        <Link className="sales-back" to="/app/sales">
-          ← Back to sales
-        </Link>
-        <Alert tone="error">{loadError}</Alert>
+        <div className="page-header">
+          <div className="page-header__content">
+            <h1 className="page-title">New Sale</h1>
+            <p className="page-subtitle">Point of Sale Terminal</p>
+          </div>
+        </div>
+        <Card>
+          <LoadingSkeleton rows={10} />
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="sales-page">
-      <Link className="sales-back" to="/app/sales">
-        ← Back to sales
-      </Link>
-      <PageHeader
-        title="New sale"
-        subtitle="Record a transaction. Prices and totals are calculated securely by the system."
-      />
+      <div className="page-header">
+        <div className="page-header__content">
+          <h1 className="page-title">New Sale</h1>
+          <p className="page-subtitle">Select products and complete the transaction.</p>
+        </div>
+        <div className="page-header__actions">
+          <Button onClick={() => navigate('/app/sales/history')}>
+            Sales History
+          </Button>
+        </div>
+      </div>
 
-      <Card>
-        {products.length === 0 ? (
-          <EmptyState
-            title="No products available"
-            description="Add an active product before recording a sale."
-            action={
-              <Link to="/app/products">
-                <Button>Go to Products</Button>
-              </Link>
-            }
-          />
-        ) : (
-          <form className="sales-form" onSubmit={onCreateSale} noValidate>
-            {formError ? <Alert tone="error">{formError}</Alert> : null}
-            <div className="sales-form__meta">
-              <label className="sales-select">
-                <span>Customer (optional)</span>
+      <div className="pos-layout">
+        {/* Left: Products */}
+        <div className="pos-products-panel">
+          <Card>
+            <div className="pos-search">
+              <Input
+                type="text"
+                placeholder="Search products by name or SKU..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)} label={''}              />
+            </div>
+
+            <div className="pos-product-grid">
+              {filteredProducts.length === 0 ? (
+                <div className="pos-empty">No products match your search.</div>
+              ) : (
+                filteredProducts.map((product) => (
+                  <button
+                    key={product.id}
+                    type="button"
+                    className="pos-product-card"
+                    onClick={() => addToCart(product)}
+                  >
+                    <div className="pos-product-name">{product.name}</div>
+                    <div className="pos-product-sku">{product.sku}</div>
+                    <div className="pos-product-price">
+                      K{Number(product.selling_price || 0).toFixed(2)}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Right: Cart */}
+        <div className="pos-cart-panel">
+          <Card className="pos-cart-card">
+            <h2 className="pos-cart-title">
+              Current Sale
+              {cartItemCount > 0 && (
+                <span className="pos-cart-count">{cartItemCount}</span>
+              )}
+            </h2>
+
+            <div className="pos-cart-items">
+              {cart.length === 0 ? (
+                <div className="pos-cart-empty">
+                  Cart is empty. Click a product to add it.
+                </div>
+              ) : (
+                cart.map((item) => (
+                  <div key={item.product.id} className="pos-cart-item">
+                    <div className="pos-cart-item-info">
+                      <div className="pos-cart-item-name">{item.product.name}</div>
+                      <div className="pos-cart-item-price">
+                        K{Number(item.product.selling_price || 0).toFixed(2)} each
+                      </div>
+                    </div>
+                    <div className="pos-cart-item-controls">
+                      <button
+                        type="button"
+                        className="pos-qty-btn"
+                        onClick={() =>
+                          updateQuantity(item.product.id, item.quantity - 1)
+                        }
+                        aria-label="Decrease quantity"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        className="pos-qty-input"
+                        value={item.quantity}
+                        onChange={(e) =>
+                          updateQuantity(item.product.id, Number(e.target.value))
+                        }
+                        min="1"
+                        aria-label={`Quantity for ${item.product.name}`}
+                      />
+                      <button
+                        type="button"
+                        className="pos-qty-btn"
+                        onClick={() =>
+                          updateQuantity(item.product.id, item.quantity + 1)
+                        }
+                        aria-label="Increase quantity"
+                      >
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        className="pos-remove-btn"
+                        onClick={() => removeFromCart(item.product.id)}
+                        aria-label={`Remove ${item.product.name}`}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="pos-cart-item-subtotal">
+                      K{
+                        (Number(item.product.selling_price || 0) * item.quantity).toFixed(2)
+                      }
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pos-cart-summary">
+              <div className="pos-summary-row">
+                <span>Items:</span>
+                <span>{cartItemCount}</span>
+              </div>
+              <div className="pos-summary-row pos-summary-total">
+                <span>Estimated Total:</span>
+                <span>K{cartDisplayTotal.toFixed(2)}</span>
+              </div>
+              <div className="pos-summary-note">
+                Final total calculated by the system at checkout.
+              </div>
+            </div>
+
+            <div className="pos-checkout-form">
+              <div className="pos-form-field">
+                <label className="pos-form-label" htmlFor="pos-customer">
+                  Customer (optional)
+                </label>
                 <select
-                  value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : '')}
+                  id="pos-customer"
+                  className="pos-form-select"
+                  value={selectedCustomerId ?? ''}
+                  onChange={(e) =>
+                    setSelectedCustomerId(
+                      e.target.value ? Number(e.target.value) : null
+                    )
+                  }
                 >
-                  <option value="">Walk-in / no customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
+                  <option value="">Walk-in Customer</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
                     </option>
                   ))}
                 </select>
-              </label>
-              <label className="sales-select">
-                <span>Payment Method</span>
+              </div>
+
+              <div className="pos-form-field">
+                <label className="pos-form-label" htmlFor="pos-payment">
+                  Payment Method
+                </label>
                 <select
+                  id="pos-payment"
+                  className="pos-form-select"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  required
                 >
                   <option value="Cash">Cash</option>
                   <option value="Card">Card</option>
                   <option value="Mobile Money">Mobile Money</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
                 </select>
-              </label>
-            </div>
-
-            <div className="sales-lines">
-              {lines.map((line) => {
-                const product = typeof line.productId === 'number' ? productMap.get(line.productId) : undefined;
-                return (
-                  <div className="sales-line" key={line.key}>
-                    <label className="sales-select">
-                      <span>Product</span>
-                      <select
-                        value={line.productId}
-                        onChange={(e) =>
-                          updateLine(line.key, {
-                            productId: e.target.value ? Number(e.target.value) : '',
-                          })
-                        }
-                      >
-                        <option value="">Select product</option>
-                        {products.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name} ({item.sku})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <Input
-                      label="Qty"
-                      name={`qty-${line.key}`}
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={line.quantity}
-                      onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                    />
-                    <div className="sales-line__meta">
-                      <span>{product ? formatMoney(product.selling_price) : '—'}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => removeLine(line.key)}
-                        disabled={lines.length <= 1}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="sales-form__footer">
-              <Button type="button" variant="secondary" onClick={addLine}>
-                Add line
-              </Button>
-              <div className="sales-total">
-                Estimated total: <strong>{formatMoney(draftTotal)}</strong>
               </div>
-              <div className="sales-actions">
-                <Button type="button" variant="secondary" onClick={() => navigate('/app/sales')}>
-                  Cancel
+
+              {submitError && (
+                <div className="pos-error-alert" role="alert">
+                  {submitError}
+                </div>
+              )}
+
+              <div className="pos-checkout-actions">
+                <Button
+                  onClick={clearCart}
+                  disabled={submitting || cart.length === 0}
+                >
+                  Clear
                 </Button>
-                <Button type="submit" loading={saving} disabled={saving}>
-                  Record sale
+                <Button
+                  onClick={handleCheckout}
+                  loading={submitting}
+                  disabled={cart.length === 0}
+                >
+                  {submitting ? 'Processing...' : 'Complete Sale'}
                 </Button>
               </div>
             </div>
-          </form>
-        )}
-      </Card>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

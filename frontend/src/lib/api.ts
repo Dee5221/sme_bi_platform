@@ -28,7 +28,7 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const headers = new Headers(options.headers || {});
-  
+
   const token = getToken();
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -45,7 +45,7 @@ export async function apiRequest<T>(
 
   const contentType = response.headers.get('content-type');
   let data: unknown = null;
-  
+
   if (contentType && contentType.includes('application/json')) {
     try { data = await response.json(); } catch { data = null; }
   }

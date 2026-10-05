@@ -23,7 +23,7 @@ export function StaffDashboardPage() {
       setLoading(true);
 
       const salesData = await salesApi.listSales({}).catch(() => []);
-      
+
       // Handle both flat array and paginated {items: []} responses
       const sales: any[] = Array.isArray(salesData)
         ? salesData

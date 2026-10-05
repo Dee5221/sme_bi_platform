@@ -90,7 +90,7 @@ export function listProducts(params: {
   if (params.categoryId) query.set('category_id', params.categoryId);
   // Note: Backend currently returns a flat array. We simulate pagination for the UI.
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  
+
   return apiRequest<Product[]>(`/api/products/${suffix}`).then((data) => {
     const page = params.page || 1;
     const pageSize = params.pageSize || 20;
@@ -127,7 +127,7 @@ export function deactivateProduct(id: number) {
   });
 }
 
-// Image upload is not supported by the current backend MVP. 
+// Image upload is not supported by the current backend MVP.
 // Returning a resolved promise to prevent UI crashes if called, but it won't actually upload.
 export function uploadProductImage(_id: number, _file: File) {
   console.warn('Product image upload is not supported in the current backend MVP.');

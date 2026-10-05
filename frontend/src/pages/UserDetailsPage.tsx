@@ -19,7 +19,7 @@ import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { Modal } from '../components/ui/Modal';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useToast } from '../components/ui/Toast';
-import './DashboardPage.css';
+import './dashboard.css';
 import './UserDetailsPage.css';
 import './UsersPage.css';
 

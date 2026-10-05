@@ -32,11 +32,14 @@ export function AdminDashboardPage() {
 
       const [usersData, salesData] = await Promise.all([
         usersApi.listUsers({}).catch(() => []),
-        salesApi.listSales({}).catch(() => ({ items: [] })),
+        salesApi.listSales({}).catch(() => []),
       ]);
 
       setUsers(Array.isArray(usersData) ? usersData : []);
-      setTotalSales(salesData.items?.length || 0);
+
+      // Backend returns a flat array, not a paginated object (F06-A)
+      const sales = Array.isArray(salesData) ? salesData : [];
+      setTotalSales(sales.length);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {

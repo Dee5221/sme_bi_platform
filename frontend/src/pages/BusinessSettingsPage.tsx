@@ -113,7 +113,7 @@ export function BusinessSettingsPage() {
         usdToZmwRate: rate,
       });
       setBusiness(result.business);
-      
+
       // Refresh the user data in auth context
       const session: any = await authApi.fetchMe();
       const nameParts = session.name.split(' ');
@@ -128,13 +128,13 @@ export function BusinessSettingsPage() {
         isActive: session.status === 'active',
         roles: session.role?.role_name ? [session.role.role_name] : [],
         permissions: [],
-        business: { 
-          id: session.business_id, 
-          name: result.business.name 
+        business: {
+          id: session.business_id,
+          name: result.business.name
         },
         _raw: session
       } as any);
-    
+
       pushToast('Business settings updated.', 'success');
     } catch (err) {
       if (err instanceof ApiClientError) {

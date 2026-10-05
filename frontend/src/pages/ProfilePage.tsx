@@ -66,14 +66,14 @@ export function ProfilePage() {
   const { pushToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
+
   const [profileForm, setProfileForm] = useState<ProfileForm>({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
   });
-  
+
   const [passwordForm, setPasswordForm] = useState<PasswordForm>(emptyPassword);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -99,10 +99,10 @@ export function ProfilePage() {
         // Backend returns the user object directly, not wrapped in { user: ... }
         const result = await profileApi.fetchProfile();
         if (!active) return;
-        
+
         const mappedUser = mapToAuthUser(result, user);
         setUser(mappedUser);
-        
+
         setProfileForm({
           firstName: mappedUser.firstName || '',
           lastName: mappedUser.lastName || '',
@@ -156,7 +156,7 @@ export function ProfilePage() {
   async function onChangePassword(event: FormEvent) {
     event.preventDefault();
     if (!canUpdate) return;
-    
+
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setPasswordError('New passwords do not match.');
       setPasswordFieldErrors({ confirmPassword: 'Passwords do not match.' });

@@ -29,7 +29,7 @@ import { SuppliersPage } from './pages/SuppliersPage';
 import { UsersPage } from './pages/UsersPage';
 import { UserDetailsPage } from './pages/UserDetailsPage';
 
-// Removed: RegisterPage, MyPurchasesPage, PurchaseHistoryPage, PurchaseRecordsPage, 
+// Removed: RegisterPage, MyPurchasesPage, PurchaseHistoryPage, PurchaseRecordsPage,
 // ProductsSuppliedPage, PortalSettingsPage, SupplierPurchaseHistoryPage
 
 export default function App() {
@@ -50,9 +50,9 @@ export default function App() {
           <Route path="forecasting" element={<ForecastingPage />} />
           <Route path="recommendations" element={<RecommendationsPage />} />
           <Route path="reports" element={<ReportsPage />} />
-          
+
           {/* Removed all /portal/* routes */}
-          
+
           <Route path="sales/new" element={<NewSalePage />} />
           <Route path="sales/history" element={<SalesHistoryPage />} />
           <Route path="sales" element={<SalesPage />} />
