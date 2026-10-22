@@ -2,74 +2,37 @@ import { apiRequest } from '../lib/api';
 
 export type Customer = {
   id: number;
+  business_id: number;
   name: string;
-  email: string | null;
   phone: string | null;
+  email: string | null;
   address: string | null;
-  notes: string | null;
-  status: string;
-  avatarUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
+  type: string | null;
 };
 
 export type CustomerPayload = {
   name: string;
-  email?: string;
   phone?: string;
+  email?: string;
   address?: string;
-  notes?: string;
-  status?: 'ACTIVE' | 'INACTIVE';
+  type?: string;
 };
 
-export function listCustomers(params: {
-  search?: string;
-  status?: string;
-  page?: number;
-  pageSize?: number;
-}) {
-  return apiRequest<Customer[]>('/api/customers/').then((customers) => {
-    const search = params.search?.trim().toLowerCase();
-    const filtered = search
-      ? customers.filter((customer) =>
-          [customer.name, customer.email, customer.phone]
-            .filter(Boolean)
-            .some((value) => value!.toLowerCase().includes(search))
-        )
-      : customers;
-    const page = params.page || 1;
-    const pageSize = params.pageSize || 20;
-    const start = (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize);
-
-    return {
-      items,
-      pagination: {
-        page,
-        pageSize,
-        total: filtered.length,
-        totalPages: Math.ceil(filtered.length / pageSize) || 1,
-      },
-    };
-  });
+// Backend returns a flat array, no server-side pagination or search
+export function listCustomers(): Promise<Customer[]> {
+  return apiRequest<Customer[]>('/api/customers/');
 }
 
-export function createCustomer(payload: CustomerPayload) {
-  return apiRequest<{ customer: Customer }>('/api/customers', {
+export function createCustomer(payload: CustomerPayload): Promise<Customer> {
+  return apiRequest<Customer>('/api/customers/', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export function updateCustomer(id: number, payload: CustomerPayload) {
-  return apiRequest<{ customer: Customer }>(`/api/customers/${id}`, {
-    method: 'PUT',
+export function updateCustomer(id: number, payload: CustomerPayload): Promise<Customer> {
+  return apiRequest<Customer>(`/api/customers/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
-  });
-}
-
-export function deactivateCustomer(id: number) {
-  return apiRequest<{ customer: Customer }>(`/api/customers/${id}`, {
-    method: 'DELETE',
   });
 }

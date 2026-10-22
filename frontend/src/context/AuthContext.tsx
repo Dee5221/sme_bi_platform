@@ -1,118 +1,195 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import * as authApi from '../services/authService';
-import type { AuthUser, LoginPayload, RegisterPayload } from '../types/auth';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { apiRequest, ApiClientError } from '../lib/api';
+
+// Matches the ACTUAL backend response shape from /api/auth/me
+// Backend User model has: role = relationship("Role") -> { id, role_name }
+export type AuthUser = {
+  id: number;
+  email: string;
+  business_id: number;
+  first_name?: string | null;
+  last_name?: string | null;
+  status?: string;
+  // Backend returns role as a NESTED OBJECT: { id: number, role_name: string }
+  role?: { id: number; role_name: string } | string | null;
+  // Fallback fields in case backend shape varies
+  role_name?: string | null;
+  roles?: Array<{ role_name: string } | string> | null;
+};
 
 type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
-  error: string | null;
-  login: (payload: LoginPayload) => Promise<void>;
-  register: (payload: RegisterPayload) => Promise<void>;
-  logout: () => Promise<void>;
-  setUser: (user: AuthUser | null) => void;
-  hasPermission: (key: string) => boolean;
-  clearError: () => void;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
+  logout: () => void;
+  hasPermission: (permission: string) => boolean;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-function getPermissionsForRole(roleName: string): string[] {
-  const base: string[] = []; // Fixed implicit any
-  if (roleName === 'Business Owner') {
-    return [...base, 'owner', 'manager', 'staff', 'all', 'products.view', 'products.create', 'products.update', 'products.delete', 'categories.view', 'categories.create', 'categories.update', 'categories.delete', 'sales.view', 'sales.create', 'inventory.view', 'inventory.adjust', 'expenses.view', 'expenses.create'];
-  }
-  if (roleName === 'Manager') {
-    return [...base, 'manager', 'staff', 'products.view', 'products.create', 'products.update', 'products.delete', 'categories.view', 'categories.create', 'categories.update', 'categories.delete', 'sales.view', 'sales.create', 'inventory.view', 'inventory.adjust', 'expenses.view', 'expenses.create'];
-  }
-  if (roleName === 'Staff') {
-    return [...base, 'staff', 'products.view', 'categories.view', 'sales.view', 'sales.create', 'customers.view', 'customers.create', 'inventory.view'];
-  }
-  return base;
-}
+// Comprehensive permissions for each role
+const ROLE_PERMISSIONS: Record<string, string[]> = {
+  'Business Owner': [
+    'dashboard.view',
+    'sales.view', 'sales.create', 'sales.update', 'sales.delete',
+    'products.view', 'products.create', 'products.update', 'products.delete',
+    'inventory.view', 'inventory.adjust',
+    'customers.view', 'customers.create', 'customers.update', 'customers.delete',
+    'suppliers.view', 'suppliers.create', 'suppliers.update', 'suppliers.delete',
+    'expenses.view', 'expenses.create', 'expenses.update', 'expenses.delete',
+    'users.view', 'users.create', 'users.update', 'users.delete',
+    'analytics.view',
+    'forecasting.view',
+    'recommendations.view',
+    'reports.view',
+    'settings.view', 'settings.update',
+    'profile.view', 'profile.update',
+    'roles.view', 'roles.update',
+    'activity-log.view',
+    'all',
+  ],
+  'Manager': [
+    'dashboard.view',
+    'sales.view', 'sales.create', 'sales.update',
+    'products.view', 'products.create', 'products.update',
+    'inventory.view', 'inventory.adjust',
+    'customers.view', 'customers.create', 'customers.update',
+    'suppliers.view', 'suppliers.create', 'suppliers.update',
+    'expenses.view', 'expenses.create', 'expenses.update',
+    'users.view',
+    'analytics.view',
+    'reports.view',
+    'profile.view', 'profile.update',
+    'all',
+  ],
+  'Staff': [
+    'dashboard.view',
+    'sales.view', 'sales.create',
+    'products.view',
+    'inventory.view',
+    'customers.view',
+    'suppliers.view',
+    'expenses.view',
+    'profile.view', 'profile.update',
+  ],
+};
 
-// Maps backend response to Member 2's expected UI shape
-function mapBackendUser(backendUser: any): AuthUser {
-  const nameParts = backendUser.name.split(' ');
-  return {
-    id: backendUser.id,
-    firstName: nameParts[0] || backendUser.name,
-    lastName: nameParts.slice(1).join(' ') || '',
-    email: backendUser.email,
-    avatarUrl: null,
-    isActive: backendUser.status === 'active',
-    business: { id: backendUser.business_id, name: 'Demo Business' },
-    roles: [backendUser.role?.role_name || 'Staff'],
-    permissions: getPermissionsForRole(backendUser.role?.role_name || 'Staff'),
-  };
+// Extracts the role name from the backend response
+// Handles the NESTED OBJECT format: { role: { role_name: "Business Owner" } }
+function extractRoleName(user: AuthUser): string | null {
+  if (!user) return null;
+
+  // PRIMARY CASE: Backend returns role as { id, role_name } object
+  if (user.role && typeof user.role === 'object' && 'role_name' in user.role) {
+    return (user.role as { role_name: string }).role_name;
+  }
+
+  // FALLBACK: role is a plain string
+  if (typeof user.role === 'string') {
+    return user.role;
+  }
+
+  // FALLBACK: role_name field exists
+  if (user.role_name && typeof user.role_name === 'string') {
+    return user.role_name;
+  }
+
+  // FALLBACK: roles array
+  if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
+    const firstRole = user.roles[0];
+    if (typeof firstRole === 'string') return firstRole;
+    if (typeof firstRole === 'object' && firstRole.role_name) {
+      return firstRole.role_name;
+    }
+  }
+
+  return null;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        try {
-          const userData = await authApi.fetchMe();
-          if (active) setUser(mapBackendUser(userData));
-        } catch {
-          if (active) {
-            localStorage.removeItem('access_token');
-            setUser(null);
-          }
-        }
-      }
-      if (active) setLoading(false);
-    })();
-    return () => { active = false; };
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    apiRequest<AuthUser>('/api/auth/me')
+      .then((data) => {
+        console.log('✅ [Auth] User data loaded:', data);
+        console.log('✅ [Auth] Role detected:', extractRoleName(data));
+        setUser(data);
+      })
+      .catch((err) => {
+        console.error('❌ [Auth] Failed to load user, clearing token:', err);
+        localStorage.removeItem('token');
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const login = useCallback(async (payload: LoginPayload) => {
-    setError(null);
+  async function login(credentials: { email: string; password: string }) {
     try {
-      const tokenResponse = await authApi.login(payload);
-      localStorage.setItem('access_token', tokenResponse.access_token);
-      const userData = await authApi.fetchMe();
-      setUser(mapBackendUser(userData));
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+      const response = await apiRequest<any>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(credentials),
+      });
+
+      let token: string | null = null;
+      if (typeof response === 'string') {
+        token = response.replace(/^"|"$/g, '');
+      } else if (response && typeof response === 'object') {
+        token = response.access_token || response.token || null;
+      }
+
+      if (!token) {
+        throw new Error('Login succeeded but no token was returned by the server.');
+      }
+
+      localStorage.setItem('token', token);
+
+      const me = await apiRequest<AuthUser>('/api/auth/me');
+      console.log('✅ [Auth] Login successful. Role:', extractRoleName(me));
+      setUser(me);
+    } catch (err) {
+      console.error('❌ [Auth] Login failed:', err);
       throw err;
     }
-  }, []);
+  }
 
-  const register = useCallback(async (_payload: RegisterPayload) => {
-    // Public registration is disabled per spec. Dummy function to prevent UI crashes.
-    throw new Error('Public registration is not supported. Please contact an administrator.');
-  }, []);
+  function logout() {
+    localStorage.removeItem('token');
+    setUser(null);
+  }
 
-  const logout = useCallback(async () => {
-    setError(null);
-    try { await authApi.logout(); } catch {}
-    finally {
-      localStorage.removeItem('access_token');
-      setUser(null);
+  function hasPermission(permission: string): boolean {
+    if (!user) return false;
+
+    const roleName = extractRoleName(user);
+    if (!roleName) {
+      console.warn('⚠️ [Auth] No role found for user. Raw user data:', user);
+      return false;
     }
-  }, []);
 
-  const hasPermission = useCallback(
-    (key: string) => Boolean(user?.permissions.includes(key) || user?.permissions.includes('all')),
-    [user]
+    const perms = ROLE_PERMISSIONS[roleName] || [];
+    const hasIt = perms.includes(permission) || perms.includes('all');
+    return hasIt;
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout, hasPermission }}>
+      {children}
+    </AuthContext.Provider>
   );
-
-  const value = useMemo(
-    () => ({ user, loading, error, login, register, logout, setUser, hasPermission, clearError: () => setError(null) }),
-    [user, loading, error, login, register, logout, hasPermission]
-  );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 }
+
+export { ApiClientError };

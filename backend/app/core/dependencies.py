@@ -20,19 +20,29 @@ async def get_current_user(
     )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("sub")
-        if user_id is None:
+        sub = payload.get("sub")
+        if sub is None:
             raise credentials_exception
+
+        # Handle sub being either an integer ID or an email string
+        try:
+            user_id = int(sub)
+            user = db.query(User).filter(User.id == user_id).first()
+        except (ValueError, TypeError):
+            # sub is a string (likely email)
+            user = db.query(User).filter(User.email == sub).first()
+
+        if user is None:
+            raise credentials_exception
+        if user.status != "active":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Inactive user account"
+            )
+        return user
+
     except JWTError:
         raise credentials_exception
-        
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise credentials_exception
-    if user.status != "active":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user account")
-    return user
-
 def require_role(allowed_roles: list[str]):
     """Dependency to enforce role-based access control."""
     async def role_checker(current_user: User = Depends(get_current_user)):

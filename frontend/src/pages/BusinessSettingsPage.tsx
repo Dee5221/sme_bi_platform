@@ -39,7 +39,7 @@ function formatDate(value: string) {
 }
 
 export function BusinessSettingsPage() {
-  const { setUser, hasPermission } = useAuth();
+  const { setUser, hasPermission } = useAuth() as any;
   const { pushToast } = useToast();
   const canView = hasPermission('business.view') || hasPermission('all');
   const canUpdate = hasPermission('business.update') || hasPermission('all');

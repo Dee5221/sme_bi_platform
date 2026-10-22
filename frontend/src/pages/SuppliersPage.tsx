@@ -18,27 +18,30 @@ import './SuppliersPage.css';
 
 type SupplierForm = {
   name: string;
+  contact: string;
   email: string;
   phone: string;
   address: string;
-  notes: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'active' | 'inactive';
 };
 
 const emptyForm: SupplierForm = {
   name: '',
+  contact: '',
   email: '',
   phone: '',
   address: '',
-  notes: '',
-  status: 'ACTIVE',
+  status: 'active',
 };
 
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const field = item.loc[item.loc.length - 1];
+      next[field] = item.msg;
+    }
   }
   return next;
 }
@@ -50,21 +53,11 @@ export function SuppliersPage() {
   const canView = hasPermission('suppliers.view');
   const canCreate = hasPermission('suppliers.create');
   const canUpdate = hasPermission('suppliers.update');
-  const canDelete = hasPermission('suppliers.delete');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [status, setStatus] = useState('ACTIVE');
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    totalPages: 1,
-  });
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
@@ -72,13 +65,9 @@ export function SuppliersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
   const [deactivateTarget, setDeactivateTarget] = useState<Supplier | null>(null);
   const [deactivating, setDeactivating] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
 
   const loadSuppliers = useCallback(async () => {
     if (!canView) {
@@ -88,24 +77,29 @@ export function SuppliersPage() {
     }
     setError(null);
     try {
-      const result = await supplierApi.listSuppliers({
-        search: debouncedSearch || undefined,
-        status,
-        page,
-        pageSize: 20,
-      });
-      setSuppliers(result.items);
-      setPagination(result.pagination);
+      const data = await supplierApi.listSuppliers();
+      setSuppliers(data);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Unable to load suppliers.');
     } finally {
       setLoading(false);
     }
-  }, [canView, debouncedSearch, status, page]);
+  }, [canView]);
 
   useEffect(() => {
     void loadSuppliers();
   }, [loadSuppliers]);
+
+  const filteredSuppliers = suppliers.filter((s) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.contact.toLowerCase().includes(q) ||
+      (s.email && s.email.toLowerCase().includes(q)) ||
+      (s.phone && s.phone.toLowerCase().includes(q))
+    );
+  });
 
   function openCreate() {
     setEditing(null);
@@ -119,11 +113,11 @@ export function SuppliersPage() {
     setEditing(supplier);
     setForm({
       name: supplier.name,
+      contact: supplier.contact,
       email: supplier.email || '',
       phone: supplier.phone || '',
       address: supplier.address || '',
-      notes: supplier.notes || '',
-      status: supplier.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+      status: supplier.status as 'active' | 'inactive',
     });
     setFormError(null);
     setFieldErrors({});
@@ -136,14 +130,15 @@ export function SuppliersPage() {
     setFormError(null);
     setFieldErrors({});
     try {
-      const payload = {
+      const payload: supplierApi.SupplierPayload = {
         name: form.name,
+        contact: form.contact,
         email: form.email || undefined,
         phone: form.phone || undefined,
         address: form.address || undefined,
-        notes: form.notes || undefined,
-        ...(editing && canDelete ? { status: form.status } : {}),
+        status: form.status,
       };
+
       if (editing) {
         await supplierApi.updateSupplier(editing.id, payload);
         pushToast('Supplier updated.', 'success');
@@ -152,7 +147,6 @@ export function SuppliersPage() {
         pushToast('Supplier created.', 'success');
       }
       setModalOpen(false);
-      setLoading(true);
       await loadSuppliers();
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -170,7 +164,9 @@ export function SuppliersPage() {
     if (!deactivateTarget) return;
     setDeactivating(true);
     try {
-      await supplierApi.deactivateSupplier(deactivateTarget.id);
+      // Backend uses PATCH for status changes, not DELETE
+      const payload = { status: 'inactive' } as supplierApi.SupplierPayload;
+      await supplierApi.updateSupplier(deactivateTarget.id, payload);
       pushToast('Supplier deactivated.', 'success');
       setDeactivateTarget(null);
       await loadSuppliers();
@@ -193,37 +189,19 @@ export function SuppliersPage() {
       <PageHeader
         title="Suppliers"
         subtitle="Register and manage your supplier records."
-        actions={
-          canCreate ? <Button onClick={openCreate}>Add supplier</Button> : null
-        }
+        actions={canCreate ? <Button onClick={openCreate}>Add supplier</Button> : null}
       />
 
       <Card>
-        <div className="suppliers-toolbar">
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}>
           <Input
             label="Search"
             name="search"
-            placeholder="Search name, email, or phone"
+            placeholder="Search name, contact, email, or phone"
             value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ maxWidth: '320px' }}
           />
-          <label className="suppliers-select">
-            <span>Status</span>
-            <select
-              value={status}
-              onChange={(e) => {
-                setPage(1);
-                setStatus(e.target.value);
-              }}
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="ALL">All</option>
-            </select>
-          </label>
         </div>
 
         {loading ? (
@@ -231,85 +209,53 @@ export function SuppliersPage() {
         ) : error ? (
           <Alert tone="error">{error}</Alert>
         ) : (
-          <>
-            <DataTable
-              rows={suppliers}
-              rowKey={(row) => row.id}
-              emptyTitle="No suppliers yet"
-              emptyDescription="Add your first supplier to link purchase records later."
-              columns={[
-                {
-                  key: 'name',
-                  header: 'Supplier',
-                  render: (row) => (
-                    <div>
-                      <strong>{row.name}</strong>
-                      {row.notes ? <div className="suppliers-muted">{row.notes}</div> : null}
-                    </div>
-                  ),
-                },
-                {
-                  key: 'email',
-                  header: 'Email',
-                  render: (row) => row.email || '—',
-                },
-                {
-                  key: 'phone',
-                  header: 'Phone',
-                  render: (row) => row.phone || '—',
-                },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  render: (row) => (
-                    <Badge tone={row.status === 'ACTIVE' ? 'green' : 'neutral'}>
-                      {row.status}
-                    </Badge>
-                  ),
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  render: (row) => (
-                    <div className="suppliers-actions">
-                      {canUpdate ? (
-                        <Button variant="ghost" onClick={() => openEdit(row)}>
-                          Edit
-                        </Button>
-                      ) : null}
-                      {canDelete && row.status === 'ACTIVE' ? (
-                        <Button variant="ghost" onClick={() => setDeactivateTarget(row)}>
-                          Deactivate
-                        </Button>
-                      ) : null}
-                    </div>
-                  ),
-                },
-              ]}
-            />
-
-            <div className="suppliers-pagination">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} suppliers
-              </span>
-              <div className="suppliers-actions">
-                <Button
-                  variant="secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((current) => current + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          </>
+          <DataTable
+            rows={filteredSuppliers}
+            rowKey={(row) => row.id}
+            emptyTitle="No suppliers found"
+            emptyDescription="Add your first supplier to link purchase records later."
+            columns={[
+              {
+                key: 'name',
+                header: 'Supplier',
+                render: (row) => (
+                  <div>
+                    <strong>{row.name}</strong>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>{row.contact}</div>
+                  </div>
+                ),
+              },
+              { key: 'email', header: 'Email', render: (row) => row.email || '—' },
+              { key: 'phone', header: 'Phone', render: (row) => row.phone || '—' },
+              {
+                key: 'status',
+                header: 'Status',
+                render: (row) => (
+                  <Badge tone={row.status === 'active' ? 'green' : 'neutral'}>
+                    {row.status}
+                  </Badge>
+                ),
+              },
+              {
+                key: 'actions',
+                header: 'Actions',
+                render: (row) => (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {canUpdate ? (
+                      <Button variant="secondary" onClick={() => openEdit(row)}>
+                        Edit
+                      </Button>
+                    ) : null}
+                    {row.status === 'active' ? (
+                      <Button variant="secondary" onClick={() => setDeactivateTarget(row)}>
+                        Deactivate
+                      </Button>
+                    ) : null}
+                  </div>
+                ),
+              },
+            ]}
+          />
         )}
       </Card>
 
@@ -317,68 +263,62 @@ export function SuppliersPage() {
         open={modalOpen}
         title={editing ? 'Edit supplier' : 'Add supplier'}
         onClose={() => setModalOpen(false)}
-        width="lg"
+        width="md"
       >
-        <form className="suppliers-form" onSubmit={onSave} noValidate>
+        <form onSubmit={onSave} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {formError ? <Alert tone="error">{formError}</Alert> : null}
-          <div className="suppliers-form__grid">
-            <Input
-              label="Name"
-              name="name"
-              value={form.name}
-              onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
-              error={fieldErrors.name}
-              required
-            />
-            <Input
-              label="Email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))}
-              error={fieldErrors.email}
-            />
-            <Input
-              label="Phone"
-              name="phone"
-              value={form.phone}
-              onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
-              error={fieldErrors.phone}
-            />
-            <Input
-              label="Address"
-              name="address"
-              value={form.address}
-              onChange={(e) => setForm((c) => ({ ...c, address: e.target.value }))}
-              error={fieldErrors.address}
-            />
-            {editing && canDelete ? (
-              <label className="suppliers-select">
-                <span>Status</span>
-                <select
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((c) => ({
-                      ...c,
-                      status: e.target.value as 'ACTIVE' | 'INACTIVE',
-                    }))
-                  }
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                </select>
-              </label>
-            ) : null}
-            <Input
-              label="Notes"
-              name="notes"
-              value={form.notes}
-              onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))}
-              error={fieldErrors.notes}
-              className="suppliers-form__full"
-            />
-          </div>
-          <div className="suppliers-form__actions">
+          <Input
+            label="Name"
+            name="name"
+            value={form.name}
+            onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
+            error={fieldErrors.name}
+            required
+          />
+          <Input
+            label="Contact Person"
+            name="contact"
+            value={form.contact}
+            onChange={(e) => setForm((c) => ({ ...c, contact: e.target.value }))}
+            error={fieldErrors.contact}
+            required
+          />
+          <Input
+            label="Email"
+            name="email"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm((c) => ({ ...c, email: e.target.value }))}
+            error={fieldErrors.email}
+          />
+          <Input
+            label="Phone"
+            name="phone"
+            value={form.phone}
+            onChange={(e) => setForm((c) => ({ ...c, phone: e.target.value }))}
+            error={fieldErrors.phone}
+          />
+          <Input
+            label="Address"
+            name="address"
+            value={form.address}
+            onChange={(e) => setForm((c) => ({ ...c, address: e.target.value }))}
+            error={fieldErrors.address}
+          />
+          {editing && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151' }}>Status</label>
+              <select
+                value={form.status}
+                onChange={(e) => setForm((c) => ({ ...c, status: e.target.value as 'active' | 'inactive' }))}
+                style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
             <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
@@ -399,10 +339,9 @@ export function SuppliersPage() {
         onConfirm={() => void onConfirmDeactivate()}
       >
         {deactivateTarget
-          ? `${deactivateTarget.name} will be marked inactive. Purchase records will remain intact.`
+          ? `${deactivateTarget.name} will be marked inactive. Historical records will remain intact.`
           : null}
       </ConfirmDialog>
     </div>
   );
 }
-

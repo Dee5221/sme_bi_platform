@@ -45,7 +45,7 @@ export function OwnerDashboardPage() {
         salesApi.listSales({}).catch(() => []),
         inventoryApi.listInventory({}).catch(() => []),
         productsApi.listProducts({}).catch(() => []),
-        customersApi.listCustomers({}).catch(() => []),
+        customersApi.listCustomers().catch(() => []),
       ]);
 
       // Handle both paginated {items:[]} and flat array responses

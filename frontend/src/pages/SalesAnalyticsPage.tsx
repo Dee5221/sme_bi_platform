@@ -1,310 +1,179 @@
 import { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
 import * as analyticsApi from '../services/analyticsService';
-import type { SalesAnalyticsData } from '../services/analyticsService';
-import { Alert } from '../components/ui/Alert';
+import type { SalesTrendPoint, SalesByCategoryItem } from '../services/analyticsService';
 import { Card } from '../components/ui/Card';
-import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { PageHeader } from '../components/ui/PageHeader';
-import { GroupedBarChart, SimpleBarChart } from '../components/ui/SimpleBarChart';
-import './BusinessAnalyticsPage.css';
+import { Alert } from '../components/ui/Alert';
+import './dashboard.css';
 
-const PERIOD_OPTIONS = [
-  { value: 3, label: '3 months' },
-  { value: 6, label: '6 months' },
-  { value: 12, label: '12 months' },
-];
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
+function formatCurrency(amount: number): string {
+  return `K${amount.toLocaleString('en-ZM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function SalesAnalyticsPage() {
-  const { hasPermission } = useAuth();
-  const canView = hasPermission('analytics.view');
-  const [months, setMonths] = useState(6);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [analytics, setAnalytics] = useState<SalesAnalyticsData | null>(null);
+  const [trend, setTrend] = useState<SalesTrendPoint[]>([]);
+  const [byCategory, setByCategory] = useState<SalesByCategoryItem[]>([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [groupBy, setGroupBy] = useState<'day' | 'month'>('day');
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      setError(null);
+      const params: any = {};
+      if (startDate) params.start_date = startDate;
+      if (endDate) params.end_date = endDate;
+
+      const [trendData, categoryData] = await Promise.all([
+        analyticsApi.fetchSalesTrend({ ...params, group_by: groupBy }),
+        analyticsApi.fetchSalesByCategory(params),
+      ]);
+      setTrend(trendData);
+      setByCategory(categoryData);
+    } catch (err: any) {
+      setError(err.message || 'Unable to load sales analytics.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!canView) {
-        setError('You do not have permission to view sales analytics.');
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await analyticsApi.fetchSalesAnalytics(months);
-        if (active) {
-          setAnalytics(result.analytics);
-          setError(null);
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof ApiClientError ? err.message : 'Unable to load sales analytics.'
-          );
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [canView, months]);
+    void loadData();
+  }, [groupBy]);
 
-  if (!canView) {
-    return <Alert tone="error">You do not have permission to view sales analytics.</Alert>;
-  }
-
-  if (loading) {
-    return (
-      <Card>
-        <LoadingSkeleton rows={10} />
-      </Card>
-    );
-  }
-
-  if (error || !analytics) {
-    return <Alert tone="error">{error || 'Sales analytics unavailable.'}</Alert>;
-  }
-
-  const {
-    summary,
-    monthlyTrend,
-    topProductsByRevenue,
-    topProductsByQuantity,
-    topCustomers,
-    walkInSummary,
-    period,
-  } = analytics;
+  const maxRevenue = Math.max(...trend.map((t) => t.revenue), 1);
 
   return (
-    <div className="business-analytics-page">
-      <PageHeader
-        title="Sales Analytics"
-        subtitle={`Sales performance and customer insights · ${period.label}`}
-        actions={
-          <div className="analytics-period">
-            <label htmlFor="sales-analytics-period">Period</label>
-            <select
-              id="sales-analytics-period"
-              value={months}
-              onChange={(event) => setMonths(Number(event.target.value))}
+    <div className="dashboard-page">
+      <div className="dashboard-header">
+        <div>
+          <h1 className="dashboard-title">Sales Analytics</h1>
+          <p className="dashboard-subtitle">Revenue trends and category performance.</p>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <Card>
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' }}>
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' }}>
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '4px' }}>
+                Group By
+              </label>
+              <select
+                value={groupBy}
+                onChange={(e) => setGroupBy(e.target.value as 'day' | 'month')}
+                style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+              >
+                <option value="day">Day</option>
+                <option value="month">Month</option>
+              </select>
+            </div>
+            <button
+              onClick={loadData}
+              style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
             >
-              {PERIOD_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              Apply
+            </button>
           </div>
-        }
-      />
-
-      <section className="analytics-kpi-grid" aria-label="Sales summary">
-        <article className="analytics-kpi analytics-kpi--revenue">
-          <p>Total revenue</p>
-          <h2>{formatMoney(summary.totalRevenue)}</h2>
-          <span>{summary.totalSales} completed sales</span>
-        </article>
-        <article className="analytics-kpi analytics-kpi--net">
-          <p>Average order value</p>
-          <h2>{formatMoney(summary.averageOrderValue)}</h2>
-          <span>Per completed sale</span>
-        </article>
-        <article className="analytics-kpi analytics-kpi--expense">
-          <p>Units sold</p>
-          <h2>{summary.totalUnitsSold}</h2>
-          <span>Across all line items</span>
-        </article>
-        <article className="analytics-kpi analytics-kpi--context">
-          <p>Sale mix</p>
-          <ul className="analytics-context-list">
-            <li>
-              {summary.customerLinkedSales} customer sales · {formatMoney(summary.customerRevenue)}
-            </li>
-            <li>
-              {summary.walkInSales} walk-in sales · {formatMoney(summary.walkInRevenue)}
-            </li>
-          </ul>
-        </article>
-      </section>
-
-      <div className="analytics-grid">
-        <Card title="Monthly revenue trend">
-          <GroupedBarChart
-            groups={monthlyTrend.map((row) => ({
-              key: row.key,
-              label: row.label,
-              values: [{ key: 'revenue', value: row.revenue, tone: 'primary' }],
-            }))}
-            formatValue={formatMoney}
-            legend={[{ key: 'revenue', label: 'Revenue', tone: 'primary' }]}
-            emptyLabel="No sales revenue in this period."
-          />
-        </Card>
-
-        <Card title="Monthly sales volume">
-          <GroupedBarChart
-            groups={monthlyTrend.map((row) => ({
-              key: row.key,
-              label: row.label,
-              values: [
-                { key: 'sales', value: row.salesCount, tone: 'primary' },
-                { key: 'units', value: row.unitsSold, tone: 'accent' },
-              ],
-            }))}
-            formatValue={(value) => String(value)}
-            legend={[
-              { key: 'sales', label: 'Sales', tone: 'primary' },
-              { key: 'units', label: 'Units', tone: 'accent' },
-            ]}
-            emptyLabel="No sales activity in this period."
-          />
-        </Card>
-
-        <Card title="Average order value by month">
-          <SimpleBarChart
-            series={monthlyTrend.map((row) => ({
-              key: row.key,
-              label: row.label,
-              value: row.averageOrderValue,
-              tone: 'accent',
-            }))}
-            formatValue={formatMoney}
-            emptyLabel="No average order value data for this period."
-          />
-        </Card>
-
-        <Card title="Top customers by revenue">
-          {topCustomers.length === 0 && walkInSummary.salesCount === 0 ? (
-            <EmptyState
-              title="No customer sales yet"
-              description="Sales linked to customers will appear here."
-            />
-          ) : (
-            <>
-              {topCustomers.length > 0 && (
-                <SimpleBarChart
-                  series={topCustomers.map((customer) => ({
-                    key: customer.customerId,
-                    label: customer.customerName.slice(0, 10),
-                    value: customer.revenue,
-                    tone: 'primary',
-                  }))}
-                  formatValue={formatMoney}
-                />
-              )}
-              <ul className="analytics-rank-list">
-                {topCustomers.map((customer, index) => (
-                  <li key={customer.customerId}>
-                    <span>{index + 1}</span>
-                    <div>
-                      <strong>{customer.customerName}</strong>
-                      <span>
-                        {customer.salesCount} sale{customer.salesCount === 1 ? '' : 's'} ·{' '}
-                        {formatMoney(customer.revenue)}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-                {walkInSummary.salesCount > 0 && (
-                  <li>
-                    <span>•</span>
-                    <div>
-                      <strong>Walk-in (no customer)</strong>
-                      <span>
-                        {walkInSummary.salesCount} sale
-                        {walkInSummary.salesCount === 1 ? '' : 's'} ·{' '}
-                        {formatMoney(walkInSummary.revenue)}
-                      </span>
-                    </div>
-                  </li>
-                )}
-              </ul>
-            </>
-          )}
-        </Card>
-
-        <Card title="Top products by revenue">
-          {topProductsByRevenue.length === 0 ? (
-            <EmptyState
-              title="No product sales yet"
-              description="Completed sales in this period will appear here."
-            />
-          ) : (
-            <>
-              <SimpleBarChart
-                series={topProductsByRevenue.map((product) => ({
-                  key: product.productId,
-                  label: product.productSku,
-                  value: product.revenue,
-                  tone: 'primary',
-                }))}
-                formatValue={formatMoney}
-              />
-              <ul className="analytics-rank-list">
-                {topProductsByRevenue.map((product, index) => (
-                  <li key={product.productId}>
-                    <span>{index + 1}</span>
-                    <div>
-                      <strong>{product.productName}</strong>
-                      <span>
-                        {product.quantity} units · {formatMoney(product.revenue)}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Card>
-
-        <Card title="Top products by units sold">
-          {topProductsByQuantity.length === 0 ? (
-            <EmptyState
-              title="No product sales yet"
-              description="Unit volumes from completed sales will appear here."
-            />
-          ) : (
-            <>
-              <SimpleBarChart
-                series={topProductsByQuantity.map((product) => ({
-                  key: `${product.productId}-qty`,
-                  label: product.productSku,
-                  value: product.quantity,
-                  tone: 'accent',
-                }))}
-                formatValue={(value) => `${value} units`}
-              />
-              <ul className="analytics-rank-list">
-                {topProductsByQuantity.map((product, index) => (
-                  <li key={`${product.productId}-qty`}>
-                    <span>{index + 1}</span>
-                    <div>
-                      <strong>{product.productName}</strong>
-                      <span>
-                        {product.quantity} units · {formatMoney(product.revenue)}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
         </Card>
       </div>
+
+      {error && <Alert tone="error">{error}</Alert>}
+
+      {loading ? (
+        <LoadingSkeleton rows={10} />
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          {/* Sales Trend Chart */}
+          <Card>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>Sales Trend</h2>
+            {trend.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No sales data for the selected period.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {trend.map((point) => (
+                  <div key={point.period} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748b', width: '80px', flexShrink: 0 }}>
+                      {point.period}
+                    </span>
+                    <div style={{ flex: 1, background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${(point.revenue / maxRevenue) * 100}%`,
+                          background: '#2563eb',
+                          height: '24px',
+                          borderRadius: '4px',
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, width: '100px', textAlign: 'right' }}>
+                      {formatCurrency(point.revenue)}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', width: '40px' }}>
+                      {point.transactions} txns
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Sales by Category */}
+          <Card>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>Sales by Category</h2>
+            {byCategory.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No category data for the selected period.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <th style={{ textAlign: 'left', padding: '8px', fontSize: '12px', color: '#64748b' }}>Category</th>
+                    <th style={{ textAlign: 'right', padding: '8px', fontSize: '12px', color: '#64748b' }}>Revenue</th>
+                    <th style={{ textAlign: 'right', padding: '8px', fontSize: '12px', color: '#64748b' }}>Units Sold</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byCategory.map((item) => (
+                    <tr key={item.category_name} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '10px 8px', fontWeight: 500 }}>{item.category_name}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 600 }}>
+                        {formatCurrency(item.revenue)}
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'right' }}>{item.units_sold}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

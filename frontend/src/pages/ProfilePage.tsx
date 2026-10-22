@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { ApiClientError, mediaUrl } from '../lib/api';
+import { ApiClientError } from '../lib/api';
 import * as profileApi from '../services/profileService';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
@@ -11,24 +11,6 @@ import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { PageHeader } from '../components/ui/PageHeader';
 import { useToast } from '../components/ui/Toast';
 import './ProfilePage.css';
-
-function mapToAuthUser(raw: any, existingUser: any): any {
-  const nameParts = (raw.name || '').split(' ');
-  return {
-    ...raw,
-    businessId: raw.business_id,
-    firstName: nameParts[0] || raw.name,
-    lastName: nameParts.slice(1).join(' ') || '',
-    phone: raw.phone || existingUser?.phone || null,
-    avatarUrl: raw.avatarUrl || existingUser?.avatarUrl || null,
-    accountType: raw.role?.role_name || existingUser?.accountType,
-    isActive: raw.status === 'active',
-    roles: raw.roles || (raw.role?.role_name ? [raw.role.role_name] : []) || existingUser?.roles || [],
-    permissions: existingUser?.permissions || [],
-    business: existingUser?.business || { id: raw.business_id, name: 'Business' },
-    _raw: raw
-  };
-}
 
 type ProfileForm = {
   firstName: string;
@@ -62,15 +44,16 @@ function mapFieldErrors(details: unknown): Record<string, string> {
 }
 
 export function ProfilePage() {
-  const { user, setUser, hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { pushToast } = useToast();
+
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [profileForm, setProfileForm] = useState<ProfileForm>({
-    firstName: '',
-    lastName: '',
-    email: '',
+    firstName: user?.first_name || '',
+    lastName: user?.last_name || '',
+    email: user?.email || '',
     phone: '',
   });
 
@@ -96,18 +79,27 @@ export function ProfilePage() {
         return;
       }
       try {
-        // Backend returns the user object directly, not wrapped in { user: ... }
-        const result = await profileApi.fetchProfile();
+        const profileData = await profileApi.fetchProfile();
         if (!active) return;
 
-        const mappedUser = mapToAuthUser(result, user);
-        setUser(mappedUser);
+        // The API user payload may expose camelCase fields even when the auth user
+        // object uses snake_case fields. Support both to avoid a type mismatch.
+        const userData = profileData.user as Partial<{
+          first_name?: string;
+          last_name?: string;
+          firstName?: string;
+          lastName?: string;
+          email?: string;
+          phone?: string;
+        }>;
 
         setProfileForm({
-          firstName: mappedUser.firstName || '',
-          lastName: mappedUser.lastName || '',
-          email: mappedUser.email || '',
-          phone: mappedUser.phone || '',
+          firstName:
+            userData.firstName || userData.first_name || user?.first_name || '',
+          lastName:
+            userData.lastName || userData.last_name || user?.last_name || '',
+          email: userData.email || user?.email || '',
+          phone: userData.phone || '',
         });
         setLoadError(null);
       } catch (err) {
@@ -124,7 +116,7 @@ export function ProfilePage() {
     return () => {
       active = false;
     };
-  }, [canView, setUser, user]);
+  }, [canView, user]);
 
   async function onSaveProfile(event: FormEvent) {
     event.preventDefault();
@@ -133,13 +125,12 @@ export function ProfilePage() {
     setProfileFieldErrors({});
     setSavingProfile(true);
     try {
-      const result = await profileApi.updateProfile({
+      await profileApi.updateProfile({
         firstName: profileForm.firstName,
         lastName: profileForm.lastName,
         email: profileForm.email,
         phone: profileForm.phone || undefined,
       });
-      setUser(mapToAuthUser(result, user));
       pushToast('Profile updated.', 'success');
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -167,7 +158,6 @@ export function ProfilePage() {
     setPasswordFieldErrors({});
     setSavingPassword(true);
     try {
-      // Backend typically expects snake_case for password fields
       await profileApi.changePassword({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
@@ -192,8 +182,7 @@ export function ProfilePage() {
     setAvatarError(null);
     setUploadingAvatar(true);
     try {
-      const result = await profileApi.uploadAvatar(file);
-      setUser(mapToAuthUser(result, user));
+      await profileApi.uploadAvatar(file);
       pushToast('Profile photo updated.', 'success');
     } catch (err) {
       setAvatarError(
@@ -218,8 +207,7 @@ export function ProfilePage() {
 
   if (!user) return null;
 
-  const avatarSrc = mediaUrl(user.avatarUrl);
-  const initials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase();
+  const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U';
 
   return (
     <div className="profile-page">
@@ -232,15 +220,11 @@ export function ProfilePage() {
         <Card title="Account summary">
           <div className="profile-avatar-block">
             <div className="profile-avatar" aria-hidden="true">
-              {avatarSrc ? (
-                <img src={avatarSrc} alt="" className="profile-avatar__image" />
-              ) : (
-                <span>{initials || 'U'}</span>
-              )}
+              <span>{initials}</span>
             </div>
             <div className="profile-avatar__meta">
               <strong>
-                {user.firstName} {user.lastName}
+                {user.first_name} {user.last_name}
               </strong>
               <span>{user.email}</span>
               {canUpdate ? (
@@ -263,25 +247,32 @@ export function ProfilePage() {
           </div>
           <dl className="profile-summary">
             <div>
-              <dt>Business</dt>
-              <dd>{user.business?.name || 'N/A'}</dd>
+              <dt>Business ID</dt>
+              <dd>{user.business_id || 'N/A'}</dd>
             </div>
             <div>
               <dt>Roles</dt>
               <dd className="profile-chips">
-                {user.roles?.map((role: string) => (
-                  <Badge key={role} tone="blue">
-                    {role}
-                  </Badge>
-                ))}
+                {user.roles?.map((role, index) => {
+                  const roleName =
+                    typeof role === 'string'
+                      ? role
+                      : role && typeof role === 'object' && 'role_name' in role
+                        ? role.role_name
+                        : `Role ${index + 1}`;
+
+                  return (
+                    <Badge key={roleName || `role-${index}`} tone="blue">
+                      {roleName}
+                    </Badge>
+                  );
+                })}
               </dd>
             </div>
             <div>
               <dt>Status</dt>
               <dd>
-                <Badge tone={user.isActive ? 'green' : 'red'}>
-                  {user.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+                <Badge tone="green">Active</Badge>
               </dd>
             </div>
           </dl>

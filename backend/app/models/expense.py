@@ -20,5 +20,6 @@ class Expense(Base):
     payment_method: Mapped[str] = mapped_column(String(50), nullable=False)
     notes: Mapped[str] = mapped_column(String(500), nullable=True)
 
+    # Relationships - MUST be indented inside the class
     business = relationship("Business", back_populates="expenses")
     user = relationship("User", back_populates="expenses")

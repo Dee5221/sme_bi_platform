@@ -2,13 +2,12 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import * as expenseApi from '../services/expenseService';
-import type { Expense, ExpenseCategory } from '../services/expenseService';
+import type { Expense, ExpensePayload } from '../services/expenseService';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { DataTable } from '../components/ui/DataTable';
 import { Input } from '../components/ui/Input';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { Modal } from '../components/ui/Modal';
@@ -16,43 +15,64 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { useToast } from '../components/ui/Toast';
 import './ExpensesPage.css';
 
+// Predefined categories (frontend suggestions, not backend-enforced)
+const DEFAULT_CATEGORIES = [
+  'Utilities',
+  'Rent',
+  'Transport',
+  'Supplies',
+  'Maintenance',
+  'Salaries and Wages',
+  'Marketing',
+  'Other',
+];
+
+const ITEMS_PER_PAGE = 15;
+
 type ExpenseForm = {
-  title: string;
+  date: string;
+  category: string;
+  description: string;
   amount: string;
-  expenseDate: string;
-  categoryId: string;
+  payment_method: string;
   notes: string;
-  status: 'ACTIVE' | 'INACTIVE';
 };
 
-const emptyForm = (): ExpenseForm => ({
-  title: '',
+const emptyForm: ExpenseForm = {
+  date: new Date().toISOString().split('T')[0],
+  category: '',
+  description: '',
   amount: '',
-  expenseDate: new Date().toISOString().slice(0, 10),
-  categoryId: '',
+  payment_method: '',
   notes: '',
-  status: 'ACTIVE',
-});
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString();
-}
+};
 
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      const field = item.loc[item.loc.length - 1];
+      next[field] = item.msg;
+    }
   }
   return next;
+}
+
+function formatCurrency(amount: number): string {
+  return `K${amount.toLocaleString('en-ZM', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-ZM', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export function ExpensesPage() {
@@ -67,36 +87,25 @@ export function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [status, setStatus] = useState('ACTIVE');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pageSize: 20,
-    total: 0,
-    totalPages: 1,
-  });
 
+  // Search and filter state
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Modal state
   const [modalOpen, setModalOpen] = useState(false);
-  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
-  const [form, setForm] = useState<ExpenseForm>(emptyForm());
-  const [categoryName, setCategoryName] = useState('');
+  const [form, setForm] = useState<ExpenseForm>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [deactivateTarget, setDeactivateTarget] = useState<Expense | null>(null);
-  const [deactivating, setDeactivating] = useState(false);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
+  // Delete confirmation state
+  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadExpenses = useCallback(async () => {
     if (!canView) {
       setError('You do not have permission to view expenses.');
       setLoading(false);
@@ -104,38 +113,63 @@ export function ExpensesPage() {
     }
     setError(null);
     try {
-      const [expenseResult, categoryResult] = await Promise.all([
-        expenseApi.listExpenses({
-          search: debouncedSearch || undefined,
-          status,
-          categoryId: categoryFilter || undefined,
-          page,
-          pageSize: 20,
-        }),
-        expenseApi.listExpenseCategories(true),
-      ]);
-      setExpenses(expenseResult.items);
-      setPagination(expenseResult.pagination);
-      setCategories(categoryResult.categories);
+      const data = await expenseApi.listExpenses();
+      setExpenses(data);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Unable to load expenses.');
     } finally {
       setLoading(false);
     }
-  }, [canView, debouncedSearch, status, categoryFilter, page]);
+  }, [canView]);
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    void loadExpenses();
+  }, [loadExpenses]);
 
-  const activeCategories = useMemo(
-    () => categories.filter((category) => category.isActive),
-    [categories]
-  );
+  // Build category options from existing records
+  const availableCategories = useMemo(() => {
+    const existing = new Set(expenses.map((e) => e.category));
+    const all = new Set([...DEFAULT_CATEGORIES, ...existing]);
+    return Array.from(all).sort();
+  }, [expenses]);
+
+  // Client-side filtering
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((expense) => {
+      // Category filter
+      if (categoryFilter && expense.category !== categoryFilter) {
+        return false;
+      }
+
+      // Search across category, description, payment method
+      if (search) {
+        const q = search.toLowerCase();
+        const matchesSearch =
+          expense.category.toLowerCase().includes(q) ||
+          (expense.description && expense.description.toLowerCase().includes(q)) ||
+          (expense.payment_method && expense.payment_method.toLowerCase().includes(q));
+        if (!matchesSearch) return false;
+      }
+
+      return true;
+    });
+  }, [expenses, search, categoryFilter]);
+
+  // Client-side pagination
+  const totalPages = Math.max(1, Math.ceil(filteredExpenses.length / ITEMS_PER_PAGE));
+  const paginatedExpenses = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredExpenses.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredExpenses, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, categoryFilter]);
 
   function openCreate() {
     setEditing(null);
-    setForm(emptyForm());
+    setForm(emptyForm);
     setFormError(null);
     setFieldErrors({});
     setModalOpen(true);
@@ -144,48 +178,54 @@ export function ExpensesPage() {
   function openEdit(expense: Expense) {
     setEditing(expense);
     setForm({
-      title: expense.title,
-      amount: String(expense.amount),
-      expenseDate: new Date(expense.expenseDate).toISOString().slice(0, 10),
-      categoryId: expense.categoryId || '',
+      date: expense.date,
+      category: expense.category,
+      amount: expense.amount.toString(),
+      description: expense.description || '',
+      payment_method: expense.payment_method || '',
       notes: expense.notes || '',
-      status: expense.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
     });
     setFormError(null);
     setFieldErrors({});
     setModalOpen(true);
   }
 
-  async function onSaveExpense(event: FormEvent) {
+  async function onSave(event: FormEvent) {
     event.preventDefault();
-    const amount = Number(form.amount);
-    if (Number.isNaN(amount) || amount <= 0) {
-      setFieldErrors({ amount: 'Enter an amount greater than zero.' });
-      return;
-    }
+    if (!canCreate && !editing) return;
+    if (!canUpdate && editing) return;
 
     setSaving(true);
     setFormError(null);
     setFieldErrors({});
+
     try {
-      const payload = {
-        title: form.title,
+      const amount = parseFloat(form.amount);
+      if (isNaN(amount) || amount <= 0) {
+        setFieldErrors({ amount: 'Amount must be a positive number.' });
+        setSaving(false);
+        return;
+      }
+
+      const payload: ExpensePayload = {
+        date: form.date,
+        category: form.category,
         amount,
-        expenseDate: form.expenseDate,
-        categoryId: form.categoryId || undefined,
-        notes: form.notes || undefined,
-        ...(editing ? { status: form.status } : {}),
+        description: form.description.trim() || '',
+        payment_method: form.payment_method.trim() || '',
+        notes: form.notes.trim() || '',
       };
+
       if (editing) {
         await expenseApi.updateExpense(editing.id, payload);
         pushToast('Expense updated.', 'success');
       } else {
         await expenseApi.createExpense(payload);
-        pushToast('Expense recorded.', 'success');
+        pushToast('Expense created.', 'success');
       }
+
       setModalOpen(false);
-      setLoading(true);
-      await loadData();
+      await loadExpenses();
     } catch (err) {
       if (err instanceof ApiClientError) {
         setFormError(err.message);
@@ -198,44 +238,23 @@ export function ExpensesPage() {
     }
   }
 
-  async function onSaveCategory(event: FormEvent) {
-    event.preventDefault();
-    setSaving(true);
-    setFormError(null);
-    setFieldErrors({});
-    try {
-      await expenseApi.createExpenseCategory({ name: categoryName });
-      pushToast('Category created.', 'success');
-      setCategoryModalOpen(false);
-      setCategoryName('');
-      await loadData();
-    } catch (err) {
-      if (err instanceof ApiClientError) {
-        setFormError(err.message);
-        setFieldErrors(mapFieldErrors(err.details));
-      } else {
-        setFormError('Unable to create category.');
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
+  async function onConfirmDelete() {
+    if (!deleteTarget) return;
+    if (!canDelete) return;
 
-  async function onConfirmDeactivate() {
-    if (!deactivateTarget) return;
-    setDeactivating(true);
+    setDeleting(true);
     try {
-      await expenseApi.deactivateExpense(deactivateTarget.id);
-      pushToast('Expense deactivated.', 'success');
-      setDeactivateTarget(null);
-      await loadData();
+      await expenseApi.deleteExpense(deleteTarget.id);
+      pushToast('Expense deleted.', 'success');
+      setDeleteTarget(null);
+      await loadExpenses();
     } catch (err) {
       pushToast(
-        err instanceof ApiClientError ? err.message : 'Unable to deactivate expense.',
+        err instanceof ApiClientError ? err.message : 'Unable to delete expense.',
         'error'
       );
     } finally {
-      setDeactivating(false);
+      setDeleting(false);
     }
   }
 
@@ -247,278 +266,235 @@ export function ExpensesPage() {
     <div className="expenses-page">
       <PageHeader
         title="Expenses"
-        subtitle="Record and categorize business expenses."
-        actions={
-          <>
-            {canCreate ? (
-              <Button variant="secondary" onClick={() => setCategoryModalOpen(true)}>
-                Add category
-              </Button>
-            ) : null}
-            {canCreate ? <Button onClick={openCreate}>Add expense</Button> : null}
-          </>
-        }
+        subtitle="Record and manage business expenses."
+        actions={canCreate ? <Button onClick={openCreate}>Add Expense</Button> : null}
       />
 
-      <Card>
-        <div className="expenses-toolbar">
+      {/* Search and Filter Bar */}
+      <Card className="expenses-filters">
+        <div className="expenses-filters__row">
           <Input
             label="Search"
             name="search"
-            placeholder="Search title or notes"
+            placeholder="Search category, description, or payment method"
             value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ maxWidth: '320px' }}
           />
-          <label className="expenses-select">
-            <span>Status</span>
+          <div className="expenses-filters__field">
+            <label className="expenses-filters__label">Category</label>
             <select
-              value={status}
-              onChange={(e) => {
-                setPage(1);
-                setStatus(e.target.value);
-              }}
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="ALL">All</option>
-            </select>
-          </label>
-          <label className="expenses-select">
-            <span>Category</span>
-            <select
+              className="expenses-filters__select"
               value={categoryFilter}
-              onChange={(e) => {
-                setPage(1);
-                setCategoryFilter(e.target.value);
-              }}
+              onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              <option value="">All categories</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                  {!category.isActive ? ' (inactive)' : ''}
+              <option value="">All Categories</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
                 </option>
               ))}
             </select>
-          </label>
+          </div>
         </div>
+      </Card>
 
+      {/* Expenses Table */}
+      <Card>
         {loading ? (
           <LoadingSkeleton rows={6} />
         ) : error ? (
           <Alert tone="error">{error}</Alert>
+        ) : paginatedExpenses.length === 0 ? (
+          <div className="expenses-empty">
+            <h3>No expenses found</h3>
+            <p>
+              {expenses.length === 0
+                ? 'Add your first expense to start tracking business expenditures.'
+                : 'No expenses match the current filters.'}
+            </p>
+            {canCreate && expenses.length === 0 && (
+              <Button onClick={openCreate}>Add Expense</Button>
+            )}
+          </div>
         ) : (
           <>
-            <DataTable
-              rows={expenses}
-              rowKey={(row) => row.id}
-              emptyTitle="No expenses yet"
-              emptyDescription="Record your first expense to track business costs."
-              columns={[
-                {
-                  key: 'title',
-                  header: 'Expense',
-                  render: (row) => (
-                    <div>
-                      <strong>{row.title}</strong>
-                      <div className="expenses-muted">{formatDate(row.expenseDate)}</div>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'category',
-                  header: 'Category',
-                  render: (row) => row.category?.name || '—',
-                },
-                {
-                  key: 'amount',
-                  header: 'Amount',
-                  render: (row) => formatMoney(row.amount),
-                },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  render: (row) => (
-                    <Badge tone={row.status === 'ACTIVE' ? 'green' : 'neutral'}>
-                      {row.status}
-                    </Badge>
-                  ),
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  render: (row) => (
-                    <div className="expenses-actions">
-                      {canUpdate ? (
-                        <Button variant="ghost" onClick={() => openEdit(row)}>
-                          Edit
-                        </Button>
-                      ) : null}
-                      {canDelete && row.status === 'ACTIVE' ? (
-                        <Button variant="ghost" onClick={() => setDeactivateTarget(row)}>
-                          Deactivate
-                        </Button>
-                      ) : null}
-                    </div>
-                  ),
-                },
-              ]}
-            />
-
-            <div className="expenses-pagination">
-              <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} expenses
-              </span>
-              <div className="expenses-actions">
-                <Button
-                  variant="secondary"
-                  disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="secondary"
-                  disabled={page >= pagination.totalPages}
-                  onClick={() => setPage((current) => current + 1)}
-                >
-                  Next
-                </Button>
-              </div>
+            <div className="expenses-table-wrapper">
+              <table className="expenses-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Payment Method</th>
+                    <th className="expenses-table__right">Amount</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedExpenses.map((expense) => (
+                    <tr key={expense.id}>
+                      <td>{formatDate(expense.date)}</td>
+                      <td>
+                        <Badge tone="blue">{expense.category}</Badge>
+                      </td>
+                      <td>{expense.description || '—'}</td>
+                      <td>{expense.payment_method || '—'}</td>
+                      <td className="expenses-table__right expenses-table__bold">
+                        {formatCurrency(expense.amount)}
+                      </td>
+                      <td>
+                        <div className="expenses-actions">
+                          {canUpdate && (
+                            <Button variant="ghost" onClick={() => openEdit(expense)}>
+                              Edit
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button variant="ghost" onClick={() => setDeleteTarget(expense)}>
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="expenses-pagination">
+                <div className="expenses-pagination__info">
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to{' '}
+                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredExpenses.length)} of{' '}
+                  {filteredExpenses.length} expenses
+                </div>
+                <div className="expenses-pagination__controls">
+                  <Button
+                    variant="secondary"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="expenses-pagination__page">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </Card>
 
+      {/* Create/Edit Modal */}
       <Modal
         open={modalOpen}
-        title={editing ? 'Edit expense' : 'Add expense'}
+        title={editing ? 'Edit Expense' : 'Add Expense'}
         onClose={() => setModalOpen(false)}
-        width="lg"
+        width="md"
       >
-        <form className="expenses-form" onSubmit={onSaveExpense} noValidate>
-          {formError ? <Alert tone="error">{formError}</Alert> : null}
-          <div className="expenses-form__grid">
+        <form onSubmit={onSave} noValidate className="expenses-form">
+          {formError && <Alert tone="error">{formError}</Alert>}
+
+          <div className="expenses-form__row">
             <Input
-              label="Title"
-              name="title"
-              value={form.title}
-              onChange={(e) => setForm((c) => ({ ...c, title: e.target.value }))}
-              error={fieldErrors.title}
-              required
-            />
-            <Input
-              label="Amount"
-              name="amount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={form.amount}
-              onChange={(e) => setForm((c) => ({ ...c, amount: e.target.value }))}
-              error={fieldErrors.amount}
-              required
-            />
-            <Input
-              label="Date"
-              name="expenseDate"
+              label="Expense Date"
+              name="date"
               type="date"
-              value={form.expenseDate}
-              onChange={(e) => setForm((c) => ({ ...c, expenseDate: e.target.value }))}
-              error={fieldErrors.expenseDate}
+              value={form.date}
+              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              error={fieldErrors.date}
               required
             />
-            <label className="expenses-select">
-              <span>Category (optional)</span>
+            <div className="expenses-form__field">
+              <label className="expenses-form__label">
+                Category <span className="expenses-form__required">*</span>
+              </label>
               <select
-                value={form.categoryId}
-                onChange={(e) => setForm((c) => ({ ...c, categoryId: e.target.value }))}
+                className="expenses-form__select"
+                value={form.category}
+                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
               >
-                <option value="">No category</option>
-                {activeCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
+                <option value="">Select category</option>
+                {availableCategories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
                   </option>
                 ))}
               </select>
-            </label>
-            {editing ? (
-              <label className="expenses-select">
-                <span>Status</span>
-                <select
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((c) => ({
-                      ...c,
-                      status: e.target.value as 'ACTIVE' | 'INACTIVE',
-                    }))
-                  }
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                </select>
-              </label>
-            ) : null}
-            <Input
-              label="Notes"
-              name="notes"
-              value={form.notes}
-              onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))}
-              error={fieldErrors.notes}
-              className="expenses-form__full"
-            />
+              {fieldErrors.category && (
+                <span className="expenses-form__error">{fieldErrors.category}</span>
+              )}
+            </div>
           </div>
+
+          <Input
+            label="Amount"
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={form.amount}
+            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+            error={fieldErrors.amount}
+            placeholder="0.00"
+            required
+          />
+
+          <Input
+            label="Description"
+            name="description"
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            error={fieldErrors.description}
+            placeholder="Optional description"
+          />
+
+          <Input
+            label="Payment Method"
+            name="payment_method"
+            value={form.payment_method}
+            onChange={(e) => setForm((f) => ({ ...f, payment_method: e.target.value }))}
+            error={fieldErrors.payment_method}
+            placeholder="e.g., Cash, Card, Mobile Money"
+          />
+
           <div className="expenses-form__actions">
             <Button type="button" variant="secondary" onClick={() => setModalOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" loading={saving}>
-              {editing ? 'Save changes' : 'Record expense'}
+              {editing ? 'Save Changes' : 'Create Expense'}
             </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal
-        open={categoryModalOpen}
-        title="Add expense category"
-        onClose={() => setCategoryModalOpen(false)}
-      >
-        <form className="expenses-form" onSubmit={onSaveCategory} noValidate>
-          {formError ? <Alert tone="error">{formError}</Alert> : null}
-          <Input
-            label="Category name"
-            name="name"
-            value={categoryName}
-            onChange={(e) => setCategoryName(e.target.value)}
-            error={fieldErrors.name}
-            required
-          />
-          <div className="expenses-form__actions">
-            <Button type="button" variant="secondary" onClick={() => setCategoryModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={saving}>
-              Create category
-            </Button>
-          </div>
-        </form>
-      </Modal>
-
+      {/* Delete Confirmation Dialog */}
       <ConfirmDialog
-        open={Boolean(deactivateTarget)}
-        title="Deactivate expense?"
-        confirmLabel="Deactivate"
+        open={Boolean(deleteTarget)}
+        title="Delete Expense?"
+        confirmLabel="Delete"
         danger
-        loading={deactivating}
-        onCancel={() => setDeactivateTarget(null)}
-        onConfirm={() => void onConfirmDeactivate()}
+        loading={deleting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => void onConfirmDelete()}
       >
-        {deactivateTarget
-          ? `${deactivateTarget.title} will be marked inactive and excluded from default lists.`
-          : null}
+        {deleteTarget && (
+          <p>
+            Are you sure you want to delete this expense? This action cannot be undone.
+          </p>
+        )}
       </ConfirmDialog>
     </div>
   );

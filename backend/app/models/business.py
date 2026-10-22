@@ -10,7 +10,7 @@ class Business(Base, TimestampMixin):
     type: Mapped[str] = mapped_column(String(50), nullable=False)
     contact: Mapped[str] = mapped_column(String(100), nullable=False)
     address: Mapped[str] = mapped_column(String(255), nullable=False)
-    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="USD")
+    currency: Mapped[str] = mapped_column(String(10), nullable=False, default="ZMW")
 
     # Relationships
     users = relationship("User", back_populates="business")
@@ -19,4 +19,4 @@ class Business(Base, TimestampMixin):
     customers = relationship("Customer", back_populates="business")
     suppliers = relationship("Supplier", back_populates="business")
     sales = relationship("Sale", back_populates="business")
-    expenses = relationship("Expense", back_populates="business")
+    expenses = relationship("Expense", back_populates="business", cascade="all, delete-orphan")

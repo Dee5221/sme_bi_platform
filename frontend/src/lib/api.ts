@@ -1,15 +1,8 @@
 ﻿const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
-// Helper for Member 2's UI components that expect media URLs
-export function mediaUrl(path?: string | null): string | null {
-  if (!path) return null;
-  if (path.startsWith('http')) return path;
-  return `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
-}
-
 export class ApiClientError extends Error {
   status: number;
-  details: unknown; // Changed from 'detail' to 'details' to match UI expectations
+  details: unknown;
 
   constructor(status: number, message: string, details?: unknown) {
     super(message);
@@ -19,75 +12,69 @@ export class ApiClientError extends Error {
   }
 }
 
-function getToken(): string | null {
-  return localStorage.getItem('access_token');
-}
-
 export async function apiRequest<T>(
-  path: string,
+  endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers = new Headers(options.headers || {});
+  const rawToken = localStorage.getItem('token');
+  const token = rawToken ? rawToken.replace(/^"|"$/g, '') : null;
 
-  const token = getToken();
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
+  console.log(`📡 [API] ${options.method || 'GET'} ${endpoint}`, token ? '(with token)' : '(no token)');
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
     headers,
   });
 
-  const contentType = response.headers.get('content-type');
-  let data: unknown = null;
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
-  if (contentType && contentType.includes('application/json')) {
-    try { data = await response.json(); } catch { data = null; }
+  let data: unknown;
+  const contentType = response.headers.get('content-type') || '';
+
+  try {
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      data = await response.text();
+    }
+  } catch (parseError) {
+    console.error('❌ [API] Failed to parse response:', parseError);
+    throw new ApiClientError(response.status, 'Failed to parse response');
   }
 
   if (!response.ok) {
-    const detail = (data as any)?.detail || 'An unexpected error occurred';
-    const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
-    throw new ApiClientError(response.status, message, detail); // Pass detail as 3rd arg
+    let message = `Request failed with status ${response.status}`;
+    let details: unknown;
+
+    if (typeof data === 'object' && data !== null) {
+      const obj = data as Record<string, unknown>;
+      if (typeof obj.detail === 'string') {
+        message = obj.detail;
+      } else if (Array.isArray(obj.detail)) {
+        details = obj.detail;
+        const first = obj.detail[0] as { msg?: string } | undefined;
+        if (first?.msg) message = first.msg;
+      } else if (typeof obj.message === 'string') {
+        message = obj.message;
+      }
+    } else if (typeof data === 'string' && data) {
+      message = data;
+    }
+
+    throw new ApiClientError(response.status, message, details);
   }
 
+  console.log(`✅ [API] Response received:`, typeof data === 'object' ? JSON.stringify(data).substring(0, 100) : data);
   return data as T;
-}
-
-export async function apiUpload<T>(
-  path: string,
-  formData: FormData,
-  options: RequestInit = {}
-): Promise<T> {
-  const headers = new Headers(options.headers || {});
-  const token = getToken();
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    method: options.method || 'POST',
-    headers,
-    body: formData,
-  });
-
-  if (!response.ok) {
-    let data: unknown = null;
-    try { data = await response.json(); } catch {}
-    const detail = (data as any)?.detail || 'Upload failed';
-    const message = typeof detail === 'string' ? detail : JSON.stringify(detail);
-    throw new ApiClientError(response.status, message, detail);
-  }
-
-  const contentType = response.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
-    return (await response.json()) as T;
-  }
-  return {} as T;
 }

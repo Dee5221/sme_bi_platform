@@ -37,7 +37,7 @@ export function NewSalePage() {
       try {
         const [prods, custs] = await Promise.all([
           productService.listProducts({ status: 'active' }).catch(() => []),
-          customerService.listCustomers({}).catch(() => []),
+          customerService.listCustomers().catch(() => []),
         ]);
 
         const prodList = Array.isArray(prods) ? prods : (prods as any)?.items || [];

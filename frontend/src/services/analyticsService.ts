@@ -1,198 +1,77 @@
 import { apiRequest } from '../lib/api';
 
-export type BusinessAnalyticsData = {
-  period: { label: string; months: number; start: string; end: string };
-  summary: {
-    totalRevenue: number;
-    totalExpenses: number;
-    netResult: number;
-    totalSales: number;
-    activeCustomers: number;
-    activeProducts: number;
-    lowStockCount: number;
-  };
-  monthlyTrend: Array<{
-    key: string;
-    label: string;
-    revenue: number;
-    expenses: number;
-    net: number;
-    salesCount: number;
-  }>;
-  topProducts: Array<{
-    productId: string;
-    productName: string;
-    productSku: string;
-    revenue: number;
-    quantity: number;
-  }>;
-  expensesByCategory: Array<{
-    categoryName: string;
-    amount: number;
-  }>;
-};
+// =============================================================================
+// Response Types (matching backend schemas)
+// =============================================================================
 
-export function fetchBusinessAnalytics(months = 6) {
-  return apiRequest<{ analytics: BusinessAnalyticsData }>(
-    `/api/analytics/business?months=${months}`
-  );
+export interface SummaryResponse {
+  total_revenue: number;
+  total_expenses: number;
+  net_cash_flow: number;
+  total_transactions: number;
+  aov: number;
+  low_stock_count: number;
+  period_start: string;
+  period_end: string;
 }
 
-export type SalesAnalyticsData = {
-  period: { label: string; months: number; start: string; end: string };
-  summary: {
-    totalRevenue: number;
-    totalSales: number;
-    averageOrderValue: number;
-    totalUnitsSold: number;
-    walkInSales: number;
-    customerLinkedSales: number;
-    walkInRevenue: number;
-    customerRevenue: number;
-  };
-  monthlyTrend: Array<{
-    key: string;
-    label: string;
-    revenue: number;
-    salesCount: number;
-    averageOrderValue: number;
-    unitsSold: number;
-  }>;
-  topProductsByRevenue: Array<{
-    productId: string;
-    productName: string;
-    productSku: string;
-    revenue: number;
-    quantity: number;
-  }>;
-  topProductsByQuantity: Array<{
-    productId: string;
-    productName: string;
-    productSku: string;
-    revenue: number;
-    quantity: number;
-  }>;
-  topCustomers: Array<{
-    customerId: string;
-    customerName: string;
-    salesCount: number;
-    revenue: number;
-  }>;
-  walkInSummary: {
-    salesCount: number;
-    revenue: number;
-  };
-};
-
-export function fetchSalesAnalytics(months = 6) {
-  return apiRequest<{ analytics: SalesAnalyticsData }>(`/api/analytics/sales?months=${months}`);
+export interface SalesTrendPoint {
+  period: string;
+  revenue: number;
+  transactions: number;
 }
 
-export type InventoryAnalyticsData = {
-  period: { label: string; months: number; start: string; end: string };
-  summary: {
-    trackedProducts: number;
-    totalUnitsOnHand: number;
-    inventoryValue: number;
-    lowStockCount: number;
-    outOfStockCount: number;
-    healthyStockCount: number;
-    percentHealthy: number;
-    periodStockIn: number;
-    periodStockOut: number;
-    netMovement: number;
-  };
-  monthlyTrend: Array<{
-    key: string;
-    label: string;
-    stockIn: number;
-    stockOut: number;
-    netMovement: number;
-    stockInMovements: number;
-    stockOutMovements: number;
-  }>;
-  lowStockProducts: Array<{
-    inventoryId: string;
-    productId: string;
-    productName: string;
-    productSku: string;
-    quantity: number;
-    lowStockThreshold: number;
-  }>;
-  topStockInProducts: Array<{
-    productId: string;
-    productName: string;
-    productSku: string;
-    units: number;
-    movements: number;
-  }>;
-  topStockOutProducts: Array<{
-    productId: string;
-    productName: string;
-    productSku: string;
-    units: number;
-    movements: number;
-  }>;
-  movementBreakdown: {
-    stockInMovements: number;
-    stockOutMovements: number;
-    stockInUnits: number;
-    stockOutUnits: number;
-  };
-};
-
-export function fetchInventoryAnalytics(months = 6) {
-  return apiRequest<{ analytics: InventoryAnalyticsData }>(
-    `/api/analytics/inventory?months=${months}`
-  );
+export interface SalesByCategoryItem {
+  category_name: string;
+  revenue: number;
+  units_sold: number;
 }
 
-export type CustomerAnalyticsData = {
-  period: { label: string; months: number; start: string; end: string };
-  summary: {
-    activeCustomers: number;
-    newCustomersInPeriod: number;
-    customersWithSalesInPeriod: number;
-    customerLinkedSales: number;
-    walkInSales: number;
-    customerRevenue: number;
-    walkInRevenue: number;
-    repeatCustomersInPeriod: number;
-    oneTimeCustomersInPeriod: number;
-    averageRevenuePerCustomer: number;
-  };
-  monthlyTrend: Array<{
-    key: string;
-    label: string;
-    newCustomers: number;
-    customerSales: number;
-    customerRevenue: number;
-  }>;
-  topCustomersByRevenue: Array<{
-    customerId: string;
-    customerName: string;
-    salesCount: number;
-    revenue: number;
-  }>;
-  topCustomersBySalesCount: Array<{
-    customerId: string;
-    customerName: string;
-    salesCount: number;
-    revenue: number;
-  }>;
-  walkInSummary: {
-    salesCount: number;
-    revenue: number;
-  };
-  customerMix: {
-    repeatCustomers: number;
-    oneTimeCustomers: number;
-    walkInSales: number;
-  };
-};
+export interface InventoryHealthResponse {
+  total_items: number;
+  low_stock_items: number;
+  total_inventory_value: number | null;
+  note: string | null;
+}
 
-export function fetchCustomerAnalytics(months = 6) {
-  return apiRequest<{ analytics: CustomerAnalyticsData }>(
-    `/api/analytics/customers?months=${months}`
-  );
+// =============================================================================
+// API Calls
+// =============================================================================
+
+export interface DateRangeParams {
+  start_date?: string;
+  end_date?: string;
+}
+
+export function fetchSummary(params?: DateRangeParams): Promise<SummaryResponse> {
+  const query = new URLSearchParams();
+  if (params?.start_date) query.set('start_date', params.start_date);
+  if (params?.end_date) query.set('end_date', params.end_date);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return apiRequest<SummaryResponse>(`/api/analytics/summary${suffix}`);
+}
+
+export function fetchSalesTrend(
+  params?: DateRangeParams & { group_by?: 'day' | 'month' }
+): Promise<SalesTrendPoint[]> {
+  const query = new URLSearchParams();
+  if (params?.group_by) query.set('group_by', params.group_by);
+  if (params?.start_date) query.set('start_date', params.start_date);
+  if (params?.end_date) query.set('end_date', params.end_date);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return apiRequest<SalesTrendPoint[]>(`/api/analytics/sales/trend${suffix}`);
+}
+
+export function fetchSalesByCategory(
+  params?: DateRangeParams
+): Promise<SalesByCategoryItem[]> {
+  const query = new URLSearchParams();
+  if (params?.start_date) query.set('start_date', params.start_date);
+  if (params?.end_date) query.set('end_date', params.end_date);
+  const suffix = query.toString() ? `?${query.toString()}` : '';
+  return apiRequest<SalesByCategoryItem[]>(`/api/analytics/sales/by-category${suffix}`);
+}
+
+export function fetchInventoryHealth(): Promise<InventoryHealthResponse> {
+  return apiRequest<InventoryHealthResponse>('/api/analytics/inventory/health');
 }

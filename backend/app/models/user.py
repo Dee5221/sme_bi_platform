@@ -17,6 +17,37 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
 
+    def __repr__(self) -> str:
+        return (
+            f"User(id={self.id}, business_id={self.business_id}, role_id={self.role_id}, "
+            f"name={self.name!r}, email={self.email!r}, status={self.status!r})"
+        )
+
+    def to_dict(self) -> dict:
+        data = {
+            "id": self.id,
+            "business_id": self.business_id,
+            "role_id": self.role_id,
+            "name": self.name,
+            "email": self.email,
+            "status": self.status,
+        }
+
+        if hasattr(self, "created_at"):
+            data["created_at"] = self.created_at
+        if hasattr(self, "updated_at"):
+            data["updated_at"] = self.updated_at
+
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "User":
+        instance = cls()
+        for field in ("business_id", "role_id", "name", "email", "password_hash", "status"):
+            if field in data:
+                setattr(instance, field, data[field])
+        return instance
+
     business = relationship("Business", back_populates="users")
     role = relationship("Role", back_populates="users")
     sales = relationship("Sale", back_populates="user")
