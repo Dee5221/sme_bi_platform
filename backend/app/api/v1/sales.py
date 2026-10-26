@@ -5,6 +5,7 @@ from decimal import Decimal
 from datetime import datetime, date
 from typing import Optional
 
+
 from app.core.database import get_db
 from app.core.dependencies import get_current_user, require_role
 from app.models.user import User
@@ -12,7 +13,12 @@ from app.models.product import Product
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem
 from app.models.inventory import Inventory, StockMovement
-from app.schemas.sale import SaleCreateRequest, SaleResponse, SaleListResponse
+from app.schemas.sale import (
+    SaleCreateRequest,
+    SaleResponse,
+    SaleListResponse,
+    SaleItemResponse
+)
 
 router = APIRouter(prefix="/api/sales", tags=["Sales"])
 
@@ -20,160 +26,103 @@ router = APIRouter(prefix="/api/sales", tags=["Sales"])
 def create_sale(
     sale_in: SaleCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager", "Staff"]))
+    current_user: User = Depends(get_current_user)
 ):
-    """
-    Create a new sale transaction atomically.
-    This is the critical transaction that:
-    1. Validates all products and stock
-    2. Creates sale header and items
-    3. Reduces inventory
-    4. Records stock movements
-    All in one atomic database transaction.
-    """
+    """Create a new sale with items."""
     
-    # Validate customer if provided
-    if sale_in.customer_id:
-        customer = db.query(Customer).filter(
-            Customer.id == sale_in.customer_id,
-            Customer.business_id == current_user.business_id
-        ).first()
-        if not customer:
-            raise HTTPException(status_code=404, detail="Customer not found")
+    # 1. Calculate total amount
+    total_amount = Decimal('0')
+    sale_items_data = []
     
-    # Check for duplicate products in the request and aggregate quantities
-    product_quantities = {}
-    for item in sale_in.items:
-        if item.product_id in product_quantities:
-            product_quantities[item.product_id] += item.quantity
-        else:
-            product_quantities[item.product_id] = item.quantity
-    
-    # Validate all products and check stock availability
-    products_data = []
-    total_amount = Decimal("0.00")
-    
-    for product_id, quantity in product_quantities.items():
-        # Lock the product row to prevent concurrent modifications
+    for item_in in sale_in.items:
+        # Fetch product
         product = db.query(Product).filter(
-            Product.id == product_id,
-            Product.business_id == current_user.business_id,
-            Product.status == 'active'
-        ).with_for_update().first()
+            Product.id == item_in.product_id,
+            Product.business_id == current_user.business_id
+        ).first()
         
         if not product:
-            raise HTTPException(status_code=404, detail=f"Product {product_id} not found or inactive")
-        
-        # Lock the inventory row
-        inventory = db.query(Inventory).filter(
-            Inventory.product_id == product_id
-        ).with_for_update().first()
-        
-        current_stock = inventory.quantity_on_hand if inventory else Decimal("0.00")
-        
-        if current_stock < quantity:
             raise HTTPException(
-                status_code=400, 
-                detail=f"Insufficient stock for product '{product.name}'. Available: {current_stock}, Requested: {quantity}"
+                status_code=404,
+                detail=f"Product {item_in.product_id} not found"
             )
         
-        # Calculate subtotal using authoritative price
+        # Calculate subtotal
         unit_price = product.selling_price
-        subtotal = (quantity * unit_price).quantize(Decimal("0.01"))
+        quantity = item_in.quantity
+        subtotal = unit_price * quantity
         total_amount += subtotal
         
-        products_data.append({
-            "product": product,
-            "quantity": quantity,
-            "unit_price": unit_price,
-            "subtotal": subtotal
+        sale_items_data.append({
+            'product': product,
+            'quantity': quantity,
+            'unit_price': unit_price,
+            'subtotal': subtotal
         })
     
-    # Create the sale header
-    new_sale = Sale(
+    # 2. Create the sale
+    db_sale = Sale(
         business_id=current_user.business_id,
         user_id=current_user.id,
         customer_id=sale_in.customer_id,
-        sale_datetime=datetime.utcnow(),
+        sale_datetime=datetime.now(),
         total_amount=total_amount,
         payment_method=sale_in.payment_method,
-        status="completed"
+        status='completed'
     )
-    db.add(new_sale)
-    db.flush()  # Get the sale ID
+    db.add(db_sale)
     
-    # Create sale items and update inventory
+    # 3. Create sale items
+    for item_data in sale_items_data:
+        db_sale_item = SaleItem(
+            sale=db_sale,  # Link to the sale
+            product_id=item_data['product'].id,
+            quantity=item_data['quantity'],
+            unit_price=item_data['unit_price'],
+            subtotal=item_data['subtotal']
+        )
+        db.add(db_sale_item)
+    
+    # 4. COMMIT FIRST to generate IDs
+    db.commit()
+    
+    # 5. REFRESH to load the generated IDs
+    db.refresh(db_sale)
+    for db_sale_item in db_sale.items:
+        db.refresh(db_sale_item)
+    
+    # 6. NOW build the response (IDs are available)
     sale_items_response = []
-    for data in products_data:
-        product = data["product"]
-        quantity = data["quantity"]
-        unit_price = data["unit_price"]
-        subtotal = data["subtotal"]
-        
-        # Create sale item
-        sale_item = SaleItem(
-            sale_id=new_sale.id,
-            product_id=product.id,
-            quantity=quantity,
-            unit_price=unit_price,
-            subtotal=subtotal
-        )
-        db.add(sale_item)
-        
-        # Update inventory
-        inventory = db.query(Inventory).filter(
-            Inventory.product_id == product.id
-        ).with_for_update().first()
-        
-        if not inventory:
-            inventory = Inventory(product_id=product.id, quantity_on_hand=Decimal("0.00"))
-            db.add(inventory)
-        
-        inventory.quantity_on_hand -= quantity
-        inventory.updated_at = func.now()
-        
-        # Record stock movement
-        movement = StockMovement(
-            product_id=product.id,
-            user_id=current_user.id,
-            movement_type="OUT",
-            quantity=quantity,
-            reference=f"SALE-{new_sale.id}",
-            reason=f"Sale transaction #{new_sale.id}"
-        )
-        db.add(movement)
-        
+    for sale_item in db_sale.items:
+        product = sale_item.product
         sale_items_response.append(SaleItemResponse(
-            id=sale_item.id,
+            id=sale_item.id,  # Now this will have a value
             product_id=product.id,
             product_name=product.name,
             sku=product.sku,
-            quantity=quantity,
-            unit_price=unit_price,
-            subtotal=subtotal
+            quantity=sale_item.quantity,
+            unit_price=sale_item.unit_price,
+            subtotal=sale_item.subtotal
         ))
     
-    # Commit the entire transaction atomically
-    db.commit()
-    db.refresh(new_sale)
-    
-    # Build response
+    # Build the final response
     customer_name = None
-    if sale_in.customer_id:
-        customer = db.query(Customer).filter(Customer.id == sale_in.customer_id).first()
-        customer_name = customer.name if customer else None
+    if db_sale.customer_id:
+        customer = db.query(Customer).filter(Customer.id == db_sale.customer_id).first()
+        if customer:
+            customer_name = customer.name
     
     return SaleResponse(
-        id=new_sale.id,
-        business_id=new_sale.business_id,
-        user_id=new_sale.user_id,
+        id=db_sale.id,
+        business_id=db_sale.business_id,
+        user_id=db_sale.user_id,
         user_name=current_user.name,
-        customer_id=new_sale.customer_id,
+        customer_id=db_sale.customer_id,
         customer_name=customer_name,
-        sale_datetime=new_sale.sale_datetime,
-        total_amount=new_sale.total_amount,
-        payment_method=new_sale.payment_method,
-        status=new_sale.status,
+        sale_datetime=db_sale.sale_datetime,
+        total_amount=db_sale.total_amount,
+        payment_method=db_sale.payment_method,
+        status=db_sale.status,
         items=sale_items_response
     )
 

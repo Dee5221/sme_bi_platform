@@ -110,12 +110,13 @@ def get_business_summary(
     net_cash_flow = total_revenue - total_expenses
 
     # Low stock count (CURRENT inventory state, not period-specific)
+    # NOTE: Inventory has no business_id; scope via Product.business_id
     low_stock_count = db.query(
         func.count(Inventory.id)
-    ).join(
+    ).select_from(Inventory).join(
         Product, Inventory.product_id == Product.id
     ).filter(
-        Inventory.business_id == business_id,
+        Product.business_id == business_id,
         Product.reorder_level.isnot(None),
         Inventory.quantity_on_hand <= Product.reorder_level,
     ).scalar() or 0
@@ -218,12 +219,10 @@ def get_sales_by_category(
         Category.name.label("category_name"),
         func.coalesce(func.sum(SaleItem.subtotal), 0).label("revenue"),
         func.coalesce(func.sum(SaleItem.quantity), 0).label("units_sold"),
-    ).join(
-        SaleItem, SaleItem.product_id == Product.id
-    ).join(
+    ).select_from(SaleItem).join(
         Sale, SaleItem.sale_id == Sale.id
     ).join(
-        Product, Product.id == SaleItem.product_id
+        Product, SaleItem.product_id == Product.id
     ).join(
         Category, Product.category_id == Category.id
     ).filter(
@@ -266,10 +265,13 @@ def get_inventory_health(
     business_id = current_user.business_id
 
     # Total items
+    # NOTE: Inventory has no business_id; scope via Product.business_id
     total_items = db.query(
         func.count(Inventory.id)
+    ).join(
+        Product, Inventory.product_id == Product.id
     ).filter(
-        Inventory.business_id == business_id
+        Product.business_id == business_id
     ).scalar() or 0
 
     # Low stock items
@@ -278,7 +280,7 @@ def get_inventory_health(
     ).join(
         Product, Inventory.product_id == Product.id
     ).filter(
-        Inventory.business_id == business_id,
+        Product.business_id == business_id,
         Product.reorder_level.isnot(None),
         Inventory.quantity_on_hand <= Product.reorder_level,
     ).scalar() or 0
@@ -291,7 +293,7 @@ def get_inventory_health(
     ).join(
         Product, Inventory.product_id == Product.id
     ).filter(
-        Inventory.business_id == business_id
+        Product.business_id == business_id
     ).first()
 
     total_inventory_value = None

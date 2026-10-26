@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # type: ignore[import-not-found]
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime
