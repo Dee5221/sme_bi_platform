@@ -16,6 +16,7 @@ from app.api.v1 import (
     expenses,
     analytics,
     forecasting,
+    recommendations,
 )
 
 app = FastAPI(title="SME BI Platform API", version="0.5.0")
@@ -48,6 +49,7 @@ app.include_router(sales.router)
 app.include_router(expenses.router)
 app.include_router(analytics.router)
 app.include_router(forecasting.router)
+app.include_router(recommendations.router)
 # ==============================================================================
 # HEALTH CHECK
 # ==============================================================================

@@ -1,178 +1,418 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { ApiClientError } from '../lib/api';
+import { useEffect, useState, useCallback } from 'react';
 import * as recommendationsApi from '../services/recommendationsService';
-import type { RecommendationItem, RecommendationsData } from '../services/recommendationsService';
-import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
+import type {
+  RecommendationsResponse,
+  Recommendation,
+  RecommendationSeverity,
+  RecommendationCategory,
+} from '../services/recommendationsService';
 import { Card } from '../components/ui/Card';
-import { EmptyState } from '../components/ui/EmptyState';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
-import { PageHeader } from '../components/ui/PageHeader';
-import './BusinessAnalyticsPage.css';
+import { Alert } from '../components/ui/Alert';
+import { Button } from '../components/ui/Button';
 import './RecommendationsPage.css';
 
-const PERIOD_OPTIONS = [
+// =============================================================================
+// Constants
+// =============================================================================
+
+const SEVERITY_LABELS: Record<RecommendationSeverity, string> = {
+  CRITICAL: 'Critical',
+  HIGH: 'High',
+  MEDIUM: 'Medium',
+  LOW: 'Low',
+  INFO: 'Info',
+};
+
+const SEVERITY_COLORS: Record<RecommendationSeverity, string> = {
+  CRITICAL: 'severity-critical',
+  HIGH: 'severity-high',
+  MEDIUM: 'severity-medium',
+  LOW: 'severity-low',
+  INFO: 'severity-info',
+};
+
+const CATEGORY_LABELS: Record<RecommendationCategory, string> = {
+  inventory: 'Inventory',
+  sales: 'Sales',
+  expenses: 'Expenses',
+};
+
+const CATEGORY_OPTIONS = [
+  { value: '', label: 'All Categories' },
+  { value: 'inventory', label: 'Inventory' },
+  { value: 'sales', label: 'Sales' },
+  { value: 'expenses', label: 'Expenses' },
+];
+
+const SEVERITY_FILTER_OPTIONS = [
+  { value: '', label: 'All Severities' },
+  { value: 'CRITICAL', label: 'Critical only' },
+  { value: 'HIGH', label: 'High & above' },
+  { value: 'MEDIUM', label: 'Medium & above' },
+  { value: 'LOW', label: 'Low & above' },
+];
+
+const MONTH_OPTIONS = [
   { value: 3, label: '3 months' },
   { value: 6, label: '6 months' },
+  { value: 9, label: '9 months' },
   { value: 12, label: '12 months' },
 ];
 
-const CATEGORY_LABELS: Record<RecommendationItem['category'], string> = {
-  INVENTORY: 'Inventory',
-  SALES: 'Sales',
-  EXPENSES: 'Expenses',
-  CUSTOMERS: 'Customers',
-  BUSINESS: 'Business',
-};
-
-function priorityTone(priority: RecommendationItem['priority']) {
-  if (priority === 'HIGH') return 'orange';
-  if (priority === 'MEDIUM') return 'orange';
-  return 'green';
-}
+// =============================================================================
+// Component
+// =============================================================================
 
 export function RecommendationsPage() {
-  const { hasPermission } = useAuth();
-  const canView = hasPermission('recommendations.view');
-  const [months, setMonths] = useState(6);
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<RecommendationsData | null>(null);
+  const [data, setData] = useState<RecommendationsResponse | null>(null);
+
+  // Filters
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [severityFilter, setSeverityFilter] = useState('');
+  const [monthsFilter, setMonthsFilter] = useState(6);
+
+  const loadRecommendations = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const filters: recommendationsApi.RecommendationFilters = {
+        months: monthsFilter,
+      };
+
+      if (categoryFilter) {
+        filters.categories = categoryFilter;
+      }
+      if (severityFilter) {
+        filters.severity = severityFilter;
+      }
+
+      const response = await recommendationsApi.fetchRecommendations(filters);
+      setData(response);
+    } catch (err: any) {
+      setError(err.message || 'Unable to load recommendations.');
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [categoryFilter, severityFilter, monthsFilter]);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!canView) {
-        setError('You do not have permission to view recommendations.');
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const result = await recommendationsApi.fetchRecommendations(months);
-        if (active) {
-          setData(result.recommendations);
-          setError(null);
-        }
-      } catch (err) {
-        if (active) {
-          setError(
-            err instanceof ApiClientError ? err.message : 'Unable to load recommendations.'
-          );
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [canView, months]);
+    void loadRecommendations();
+  }, [loadRecommendations]);
 
-  if (!canView) {
-    return <Alert tone="error">You do not have permission to view recommendations.</Alert>;
-  }
-
+  // ==========================================================================
+  // Render: Loading State
+  // ==========================================================================
   if (loading) {
     return (
-      <Card>
-        <LoadingSkeleton rows={10} />
-      </Card>
+      <div className="recommendations-page">
+        <div className="recommendations-header">
+          <div>
+            <h1 className="recommendations-title">Decision Support &amp; Recommendations</h1>
+            <p className="recommendations-subtitle">Loading advisory insights...</p>
+          </div>
+        </div>
+        <LoadingSkeleton rows={8} />
+      </div>
     );
   }
 
-  if (error || !data) {
-    return <Alert tone="error">{error || 'Recommendations unavailable.'}</Alert>;
+  // ==========================================================================
+  // Render: Error State
+  // ==========================================================================
+  if (error) {
+    return (
+      <div className="recommendations-page">
+        <div className="recommendations-header">
+          <div>
+            <h1 className="recommendations-title">Decision Support &amp; Recommendations</h1>
+            <p className="recommendations-subtitle">
+              Rule-based advisory analysis for inventory, sales, and expenses.
+            </p>
+          </div>
+        </div>
+        <Alert tone="error">
+          {error}
+          <div style={{ marginTop: '12px' }}>
+            <Button onClick={loadRecommendations}>
+              Retry
+            </Button>
+          </div>
+        </Alert>
+      </div>
+    );
   }
 
-  const { summary, recommendations, period } = data;
+  // ==========================================================================
+  // Render: No Data
+  // ==========================================================================
+  if (!data) {
+    return (
+      <div className="recommendations-page">
+        <div className="recommendations-header">
+          <div>
+            <h1 className="recommendations-title">Decision Support &amp; Recommendations</h1>
+          </div>
+        </div>
+        <Alert tone="warning">No recommendation data available.</Alert>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // Render: Main Content
+  // ==========================================================================
+  const { recommendations, summary, analysis_period, generated_at, limitations } = data;
 
   return (
-    <div className="business-analytics-page recommendations-page">
-      <PageHeader
-        title="Recommendations"
-        subtitle={`Actionable insights from your business data · ${period.label}`}
-        actions={
-          <div className="analytics-period">
-            <label htmlFor="recommendations-period">Period</label>
+    <div className="recommendations-page">
+      {/* Page Header */}
+      <div className="recommendations-header">
+        <div>
+          <h1 className="recommendations-title">Decision Support &amp; Recommendations</h1>
+          <p className="recommendations-subtitle">
+            Rule-based advisory analysis identifying potential inventory, sales, and expense
+            considerations. Recommendations are advisory and do not automatically modify
+            business records.
+          </p>
+        </div>
+        <div className="recommendations-meta">
+          <span className="meta-item">
+            Period: {analysis_period.start} to {analysis_period.end} ({analysis_period.months} months)
+          </span>
+          <span className="meta-item">
+            Generated: {new Date(generated_at).toLocaleString()}
+          </span>
+        </div>
+      </div>
+
+      {/* Data Limitations Notice */}
+      <div className="recommendations-limitations">
+        <Alert tone="warning">
+          <strong>Advisory Notice:</strong> These recommendations are generated from synthetic
+          demonstration data using heuristic rules. They are estimates, not statistically
+          validated predictions. The current calendar month is excluded from analysis.
+        </Alert>
+      </div>
+
+      {/* Filters */}
+      <Card className="recommendations-filters-card">
+        <div className="recommendations-filters">
+          <div className="filter-group">
+            <label className="filter-label">Category</label>
             <select
-              id="recommendations-period"
-              value={months}
-              onChange={(event) => setMonths(Number(event.target.value))}
+              className="filter-select"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
             >
-              {PERIOD_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
           </div>
-        }
-      />
 
-      <Alert tone="info">
-        Recommendations are generated from your real sales, expenses, inventory, and customer
-        activity using transparent business rules — not mock AI output.
-      </Alert>
+          <div className="filter-group">
+            <label className="filter-label">Minimum Severity</label>
+            <select
+              className="filter-select"
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+            >
+              {SEVERITY_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      <section className="analytics-kpi-grid" aria-label="Recommendation summary">
-        <article className="analytics-kpi analytics-kpi--revenue">
-          <p>Total recommendations</p>
-          <h2>{summary.total}</h2>
-          <span>Based on current data</span>
-        </article>
-        <article className="analytics-kpi analytics-kpi--expense">
-          <p>High priority</p>
-          <h2>{summary.highPriority}</h2>
-          <span>Needs attention soon</span>
-        </article>
-        <article className="analytics-kpi analytics-kpi--net">
-          <p>Medium priority</p>
-          <h2>{summary.mediumPriority}</h2>
-          <span>Review when possible</span>
-        </article>
-        <article className="analytics-kpi analytics-kpi--context">
-          <p>Low priority</p>
-          <h2>{summary.lowPriority}</h2>
-          <span>Opportunities and positives</span>
-        </article>
-      </section>
+          <div className="filter-group">
+            <label className="filter-label">Analysis Period</label>
+            <select
+              className="filter-select"
+              value={monthsFilter}
+              onChange={(e) => setMonthsFilter(Number(e.target.value))}
+            >
+              {MONTH_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
+          <div className="filter-group">
+            <Button onClick={loadRecommendations}>
+              Refresh
+            </Button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Summary Cards */}
+      <div className="recommendations-summary-grid">
+        <Card className="summary-card">
+          <div className="summary-label">Total</div>
+          <div className="summary-value">{data.total_recommendations}</div>
+        </Card>
+        <Card className="summary-card summary-critical">
+          <div className="summary-label">Critical</div>
+          <div className="summary-value">{summary.by_severity.CRITICAL}</div>
+        </Card>
+        <Card className="summary-card summary-high">
+          <div className="summary-label">High</div>
+          <div className="summary-value">{summary.by_severity.HIGH}</div>
+        </Card>
+        <Card className="summary-card summary-medium">
+          <div className="summary-label">Medium</div>
+          <div className="summary-value">{summary.by_severity.MEDIUM}</div>
+        </Card>
+        <Card className="summary-card summary-low">
+          <div className="summary-label">Low</div>
+          <div className="summary-value">{summary.by_severity.LOW}</div>
+        </Card>
+      </div>
+
+      {/* Recommendations List */}
       {recommendations.length === 0 ? (
-        <Card title="Recommendations">
-          <EmptyState
-            title="No recommendations right now"
-            description="As you record sales, expenses, and inventory activity, actionable suggestions will appear here."
-            action={
-              <Link to="/app/sales">
-                <Button>Record a sale</Button>
-              </Link>
-            }
-          />
+        <Card className="recommendations-empty">
+          <div className="empty-state">
+            <h3>No Recommendations Generated</h3>
+            <p>
+              No advisory recommendations were identified for the selected filters and
+              analysis period. This may indicate that your current data does not trigger
+              any rule-based alerts, or that insufficient historical data is available.
+            </p>
+            <p className="empty-note">
+              The absence of recommendations does not necessarily indicate optimal performance.
+            </p>
+          </div>
         </Card>
       ) : (
         <div className="recommendations-list">
-          {recommendations.map((item) => (
-            <Card key={item.id} title={item.title}>
-              <div className="recommendation-card__meta">
-                <Badge tone={priorityTone(item.priority)}>{item.priority}</Badge>
-                <Badge tone="green">{CATEGORY_LABELS[item.category]}</Badge>
-              </div>
-              <p className="recommendation-card__message">{item.message}</p>
-              {item.actionPath && item.actionLabel ? (
-                <div className="recommendation-card__action">
-                  <Link to={item.actionPath}>
-                    <Button variant="secondary">{item.actionLabel}</Button>
-                  </Link>
-                </div>
-              ) : null}
-            </Card>
+          {recommendations.map((rec) => (
+            <RecommendationCard key={rec.id} recommendation={rec} />
           ))}
         </div>
       )}
+
+      {/* Global Limitations */}
+      {limitations.length > 0 && (
+        <Card className="recommendations-global-limitations">
+          <h3 className="limitations-title">Analysis Limitations</h3>
+          <ul className="limitations-list">
+            {limitations.map((lim, idx) => (
+              <li key={idx}>{lim}</li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
+}
+
+// =============================================================================
+// Recommendation Card Component
+// =============================================================================
+
+function RecommendationCard({ recommendation }: { recommendation: Recommendation }) {
+  const { severity, category, title, explanation, suggested_action, affected_entity, metrics, data_quality } = recommendation;
+
+  return (
+    <Card className={`recommendation-card ${SEVERITY_COLORS[severity]}`}>
+      <div className="recommendation-card-header">
+        <div className="recommendation-card-badges">
+          <span className={`badge badge-severity ${SEVERITY_COLORS[severity]}`}>
+            {SEVERITY_LABELS[severity]}
+          </span>
+          <span className="badge badge-category">
+            {CATEGORY_LABELS[category] || category}
+          </span>
+        </div>
+        <h3 className="recommendation-card-title">{title}</h3>
+      </div>
+
+      <div className="recommendation-card-body">
+        {/* Explanation */}
+        <div className="recommendation-section">
+          <h4 className="section-label">Issue Identified</h4>
+          <p className="section-content">{explanation}</p>
+        </div>
+
+        {/* Suggested Action */}
+        <div className="recommendation-section">
+          <h4 className="section-label">Suggested Action</h4>
+          <p className="section-content">{suggested_action}</p>
+        </div>
+
+        {/* Affected Entity */}
+        {affected_entity && (
+          <div className="recommendation-section">
+            <h4 className="section-label">Affected Entity</h4>
+            <p className="section-content">
+              {affected_entity.name || 'N/A'}
+              {affected_entity.sku && ` (${affected_entity.sku})`}
+              {affected_entity.type && ` — ${affected_entity.type}`}
+            </p>
+          </div>
+        )}
+
+        {/* Metrics */}
+        {metrics && Object.keys(metrics).length > 0 && (
+          <div className="recommendation-section">
+            <h4 className="section-label">Supporting Metrics</h4>
+            <div className="metrics-grid">
+              {Object.entries(metrics).map(([key, value]) => (
+                <div key={key} className="metric-item">
+                  <span className="metric-label">{formatMetricLabel(key)}</span>
+                  <span className="metric-value">{formatMetricValue(value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Data Quality */}
+        {data_quality && (
+          <div className="recommendation-section recommendation-data-quality">
+            <h4 className="section-label">Data Quality</h4>
+            <p className="section-content data-quality-text">
+              {data_quality.has_sufficient_data
+                ? `Sufficient data available${data_quality.months_of_history ? ` (${data_quality.months_of_history} months of history)` : ''}.`
+                : 'Insufficient data for reliable analysis.'}
+            </p>
+            <p className="section-content data-quality-limitation">
+              {data_quality.limitations}
+            </p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+function formatMetricLabel(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatMetricValue(value: number | string | null): string {
+  if (value === null || value === undefined) return 'N/A';
+  if (typeof value === 'number') {
+    if (Number.isInteger(value)) return value.toString();
+    return value.toFixed(2);
+  }
+  return String(value);
 }

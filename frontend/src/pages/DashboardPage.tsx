@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import * as analyticsApi from '../services/analyticsService';
 import type { SummaryResponse } from '../services/analyticsService';
+import * as recommendationsApi from '../services/recommendationsService';
+import type { RecommendationsResponse } from '../services/recommendationsService';
 import { Card } from '../components/ui/Card';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { Alert } from '../components/ui/Alert';
@@ -21,7 +23,10 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [recommendationsData, setRecommendationsData] = useState<RecommendationsResponse | null>(null);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(true);
 
+  // Fetch analytics summary
   useEffect(() => {
     let active = true;
     (async () => {
@@ -34,6 +39,23 @@ export function DashboardPage() {
         if (active) setError(err.message || 'Unable to load dashboard data.');
       } finally {
         if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Fetch recommendations summary
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setRecommendationsLoading(true);
+        const data = await recommendationsApi.fetchRecommendations({ months: 6 });
+        if (active) setRecommendationsData(data);
+      } catch (err) {
+        if (active) setRecommendationsData(null);
+      } finally {
+        if (active) setRecommendationsLoading(false);
       }
     })();
     return () => { active = false; };
@@ -117,6 +139,43 @@ export function DashboardPage() {
                 {summary.low_stock_count}
               </div>
               <div className="dashboard-kpi-trend">Products at/below reorder level</div>
+            </Card>
+
+            {/* Recommendations Summary Card */}
+            <Card className="dashboard-kpi-card">
+              <div className="dashboard-kpi-label">Recommendations</div>
+              {recommendationsLoading ? (
+                <div className="dashboard-kpi-value">—</div>
+              ) : recommendationsData ? (
+                <>
+                  <div className="dashboard-kpi-value">
+                    {recommendationsData.total_recommendations}
+                  </div>
+                  <div className="dashboard-kpi-trend">
+                    {recommendationsData.summary.by_severity.CRITICAL > 0 && (
+                      <span style={{ color: '#dc2626' }}>
+                        {recommendationsData.summary.by_severity.CRITICAL} critical
+                      </span>
+                    )}
+                    {recommendationsData.summary.by_severity.HIGH > 0 && (
+                      <span style={{ color: '#ea580c', marginLeft: '8px' }}>
+                        {recommendationsData.summary.by_severity.HIGH} high
+                      </span>
+                    )}
+                    {recommendationsData.total_recommendations === 0 && (
+                      <span>No active alerts</span>
+                    )}
+                  </div>
+                  <Link
+                    to="/app/recommendations"
+                    style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none' }}
+                  >
+                    View all →
+                  </Link>
+                </>
+              ) : (
+                <div className="dashboard-kpi-value">—</div>
+              )}
             </Card>
           </div>
 
