@@ -186,8 +186,8 @@ export function CustomerAnalyticsPage() {
               title="No customer sales yet"
               description="Sales linked to customers will appear here."
               action={
-                <Link to="/app/customers">
-                  <Button>View customers</Button>
+                <Link to="/app/sales">
+                  <Button>Go to Sales</Button>
                 </Link>
               }
             />

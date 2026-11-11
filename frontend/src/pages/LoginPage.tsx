@@ -12,8 +12,8 @@ export function LoginPage() {
   const { login } = useAuth();
   const { pushToast } = useToast();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('owner@amfinancial.local');
-  const [password, setPassword] = useState('OwnerPass1');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -51,9 +51,7 @@ export function LoginPage() {
         <div className="auth-brand">
           <p className="auth-brand__eyebrow">SME Intelligence</p>
           <h1>Sign in to your business</h1>
-          <p className="auth-brand__copy">
-            Secure access for your business. Owner: owner@amfinancial.local / OwnerPass1
-          </p>
+          <p className="auth-brand__copy">Secure access for your business workspace.</p>
         </div>
 
         <form className="auth-form" onSubmit={onSubmit} noValidate>

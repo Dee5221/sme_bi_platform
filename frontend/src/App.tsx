@@ -7,7 +7,6 @@ import { BusinessAnalyticsPage } from './pages/BusinessAnalyticsPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { CustomerAnalyticsPage } from './pages/CustomerAnalyticsPage';
 import { PortalSettingsPage } from './pages/PortalSettingsPage';
-import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
 import { ForecastingPage } from './pages/ForecastingPage';
@@ -32,7 +31,6 @@ import { SalesPage } from './pages/SalesPage';
 import { SupplierPurchaseHistoryPage } from './pages/SupplierPurchaseHistoryPage';
 import { StockInPage } from './pages/StockInPage';
 import { StockOutPage } from './pages/StockOutPage';
-import { SuppliersPage } from './pages/SuppliersPage';
 import { UsersPage } from './pages/UsersPage';
 import { UserDetailsPage } from './pages/UserDetailsPage';
 
@@ -69,8 +67,6 @@ export default function App() {
           <Route path="inventory/stock-out" element={<StockOutPage />} />
           <Route path="inventory/movements" element={<InventoryMovementPage />} />
           <Route path="inventory" element={<InventoryPage />} />
-          <Route path="customers" element={<CustomersPage />} />
-          <Route path="suppliers" element={<SuppliersPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="users/:id" element={<UserDetailsPage />} />
           <Route path="roles" element={<RolesPermissionsPage />} />

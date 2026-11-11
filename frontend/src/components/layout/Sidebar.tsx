@@ -156,20 +156,6 @@ const navItems: NavItem[] = [
     icon: '☰',
     permission: 'inventory.view',
   },
-  {
-    to: '/app/customers',
-    label: 'Customers',
-    end: false,
-    icon: '◉',
-    permission: 'customers.view',
-  },
-  {
-    to: '/app/suppliers',
-    label: 'Suppliers',
-    end: false,
-    icon: '◎',
-    permission: 'suppliers.view',
-  },
   { to: '/app/profile', label: 'Profile', end: false, icon: '☺', permission: 'profile.view' },
 ];
 

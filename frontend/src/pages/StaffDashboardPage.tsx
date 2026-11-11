@@ -143,8 +143,8 @@ export function StaffDashboardPage() {
               <Link className="shortcut-card" to="/app/inventory">
                 Inventory
               </Link>
-              <Link className="shortcut-card" to="/app/customers">
-                Customers
+              <Link className="shortcut-card" to="/app/sales">
+                Sales
               </Link>
             </section>
           </div>
