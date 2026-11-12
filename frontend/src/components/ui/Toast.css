@@ -4,7 +4,7 @@
   bottom: 1.25rem;
   display: grid;
   gap: 0.65rem;
-  z-index: 1000;
+  z-index: 1400;
   width: min(22rem, calc(100vw - 2rem));
 }
 

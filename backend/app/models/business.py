@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String
 from app.models.base import Base, TimestampMixin
@@ -11,6 +13,10 @@ class Business(Base, TimestampMixin):
     contact: Mapped[str] = mapped_column(String(100), nullable=False)
     address: Mapped[str] = mapped_column(String(255), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="ZMW")
+    email: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    report_header: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    receipt_footer: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Relationships
     users = relationship("User", back_populates="business")

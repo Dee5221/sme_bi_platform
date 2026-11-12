@@ -505,6 +505,35 @@ body {
   }
 }
 
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  z-index: 4000;
+  transform: translateY(-150%);
+  background: #1e4c8a;
+  color: #ffffff;
+  padding: 0.65rem 1rem;
+  border-radius: 0 0 8px 8px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.app-shell__content:focus {
+  outline: none;
+}
+
+.app-shell__content:focus-visible {
+  outline: none;
+}
+
 /* ==========================================================================
    Focus States (Accessibility)
    ========================================================================== */

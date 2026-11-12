@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.core.database import SessionLocal
+from app.core.dev_guard import assert_not_production
 from app.models import (
     Business, User, Product, Customer, Supplier, Category,
     Sale, SaleItem, Inventory, StockMovement, Expense
@@ -493,6 +494,7 @@ def validate_data(db: Session, business_id: int):
 # ============================================================================
 
 def main():
+    assert_not_production("Demonstration historical data seeding")
     print("=" * 70)
     print("DATA-02: Historical Business Data & Transaction Seeding (2026)")
     print(f"Period: {START_DATE.date()} → {END_DATE.date()}")

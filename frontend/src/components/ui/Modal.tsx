@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { DialogLayer } from './DialogLayer';
 import './Modal.css';
 
 type Props = {
@@ -10,25 +11,25 @@ type Props = {
 };
 
 export function Modal({ open, title, children, onClose, width = 'md' }: Props) {
-  if (!open) return null;
+  const titleId = useId();
 
   return (
-    <div className="ui-modal-backdrop" role="presentation" onClick={onClose}>
+    <DialogLayer open={open} onClose={onClose} className="ui-modal-backdrop">
       <div
         className={`ui-modal ui-modal--${width}`}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
-        onClick={(event) => event.stopPropagation()}
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
         <header className="ui-modal__header">
-          <h2 id="modal-title">{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button type="button" className="ui-modal__close" onClick={onClose} aria-label="Close">
             ×
           </button>
         </header>
         <div className="ui-modal__body">{children}</div>
       </div>
-    </div>
+    </DialogLayer>
   );
 }

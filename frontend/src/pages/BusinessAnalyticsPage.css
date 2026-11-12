@@ -109,3 +109,63 @@
   font-weight: 700;
   color: #3379f0;
 }
+
+.forecast-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+}
+
+.forecast-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.forecast-table th,
+.forecast-table td {
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+.forecast-table th {
+  color: #6b7280;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.forecast-table__selected {
+  background: #eef4ff;
+}
+
+.forecast-table__muted {
+  color: #6b7280;
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
+.analytics-period-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.analytics-period-chips button {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #0b233f;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.analytics-period-chips button.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}

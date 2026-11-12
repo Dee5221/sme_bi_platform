@@ -18,44 +18,39 @@ import { useToast } from '../components/ui/Toast';
 import './UsersPage.css';
 
 type UserForm = {
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
-  phone: string;
   password: string;
-  roleIds: string[];
-  isActive: boolean;
+  roleId: number | null;
+  status: string;
 };
 
 const emptyForm: UserForm = {
-  firstName: '',
-  lastName: '',
+  name: '',
   email: '',
-  phone: '',
   password: '',
-  roleIds: [],
-  isActive: true,
+  roleId: null,
+  status: 'active',
 };
 
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      next[String(item.loc[item.loc.length - 1])] = item.msg;
+    }
   }
   return next;
 }
 
 function formatRoleName(name: string) {
-  return name
-    .split('_')
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(' / ');
+  if (name === 'Staff') return 'Sales Staff';
+  return name;
 }
 
-function formatDate(value: string | null) {
-  if (!value) return 'Never';
-  return new Date(value).toLocaleString();
+function isActiveStatus(status: string) {
+  return status === 'active';
 }
 
 export function UsersPage() {
@@ -63,9 +58,7 @@ export function UsersPage() {
   const { pushToast } = useToast();
 
   const canView = hasPermission('users.view');
-  const canCreate = hasPermission('users.create');
-  const canUpdate = hasPermission('users.update');
-  const canDelete = hasPermission('users.delete');
+  const canManage = hasPermission('users.manage');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,13 +66,13 @@ export function UsersPage() {
   const [roles, setRoles] = useState<AssignableRole[]>([]);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [status, setStatus] = useState('ACTIVE');
+  const [status, setStatus] = useState('active');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
     page: 1,
-    pageSize: 20,
+    page_size: 20,
     total: 0,
-    totalPages: 1,
+    total_pages: 1,
   });
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,7 +93,7 @@ export function UsersPage() {
     if (!canView) return;
     try {
       const result = await userApi.listAssignableRoles();
-      setRoles(result.roles);
+      setRoles(result);
     } catch {
       setRoles([]);
     }
@@ -141,7 +134,7 @@ export function UsersPage() {
     setEditing(null);
     setForm({
       ...emptyForm,
-      roleIds: roles[0] ? [roles[0].id] : [],
+      roleId: roles[0]?.id ?? null,
     });
     setFormError(null);
     setFieldErrors({});
@@ -151,53 +144,41 @@ export function UsersPage() {
   function openEdit(managedUser: ManagedUser) {
     setEditing(managedUser);
     setForm({
-      firstName: managedUser.firstName,
-      lastName: managedUser.lastName,
+      name: managedUser.name,
       email: managedUser.email,
-      phone: managedUser.phone || '',
       password: '',
-      roleIds: managedUser.roleIds,
-      isActive: managedUser.isActive,
+      roleId: managedUser.role.id,
+      status: managedUser.status,
     });
     setFormError(null);
     setFieldErrors({});
     setModalOpen(true);
   }
 
-  function toggleRole(roleId: string) {
-    setForm((current) => {
-      const exists = current.roleIds.includes(roleId);
-      const roleIds = exists
-        ? current.roleIds.filter((id) => id !== roleId)
-        : [...current.roleIds, roleId];
-      return { ...current, roleIds };
-    });
-  }
-
   async function onSave(event: FormEvent) {
     event.preventDefault();
+    if (form.roleId == null) {
+      setFieldErrors({ role_id: 'Select a role.' });
+      return;
+    }
     setSaving(true);
     setFormError(null);
     setFieldErrors({});
     try {
       if (editing) {
         await userApi.updateUser(editing.id, {
-          firstName: form.firstName,
-          lastName: form.lastName,
+          name: form.name,
           email: form.email,
-          phone: form.phone || undefined,
-          roleIds: form.roleIds,
-          isActive: form.isActive,
+          role_id: form.roleId,
+          status: form.status,
         });
         pushToast('User updated.', 'success');
       } else {
         await userApi.createUser({
-          firstName: form.firstName,
-          lastName: form.lastName,
+          name: form.name,
           email: form.email,
-          phone: form.phone || undefined,
           password: form.password,
-          roleIds: form.roleIds,
+          role_id: form.roleId,
         });
         pushToast('User created.', 'success');
       }
@@ -239,8 +220,8 @@ export function UsersPage() {
     <div className="users-page">
       <PageHeader
         title="Users"
-        subtitle="Manage workspace accounts, roles, and access status."
-        actions={canCreate ? <Button onClick={openCreate}>Add user</Button> : null}
+        subtitle="Create employee accounts, assign Manager or Sales Staff roles, and control access."
+        actions={canManage ? <Button onClick={openCreate}>Add user</Button> : null}
       />
 
       <Card>
@@ -248,7 +229,7 @@ export function UsersPage() {
           <Input
             label="Search"
             name="search"
-            placeholder="Search name, email, or phone"
+            placeholder="Search name or email"
             value={search}
             onChange={(e) => {
               setPage(1);
@@ -264,9 +245,9 @@ export function UsersPage() {
                 setStatus(e.target.value);
               }}
             >
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="ALL">All</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="all">All</option>
             </select>
           </label>
         </div>
@@ -289,41 +270,25 @@ export function UsersPage() {
                   render: (row) => (
                     <div>
                       <Link to={`/app/users/${row.id}`}>
-                        <strong>{row.fullName}</strong>
+                        <strong>{row.name}</strong>
                       </Link>
                       <div className="users-muted">{row.email}</div>
                     </div>
                   ),
                 },
                 {
-                  key: 'roles',
-                  header: 'Roles',
+                  key: 'role',
+                  header: 'Role',
                   render: (row) => (
-                    <div className="users-role-badges">
-                      {row.roles.map((role) => (
-                        <Badge key={role} tone="neutral">
-                          {formatRoleName(role)}
-                        </Badge>
-                      ))}
-                    </div>
+                    <Badge tone="neutral">{formatRoleName(row.role.role_name)}</Badge>
                   ),
-                },
-                {
-                  key: 'phone',
-                  header: 'Phone',
-                  render: (row) => row.phone || '—',
-                },
-                {
-                  key: 'lastLoginAt',
-                  header: 'Last login',
-                  render: (row) => formatDate(row.lastLoginAt),
                 },
                 {
                   key: 'status',
                   header: 'Status',
                   render: (row) => (
-                    <Badge tone={row.isActive ? 'green' : 'neutral'}>
-                      {row.isActive ? 'ACTIVE' : 'INACTIVE'}
+                    <Badge tone={isActiveStatus(row.status) ? 'green' : 'neutral'}>
+                      {row.status.toUpperCase()}
                     </Badge>
                   ),
                 },
@@ -335,12 +300,12 @@ export function UsersPage() {
                       <Link className="ui-btn ui-btn--ghost" to={`/app/users/${row.id}`}>
                         View
                       </Link>
-                      {canUpdate ? (
+                      {canManage ? (
                         <Button variant="ghost" onClick={() => openEdit(row)}>
                           Edit
                         </Button>
                       ) : null}
-                      {canDelete && row.isActive && String(row.id) !== String(currentUser?.id) ? (
+                      {canManage && isActiveStatus(row.status) && row.id !== currentUser?.id ? (
                         <Button variant="ghost" onClick={() => setDeactivateTarget(row)}>
                           Deactivate
                         </Button>
@@ -353,7 +318,7 @@ export function UsersPage() {
 
             <div className="users-pagination">
               <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} users
+                Page {pagination.page} of {pagination.total_pages} · {pagination.total} users
               </span>
               <div className="users-actions">
                 <Button
@@ -365,7 +330,7 @@ export function UsersPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  disabled={page >= pagination.totalPages}
+                  disabled={page >= pagination.total_pages}
                   onClick={() => setPage((current) => current + 1)}
                 >
                   Next
@@ -386,19 +351,12 @@ export function UsersPage() {
           {formError ? <Alert tone="error">{formError}</Alert> : null}
           <div className="users-form__grid">
             <Input
-              label="First name"
-              name="firstName"
-              value={form.firstName}
-              onChange={(e) => setForm((current) => ({ ...current, firstName: e.target.value }))}
-              error={fieldErrors.firstName}
-              required
-            />
-            <Input
-              label="Last name"
-              name="lastName"
-              value={form.lastName}
-              onChange={(e) => setForm((current) => ({ ...current, lastName: e.target.value }))}
-              error={fieldErrors.lastName}
+              label="Full name"
+              name="name"
+              value={form.name}
+              onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
+              error={fieldErrors.name}
+              className="users-form__full"
               required
             />
             <Input
@@ -410,13 +368,6 @@ export function UsersPage() {
               error={fieldErrors.email}
               required
             />
-            <Input
-              label="Phone"
-              name="phone"
-              value={form.phone}
-              onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))}
-              error={fieldErrors.phone}
-            />
             {!editing ? (
               <Input
                 label="Password"
@@ -425,49 +376,55 @@ export function UsersPage() {
                 value={form.password}
                 onChange={(e) => setForm((current) => ({ ...current, password: e.target.value }))}
                 error={fieldErrors.password}
-                className="users-form__full"
+                hint="At least 8 characters, with a letter and a number."
                 required
               />
             ) : (
-              <label className="users-select users-form__full">
+              <label className="users-select">
                 <span>Status</span>
                 <select
-                  value={form.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  value={form.status}
                   onChange={(e) =>
                     setForm((current) => ({
                       ...current,
-                      isActive: e.target.value === 'ACTIVE',
+                      status: e.target.value,
                     }))
                   }
-                  disabled={String(editing.id) === String(currentUser?.id)}
+                  disabled={editing.id === currentUser?.id}
                 >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </label>
             )}
             <div className="users-form__full">
               <label className="users-select">
-                <span>Roles</span>
+                <span>Role</span>
               </label>
-              {fieldErrors.roleIds ? (
-                <Alert tone="error">{fieldErrors.roleIds}</Alert>
-              ) : null}
-              <div className="users-role-list">
-                {roles.map((role) => (
-                  <label key={role.id} className="users-role-option">
-                    <input
-                      type="checkbox"
-                      checked={form.roleIds.includes(role.id)}
-                      onChange={() => toggleRole(role.id)}
-                    />
-                    <div>
-                      <strong>{formatRoleName(role.name)}</strong>
-                      {role.description ? <span>{role.description}</span> : null}
-                    </div>
-                  </label>
-                ))}
-              </div>
+              {fieldErrors.role_id ? <Alert tone="error">{fieldErrors.role_id}</Alert> : null}
+              {editing?.role.role_name === 'Business Owner' ? (
+                <p className="users-muted">
+                  Business Owner accounts keep that role. Assign Manager or Sales Staff to
+                  employees only.
+                </p>
+              ) : (
+                <div className="users-role-list">
+                  {roles.map((role) => (
+                    <label key={role.id} className="users-role-option">
+                      <input
+                        type="radio"
+                        name="role_id"
+                        checked={form.roleId === role.id}
+                        onChange={() => setForm((current) => ({ ...current, roleId: role.id }))}
+                      />
+                      <div>
+                        <strong>{formatRoleName(role.role_name)}</strong>
+                        {role.description ? <span>{role.description}</span> : null}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="users-form__actions">
@@ -491,7 +448,7 @@ export function UsersPage() {
         onConfirm={() => void onConfirmDeactivate()}
       >
         {deactivateTarget
-          ? `${deactivateTarget.fullName} will lose access until reactivated.`
+          ? `${deactivateTarget.name} will lose access until reactivated.`
           : null}
       </ConfirmDialog>
     </div>

@@ -14,7 +14,7 @@ export type Product = {
   supplier_id: number | null;
   sku: string;
   name: string;
-  cost_price: number;
+  cost_price: number | null;
   selling_price: number;
   reorder_level: number;
   status: 'active' | 'inactive';

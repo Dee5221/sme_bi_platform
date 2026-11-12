@@ -10,8 +10,13 @@ type Props = {
 };
 
 export function Alert({ tone = 'info', children, title }: Props) {
+  const urgent = tone === 'error' || tone === 'warning';
   return (
-    <div className={`ui-alert ui-alert--${tone}`} role="alert">
+    <div
+      className={`ui-alert ui-alert--${tone}`}
+      role={urgent ? 'alert' : 'status'}
+      aria-live={urgent ? 'assertive' : 'polite'}
+    >
       {title ? <strong>{title}</strong> : null}
       <div>{children}</div>
     </div>

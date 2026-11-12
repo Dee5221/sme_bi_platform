@@ -75,7 +75,9 @@ export function InventoryAnalyticsPage() {
             <div className={`dashboard-kpi-value ${health.low_stock_items > 0 ? 'text-warning' : 'text-success'}`}>
               {health.low_stock_items}
             </div>
-            <div className="dashboard-kpi-trend">At or below reorder level</div>
+            <div className="dashboard-kpi-trend">
+              {health.low_stock_items > 0 ? 'Needs restock' : 'None below reorder level'}
+            </div>
           </Card>
 
           <Card className="dashboard-kpi-card">
@@ -86,15 +88,9 @@ export function InventoryAnalyticsPage() {
                 : 'N/A'}
             </div>
             <div className="dashboard-kpi-trend">
-              {health.note || 'Based on cost_price × quantity'}
+              {health.total_inventory_value === null ? 'Cost prices missing' : 'Valued at cost'}
             </div>
           </Card>
-        </div>
-      )}
-
-      {health?.note && (
-        <div style={{ marginTop: '16px' }}>
-          <Alert tone="warning">{health.note}</Alert>
         </div>
       )}
     </div>

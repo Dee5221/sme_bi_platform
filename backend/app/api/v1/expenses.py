@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
-from app.models.user import User
+from app.core.dependencies import require_permission
 from app.models.expense import Expense
-from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseResponse
+from app.models.user import User
+from app.schemas.expense import ExpenseCreate, ExpenseResponse, ExpenseUpdate
 
 router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/api/expenses", tags=["Expenses"])
 @router.get("/", response_model=List[ExpenseResponse])
 def list_expenses(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("expenses.view")),
 ):
     return (
         db.query(Expense)
@@ -28,12 +29,12 @@ def list_expenses(
 def create_expense(
     expense_in: ExpenseCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager"])),
+    current_user: User = Depends(require_permission("expenses.manage")),
 ):
     db_expense = Expense(
         business_id=current_user.business_id,
         user_id=current_user.id,
-        **expense_in.model_dump()
+        **expense_in.model_dump(),
     )
     db.add(db_expense)
     db.commit()
@@ -46,7 +47,7 @@ def update_expense(
     expense_id: int,
     expense_in: ExpenseUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager"])),
+    current_user: User = Depends(require_permission("expenses.manage")),
 ):
     expense = (
         db.query(Expense)
@@ -68,7 +69,7 @@ def update_expense(
 def delete_expense(
     expense_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager"])),
+    current_user: User = Depends(require_permission("expenses.manage")),
 ):
     expense = (
         db.query(Expense)

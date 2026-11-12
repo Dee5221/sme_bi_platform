@@ -21,6 +21,15 @@ function formatAction(action: string) {
   return action.replace(/\./g, ' · ').replace(/_/g, ' ');
 }
 
+function formatMetadata(metadata: Record<string, unknown> | null) {
+  if (!metadata) return '—';
+  try {
+    return JSON.stringify(metadata);
+  } catch {
+    return '—';
+  }
+}
+
 export function ActivityLogPage() {
   const { hasPermission } = useAuth();
   const canView = hasPermission('audit.view');
@@ -34,14 +43,15 @@ export function ActivityLogPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [action, setAction] = useState('');
   const [entity, setEntity] = useState('');
+  const [result, setResult] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({
     page: 1,
-    pageSize: 20,
+    page_size: 20,
     total: 0,
-    totalPages: 1,
+    total_pages: 1,
   });
 
   useEffect(() => {
@@ -57,25 +67,26 @@ export function ActivityLogPage() {
     }
     setError(null);
     try {
-      const result = await auditApi.listAuditLogs({
+      const payload = await auditApi.listAuditLogs({
         search: debouncedSearch || undefined,
         action: action || undefined,
         entity: entity || undefined,
+        result: result || undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         page,
         pageSize: 20,
       });
-      setItems(result.items);
-      setActions(result.filters.actions);
-      setEntities(result.filters.entities);
-      setPagination(result.pagination);
+      setItems(payload.items);
+      setActions(payload.filters.actions);
+      setEntities(payload.filters.entities);
+      setPagination(payload.pagination);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Unable to load activity log.');
     } finally {
       setLoading(false);
     }
-  }, [canView, debouncedSearch, action, entity, startDate, endDate, page]);
+  }, [canView, debouncedSearch, action, entity, result, startDate, endDate, page]);
 
   useEffect(() => {
     void loadLogs();
@@ -89,7 +100,7 @@ export function ActivityLogPage() {
     <div className="activity-log-page">
       <PageHeader
         title="Activity Log"
-        subtitle="Review tenant-scoped account and system events for this business."
+        subtitle="Security and administration events for this business."
       />
 
       <Card>
@@ -138,6 +149,20 @@ export function ActivityLogPage() {
               ))}
             </select>
           </label>
+          <label className="activity-log-select">
+            <span>Result</span>
+            <select
+              value={result}
+              onChange={(e) => {
+                setPage(1);
+                setResult(e.target.value);
+              }}
+            >
+              <option value="">All results</option>
+              <option value="success">Success</option>
+              <option value="denied">Denied</option>
+            </select>
+          </label>
           <Input
             label="From"
             name="startDate"
@@ -173,18 +198,18 @@ export function ActivityLogPage() {
               emptyDescription="Events will appear here as users work in this workspace."
               columns={[
                 {
-                  key: 'createdAt',
+                  key: 'created_at',
                   header: 'When',
-                  render: (row) => formatDate(row.createdAt),
+                  render: (row) => formatDate(row.created_at),
                 },
                 {
                   key: 'actor',
                   header: 'Actor',
                   render: (row) => (
                     <div>
-                      <strong>{row.actorName}</strong>
-                      {row.actorEmail ? (
-                        <div className="activity-log-muted">{row.actorEmail}</div>
+                      <strong>{row.actor_name}</strong>
+                      {row.actor_email ? (
+                        <div className="activity-log-muted">{row.actor_email}</div>
                       ) : null}
                     </div>
                   ),
@@ -200,16 +225,32 @@ export function ActivityLogPage() {
                   render: (row) => row.entity,
                 },
                 {
-                  key: 'entityId',
+                  key: 'entity_id',
                   header: 'Record',
-                  render: (row) => row.entityId || '—',
+                  render: (row) => row.entity_id || '—',
+                },
+                {
+                  key: 'result',
+                  header: 'Result',
+                  render: (row) => (
+                    <Badge tone={row.result === 'success' ? 'green' : 'orange'}>
+                      {row.result}
+                    </Badge>
+                  ),
+                },
+                {
+                  key: 'metadata',
+                  header: 'Details',
+                  render: (row) => (
+                    <div className="activity-log-muted">{formatMetadata(row.metadata)}</div>
+                  ),
                 },
               ]}
             />
 
             <div className="activity-log-pagination">
               <span>
-                Page {pagination.page} of {pagination.totalPages} · {pagination.total} events
+                Page {pagination.page} of {pagination.total_pages} · {pagination.total} events
               </span>
               <div className="activity-log-actions">
                 <Button
@@ -221,7 +262,7 @@ export function ActivityLogPage() {
                 </Button>
                 <Button
                   variant="secondary"
-                  disabled={page >= pagination.totalPages}
+                  disabled={page >= pagination.total_pages}
                   onClick={() => setPage((current) => current + 1)}
                 >
                   Next

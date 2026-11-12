@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import { Alert } from '../components/ui/Alert';
@@ -186,12 +186,6 @@ export function LoginPage() {
                 </Button>
               </div>
 
-              <p className="auth-form__register">
-                Don't have a business account?{' '}
-                <Link to="/register" className="auth-form__register-link">
-                  Register your SME
-                </Link>
-              </p>
             </form>
 
             <div className="auth-form-panel__footer">

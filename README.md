@@ -4,6 +4,8 @@ An intelligent, web-based **Business Intelligence (BI) and Decision-Support Plat
 
 The platform integrates **retail operations, business intelligence, predictive analytics, and decision support** into a single system.
 
+Role-by-role access, repository layout, and the permission matrix are in [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md).
+
 ---
 
 ## 📌 Project Overview
@@ -83,7 +85,7 @@ All core modules have been implemented and integrated.
 
 ### Predictive Analytics (F10)
 
-* [x] Pure-Python forecasting service (3-period moving average)
+* [x] Pure-Python forecasting service (SMA, WMA, naive, seasonal naive)
 * [x] Naive baseline forecasting for comparison
 * [x] Chronological train/test split evaluation
 * [x] MAE, RMSE, and MASE evaluation metrics
@@ -107,16 +109,28 @@ All core modules have been implemented and integrated.
 * [x] Analysis period selection (3 / 6 / 9 / 12 months)
 * [x] Data quality and limitations display
 * [x] Dashboard integration with recommendations summary card
-* [x] Role-based recommendation filtering (Staff → inventory only)
+* [x] Role-based recommendation access (Owner and Manager only; Staff have no BI screens)
+
+### Administration, reports, and production readiness
+
+* [x] Itemised sales history with snapshotted name, SKU, price, and unit cost
+* [x] Weighted moving average and rolling-origin forecast evaluation
+* [x] Gross profit from snapshotted sale costs only
+* [x] Tenant-scoped PDF reports
+* [x] Owner user administration, locked roles matrix, activity log, business settings
+* [x] Dialog scroll lock, skip link, and visible focus
+* [x] JWT expiry/revocation, login rate limiting, security headers, environment-based CORS
+* [x] Automated pytest acceptance suite
+* [x] Self-service profile and password change (`/api/profile`)
 
 ### Deferred / Future Work
 
-* [ ] Customer activity recommendations (pending data coverage verification)
-* [ ] Forecast context integration into recommendations
+* [ ] Profile photo storage
 * [ ] Recommendation persistence and dismissal
 * [ ] Configurable alert thresholds
 * [ ] CSV/Excel report export
-* [ ] System evaluation and usability testing
+* [ ] Shared-rate-limit / token-revocation store for multi-process production
+* [ ] Formal usability evaluation with shop staff
 
 ---
 
@@ -126,9 +140,9 @@ The platform supports role-based access control.
 
 | Role               | Description                                                                      |
 | ------------------ | -------------------------------------------------------------------------------- |
-| **Business Owner** | Full access to all operations, analytics, forecasting, and recommendations       |
-| **Manager**        | Manages day-to-day operations, analytics, and recommendations                    |
-| **Staff**          | Performs operational activities; receives inventory recommendations only         |
+| **Business Owner** | Full operations, BI, forecasts, PDF reports, users, audit, and settings          |
+| **Manager**        | Day-to-day operations, expenses, analytics, forecasts, and reports. No user admin |
+| **Staff**          | Point of sale, own sales history, product and customer lookup                    |
 
 Authorization is enforced on the **backend**, not only through the user interface.
 
@@ -141,7 +155,7 @@ The platform follows a layered architecture designed to separate business operat
 ```text
 ┌───────────────────────────────┐
 │          Web Frontend         │
-│  React 19 • TypeScript • Vite │
+│  React 18 • TypeScript • Vite │
 │  Dashboard • Forms • Reports  │
 └───────────────┬───────────────┘
                 │
@@ -190,11 +204,11 @@ The platform follows a layered architecture designed to separate business operat
 
 Provides secure access to the platform through:
 
-* JWT-based stateless authentication
+* JWT authentication with expiry, issuer, and session invalidation
 * Argon2id password hashing
-* Role-based access control (Business Owner, Manager, Staff)
-* Protected API endpoints
-* Multi-tenant business isolation via `business_id`
+* Permission-based access control (Business Owner, Manager, Staff)
+* Protected API endpoints (default deny)
+* Multi-tenant isolation from the authenticated `business_id` only
 
 ---
 
@@ -242,16 +256,16 @@ Specify Quantity
       ↓
 Validate Stock
       ↓
-Calculate Sale (unit_price × quantity)
+Snapshot name, SKU, selling price, and unit cost
       ↓
-Record Transaction
+Record completed sale
       ↓
-Reduce Inventory
+Reduce inventory (row lock)
       ↓
-Record Stock Movement
+Record stock movement (SALE-{id})
 ```
 
-Sales and inventory updates are handled transactionally so that a sale does not become partially recorded.
+Sales and inventory updates are handled in one transaction. Historical line prices do not change if the catalogue price is updated later.
 
 ---
 
@@ -295,12 +309,11 @@ The BI layer transforms operational data into useful information through:
 
 The predictive analytics component provides:
 
-* **Revenue Forecasting:** 3-period moving average projection
-* **Expense Forecasting:** Same methodology applied to expense trends
-* **Inventory Demand Forecasting:** Average daily demand calculation with stockout timeline estimation
-* **Model Evaluation:** Chronological train/test split with MAE, RMSE, MASE metrics
-* **Baseline Comparison:** Moving average performance compared against naive forecast
-* **Data Quality Indicators:** Explicit labeling of synthetic data and heuristic limitations
+* **Revenue and expense forecasting:** SMA, WMA, naive, and seasonal naive
+* **Method selection:** rolling-origin MAE without using future periods
+* **Inventory demand forecasting:** daily path, clamped at zero, with stockout notes
+* **Evaluation:** MAE, RMSE, and MASE versus a naive baseline
+* **Data quality:** labelled fallback when history is too short
 
 The objective is to provide useful, explainable forecasts rather than unnecessarily complex machine-learning models.
 
@@ -327,11 +340,11 @@ The decision-support layer uses operational, BI and predictive information to pr
 | Technology | Purpose |
 |------------|---------|
 | **FastAPI** | RESTful API framework |
-| **Python 3.11** | Backend language |
+| **Python 3.12** | Backend language |
 | **SQLAlchemy 2.x** | ORM and database queries |
 | **Alembic** | Database migrations |
 | **Pydantic** | Request/response validation |
-| **JWT (PyJWT)** | Stateless authentication |
+| **JWT (PyJWT)** | Signed access tokens with expiry and server-side revocation |
 | **Argon2id** | Password hashing |
 | **Uvicorn** | ASGI server |
 
@@ -339,7 +352,7 @@ The decision-support layer uses operational, BI and predictive information to pr
 
 | Technology | Purpose |
 |------------|---------|
-| **React 19** | UI framework |
+| **React 18** | UI framework |
 | **TypeScript** | Type safety |
 | **Vite** | Build tool and dev server |
 | **React Router** | Client-side routing |
@@ -376,11 +389,7 @@ The application connects using a dedicated database account rather than the Post
 Example configuration:
 
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=sme_bi_platform
-DB_USER=sme_app
-DB_PASSWORD=your_secure_password
+DATABASE_URL=postgresql+psycopg2://sme_app:your_secure_password@localhost:5432/sme_bi_platform
 ```
 
 ### Security
@@ -666,15 +675,16 @@ cd sme_bi_platform
 
 ### Configure Environment Variables
 
-Create a `.env` file in the `backend/` directory:
+Create a `.env` file in the `backend/` directory (see `backend/.env.example`):
 
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=sme_bi_platform
-DB_USER=sme_app
-DB_PASSWORD=your_secure_password
-SECRET_KEY=your_jwt_secret_key_here
+DATABASE_URL=postgresql+psycopg2://sme_app:your_secure_password@localhost:5432/sme_bi_platform
+SECRET_KEY=replace-with-a-long-random-string
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+ENVIRONMENT=development
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+ALLOWED_HOSTS=localhost,127.0.0.1,testserver
 ```
 
 > ⚠️ **Never commit `.env` files to Git.** Ensure `.env` is listed in `.gitignore`.
@@ -722,7 +732,8 @@ cd backend
 python3 -m venv venv
 
 # Activate the virtual environment
-source venv/bin/activate
+source venv/bin/activate          # macOS / Linux
+# backend\venv\Scripts\activate   # Windows PowerShell
 ```
 
 #### Step 3: Install Backend Dependencies
@@ -737,27 +748,32 @@ pip install -r requirements.txt
 alembic upgrade head
 ```
 
-#### Step 5: Seed Data (First Time Only)
+#### Step 5: Seed Data (Local Development Only)
 
 ```bash
-# Seed master data (DATA-01)
+# Roles, business, and local evaluation users
+python scripts/seed_db.py
+
+# Catalogue, suppliers, customers, opening stock (DATA-01)
 python scripts/seed_demo_data.py
 
-# Seed historical data (DATA-02)
+# Historical sales and expenses (DATA-02)
 python scripts/seed_historical_data.py
 ```
 
-> ⚠️ **Do not rerun seed scripts** if data already exists. This will create duplicate records.
+> ⚠️ These scripts are for local evaluation. They refuse to run when `ENVIRONMENT=production`. Do not deploy demonstration accounts. Do not rerun seed scripts if data already exists.
 
 #### Step 6: Start the Backend Server
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+Do not use `--reload` in production.
 
 The backend API will be available at: `http://127.0.0.1:8000`
 
-API documentation (Swagger UI): `http://127.0.0.1:8000/docs`
+API documentation (Swagger UI) is available in development only: `http://127.0.0.1:8000/docs`
 
 ### Frontend Setup & Startup
 
@@ -790,6 +806,8 @@ The frontend will be available at: `http://localhost:5173`
 npm run build
 ```
 
+Production builds drop console/debugger output and call `/api` on the same origin unless `VITE_API_BASE_URL` is set. Do not put database credentials or signing keys in frontend environment files.
+
 ### Full Application Startup Summary
 
 **Terminal 1 — Backend:**
@@ -798,7 +816,7 @@ npm run build
 cd backend
 unset PYTHONPATH
 source venv/bin/activate
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 **Terminal 2 — Frontend:**
@@ -849,9 +867,62 @@ Avoid committing:
 
 ---
 
+## 🧪 Automated tests
+
+From `backend/` with the virtual environment active and PostgreSQL running:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+The acceptance suite covers role permissions, tenant isolation, sales snapshots and concurrent stock locks, forecasting rules, PDF reports, administration, self-service profile, security headers, and UI contracts.
+
+Do not point `ENVIRONMENT=production` at the evaluation database while running seed scripts; those scripts are blocked in production.
+
+---
+
+## 🚀 Production deployment
+
+1. Provision PostgreSQL and run `alembic upgrade head`. Do not run demo seed scripts.
+2. Create the first owner with a real password:
+   ```bash
+   python scripts/provision_business.py
+   ```
+   The script creates roles if needed, then a business and Business Owner using the live user fields (`name`, `password_hash`, `role_id`). It is allowed in production. Do not use the demo seed scripts.
+3. Set `backend/.env`:
+   - `ENVIRONMENT=production`
+   - a long random `SECRET_KEY` (at least 32 characters; weak keys are rejected)
+   - `DATABASE_URL` for the production database
+   - `CORS_ORIGINS` to the real frontend origin(s)
+   - `ALLOWED_HOSTS` to the API hostname(s)
+   - `AUTH_COOKIE_SECURE=true` behind HTTPS
+4. Serve the API with uvicorn or gunicorn **without** `--reload`, behind HTTPS.
+5. Build the frontend with `npm run build`. Leave `VITE_API_BASE_URL` empty and reverse-proxy `/api` to the backend so cookies stay first-party.
+6. Do not expose `/docs`, database credentials, or signing keys to the browser.
+
+Local development can keep `ENVIRONMENT=development` and `VITE_API_BASE_URL=http://127.0.0.1:8000`.
+
+---
+
+## ⚠️ Remaining limitations and risks
+
+* **Not an ERP or accounting system.** Net cash flow is revenue minus recorded expenses. Gross profit uses snapshotted sale costs only; lines without a stored cost are omitted.
+* **Forecasts are statistical baselines**, not trained machine-learning models. Results on synthetic evaluation data do not prove real-world predictive accuracy.
+* **Recommendations are advisory.** They never write stock or financial records.
+* **Session storage.** Login rate limits and token revocation live in process memory. Multiple API workers will not share them. For a multi-process deploy, use a shared store.
+* **Tokens.** The SPA still holds a session token for local cross-origin use. Prefer same-origin HTTPS with the HttpOnly cookie in production.
+* **Profile photos** are not stored. Initials are shown instead. Phone is not a user field; business contact lives in Business Settings.
+* **In-memory login limiter** can be cleared by a process restart.
+* **HCI checks** for skip-link, dialog lock, and focus styles are source contracts plus earlier browser passes, not a full automated browser suite.
+
+See `PROJECT_STRUCTURE.md` for the role access matrix.
+
+---
+
 ## 📜 Project Status
 
-**Current status: All Core Modules Complete — Evaluation Phase**
+**Current status: Functional completion, security hardening, and automated tests — documentation current**
 
 | Module | Status |
 |--------|--------|
@@ -865,7 +936,11 @@ Avoid committing:
 | Business Intelligence (F09) | ✅ Complete |
 | Predictive Analytics (F10) | ✅ Complete |
 | Decision Support (F11) | ✅ Complete |
-| Testing & Evaluation | 🔄 In Progress |
+| PDF reports | ✅ Complete |
+| User / roles / audit / settings | ✅ Complete |
+| Security and production config | ✅ Complete |
+| Automated tests | ✅ 102 passed |
+| Documentation | ✅ Complete |
 
 ---
 

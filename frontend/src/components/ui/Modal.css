@@ -1,11 +1,8 @@
 .ui-modal-backdrop {
-  position: fixed;
-  inset: 0;
   background: rgba(16, 24, 40, 0.45);
   display: grid;
   place-items: center;
   padding: 1rem;
-  z-index: 1200;
 }
 
 .ui-modal {
@@ -13,8 +10,11 @@
   background: #fff;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
-  max-height: calc(100vh - 2rem);
-  overflow: auto;
+  max-height: min(calc(100vh - 2rem), calc(100dvh - 2rem));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  outline: none;
 }
 
 .ui-modal--lg {
@@ -27,6 +27,7 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 1rem 1.15rem 0.35rem;
+  flex-shrink: 0;
 }
 
 .ui-modal__header h2 {
@@ -44,4 +45,22 @@
 
 .ui-modal__body {
   padding: 0.75rem 1.15rem 1.25rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+@media (max-width: 640px) {
+  .ui-modal-backdrop {
+    padding: 0.75rem;
+    align-items: end;
+  }
+
+  .ui-modal,
+  .ui-modal--lg {
+    width: 100%;
+    max-height: min(calc(100vh - 1.5rem), calc(100dvh - 1.5rem));
+  }
 }

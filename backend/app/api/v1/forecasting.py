@@ -2,8 +2,6 @@
 Forecasting API endpoint for SME BI Platform.
 Provides revenue, expense, and inventory demand forecasting.
 """
-from datetime import date, datetime
-from typing import Optional
 import calendar
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,16 +9,20 @@ from sqlalchemy import func, extract
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
 from app.models.user import User
 from app.models.sale import Sale
 from app.models.expense import Expense
-from app.models.inventory import Inventory
-from app.models.product import Product
-from app.services.forecasting import (
-    moving_average_forecast,
-    evaluate_forecast,
+from app.core.permissions import has_permission
+from app.services.forecasting import select_forecast_method
+from app.services.product_insights import (
+    inventory_demand_forecasts,
+    product_performance,
+    profitability,
+    resolve_period,
+    stockout_notes,
 )
+from app.schemas.analytics import ProductPerformanceItem, ProfitabilityResponse
 from app.schemas.forecasting import (
     ForecastingResponse,
     MonthlyDataPoint,
@@ -30,6 +32,7 @@ from app.schemas.forecasting import (
     PeriodInfo,
     DataQualityInfo,
     EvaluationMetrics,
+    ForecastInsightNote,
 )
 
 router = APIRouter(prefix="/api/forecasting", tags=["Forecasting"])
@@ -53,15 +56,21 @@ def get_month_key(year: int, month: int) -> str:
 def get_forecasting(
     months: int = Query(6, ge=3, le=24, description="Historical months to include"),
     horizon: int = Query(3, ge=1, le=12, description="Months to forecast"),
+    demand_horizon: int = Query(7, description="Daily product demand horizon: 7, 14, or 30"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("forecasting.view")),
 ):
     """
     Generate revenue, expense, and inventory demand forecasts.
-    
-    Uses 3-period moving average for forecasting with proper evaluation.
-    All data is scoped to the authenticated user's business.
+
+    Monthly series compare SMA, WMA, naive, and seasonal naive with rolling-origin
+    MAE. Product demand uses shop-open days and a daily forecast path.
     """
+    if demand_horizon not in (7, 14, 30):
+        raise HTTPException(
+            status_code=422,
+            detail="demand_horizon must be 7, 14, or 30",
+        )
     business_id = current_user.business_id
     
     # ==========================================================================
@@ -164,24 +173,27 @@ def get_forecasting(
     expense_series = [m['expenses'] for m in historical_months]
     sales_count_series = [m['sales_count'] for m in historical_months]
     
-    # Generate forecasts using 3-period moving average
     window = min(3, len(historical_months))
-    
-    revenue_forecasts = moving_average_forecast(
-        revenue_series.copy(), window, horizon
+    season_length = 12 if len(revenue_series) >= 24 else None
+
+    revenue_forecasts, evaluation = select_forecast_method(
+        revenue_series,
+        horizon=horizon,
+        window=window,
+        season_length=season_length,
     )
-    expense_forecasts = moving_average_forecast(
-        expense_series.copy(), window, horizon
+    expense_forecasts, _ = select_forecast_method(
+        expense_series,
+        horizon=horizon,
+        window=window,
+        season_length=season_length,
     )
-    sales_count_forecasts = moving_average_forecast(
-        sales_count_series.copy(), window, horizon
+    sales_count_forecasts, _ = select_forecast_method(
+        [float(value) for value in sales_count_series],
+        horizon=horizon,
+        window=window,
+        season_length=season_length,
     )
-    
-    # ==========================================================================
-    # Step 3: Evaluate the forecast model
-    # ==========================================================================
-    
-    evaluation = evaluate_forecast(revenue_series, train_ratio=0.67, window=window)
     
     # ==========================================================================
     # Step 4: Build forecast period labels
@@ -261,88 +273,30 @@ def get_forecasting(
     )
     
     # ==========================================================================
-    # Step 7: Inventory demand forecasting
+    # Step 7: Product demand, performance, and historical-cost profit
     # ==========================================================================
-    
-    # Get current inventory levels (joined through Product for business_id)
-    inventory_items = db.query(
-        Inventory.product_id,
-        Inventory.quantity_on_hand,
-        Product.name,
-        Product.sku,
-        Product.reorder_level,
-    ).join(
-        Product, Inventory.product_id == Product.id
-    ).filter(
-        Product.business_id == business_id,
-    ).all()
-    
-    inventory_forecasts = []
-    
-    for inv in inventory_items:
-        # Get historical demand for this product (sum of sale item quantities)
-        from app.models.sale import SaleItem
-        demand_query = db.query(
-            func.coalesce(func.sum(SaleItem.quantity), 0).label('total_demand'),
-            func.count(func.distinct(
-                func.date_trunc('month', Sale.sale_datetime)
-            )).label('months_with_sales'),
-        ).select_from(SaleItem).join(
-            Sale, Sale.id == SaleItem.sale_id
-        ).filter(
-            SaleItem.product_id == inv.product_id,
-            Sale.status == COMPLETED_STATUS,
-        ).first()
-        
-        total_demand = float(demand_query.total_demand) if demand_query else 0.0
-        months_with_sales = demand_query.months_with_sales if demand_query else 0
-        
-        # Calculate average monthly demand
-        if months_with_sales > 0:
-            avg_monthly_demand = total_demand / len(historical_months)
-        else:
-            avg_monthly_demand = 0.0
-        
-        # Project next month's demand (simple: use average)
-        projected_demand = avg_monthly_demand
-        
-        # Estimate days until stockout
-        current_qty = float(inv.quantity_on_hand)
-        if avg_monthly_demand > 0:
-            # Assume 30 days per month
-            days_until_stockout = int((current_qty / avg_monthly_demand) * 30)
-        else:
-            days_until_stockout = None
-        
-        # Suggest restock quantity (2 months of demand if below reorder level)
-        reorder_level = float(inv.reorder_level) if inv.reorder_level else 0.0
-        if current_qty <= reorder_level and avg_monthly_demand > 0:
-            suggested_restock = int(avg_monthly_demand * 2)
-        else:
-            suggested_restock = 0
-        
-        # Determine urgency
-        if days_until_stockout is None:
-            urgency = 'NONE'
-        elif days_until_stockout <= 7:
-            urgency = 'HIGH'
-        elif days_until_stockout <= 30:
-            urgency = 'MEDIUM'
-        else:
-            urgency = 'LOW'
-        
-        inventory_forecasts.append(InventoryForecastItem(
-            productId=inv.product_id,
-            productName=inv.name,
-            productSku=inv.sku or '',
-            currentQuantity=current_qty,
-            lowStockThreshold=reorder_level,
-            averageMonthlyDemand=round(avg_monthly_demand, 2),
-            projectedDemandNextMonth=round(projected_demand, 2),
-            estimatedDaysUntilStockout=days_until_stockout,
-            suggestedRestockQuantity=suggested_restock,
-            urgency=urgency,
-        ))
+
+    inventory_forecasts = [
+        InventoryForecastItem(**item)
+        for item in inventory_demand_forecasts(db, business_id, demand_horizon)
+    ]
+    insights = [
+        ForecastInsightNote(**note)
+        for note in stockout_notes(
+            [item.model_dump() for item in inventory_forecasts],
+            demand_horizon,
+        )
+    ]
+
+    perf_start, perf_end = resolve_period(None, None, 30)
+    performance = product_performance(db, business_id, perf_start, perf_end, limit=8)
+    product_rows = [ProductPerformanceItem(**item) for item in performance["products"]]
+
+    profit_payload = None
+    if has_permission(current_user, "products.costs.view"):
+        profit_payload = ProfitabilityResponse(
+            **profitability(db, business_id, perf_start, perf_end, limit=8)
+        )
     
     # ==========================================================================
     # Step 8: Build complete response
@@ -350,13 +304,18 @@ def get_forecasting(
     
     first_month = historical_months[0]
     last_month = historical_months[-1]
+    selected_label = evaluation.get("selected_label") or "3-period simple moving average"
     
     methodology = MethodologyInfo(
-        label="Moving Average Forecast",
+        label=selected_label,
         description=(
-            "Uses a 3-period moving average to project future revenue and expenses "
-            "based on recent historical trends. Evaluation compares against a naive "
-            "baseline (last observed value) using MAE, RMSE, and MASE metrics."
+            f"Monthly revenue uses {selected_label}, selected by rolling-origin "
+            "one-step MAE against a 3-period simple moving average baseline, "
+            "weighted moving average (0.50 / 0.30 / 0.20), naive last-value, "
+            "and seasonal naive when two full years exist. Product demand is a "
+            f"{demand_horizon}-day path on shop-open days only. Negative forecasts "
+            "are clamped to zero. Supplier lead time is not recorded, so restock "
+            "figures are cover estimates, not reliable reorder points."
         ),
         lookbackMonths=len(historical_months),
         forecastMonths=horizon,
@@ -393,4 +352,8 @@ def get_forecasting(
         inventoryForecasts=inventory_forecasts,
         dataQuality=data_quality,
         evaluation=eval_metrics,
+        demandHorizonDays=demand_horizon,
+        productPerformance=product_rows,
+        profitability=profit_payload,
+        insights=insights,
     )

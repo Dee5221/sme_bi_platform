@@ -2,10 +2,12 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PublicOnlyRoute } from './components/PublicOnlyRoute';
+import { AccessDeniedPage } from './pages/AccessDeniedPage';
 import { ActivityLogPage } from './pages/ActivityLogPage';
 import { BusinessAnalyticsPage } from './pages/BusinessAnalyticsPage';
 import { BusinessSettingsPage } from './pages/BusinessSettingsPage';
 import { CustomerAnalyticsPage } from './pages/CustomerAnalyticsPage';
+import { CategoriesPage } from './pages/CategoriesPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ExpensesPage } from './pages/ExpensesPage';
@@ -26,50 +28,83 @@ import { SalesPage } from './pages/SalesPage';
 import { StockInPage } from './pages/StockInPage';
 import { StockOutPage } from './pages/StockOutPage';
 import { SuppliersPage } from './pages/SuppliersPage';
-import { UsersPage } from './pages/UsersPage';
 import { UserDetailsPage } from './pages/UserDetailsPage';
-
-// Removed: RegisterPage, MyPurchasesPage, PurchaseHistoryPage, PurchaseRecordsPage,
-// ProductsSuppliedPage, PortalSettingsPage, SupplierPurchaseHistoryPage
+import { UsersPage } from './pages/UsersPage';
 
 export default function App() {
   return (
     <Routes>
       <Route element={<PublicOnlyRoute />}>
         <Route path="/login" element={<LoginPage />} />
-        {/* Removed /register route */}
       </Route>
 
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppShell />}>
           <Route index element={<DashboardPage />} />
-          <Route path="analytics/business" element={<BusinessAnalyticsPage />} />
-          <Route path="analytics/sales" element={<SalesAnalyticsPage />} />
-          <Route path="analytics/inventory" element={<InventoryAnalyticsPage />} />
-          <Route path="analytics/customers" element={<CustomerAnalyticsPage />} />
-          <Route path="forecasting" element={<ForecastingPage />} />
-          <Route path="recommendations" element={<RecommendationsPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-
-          {/* Removed all /portal/* routes */}
-
-          <Route path="sales/new" element={<NewSalePage />} />
-          <Route path="sales/history" element={<SalesHistoryPage />} />
-          <Route path="sales" element={<SalesPage />} />
-          <Route path="expenses" element={<ExpensesPage />} />
-          <Route path="products" element={<ProductsPage />} />
-          <Route path="inventory/stock-in" element={<StockInPage />} />
-          <Route path="inventory/stock-out" element={<StockOutPage />} />
-          <Route path="inventory/movements" element={<InventoryMovementPage />} />
-          <Route path="inventory" element={<InventoryPage />} />
-          <Route path="customers" element={<CustomersPage />} />
-          <Route path="suppliers" element={<SuppliersPage />} />
-          <Route path="users" element={<UsersPage />} />
-          <Route path="users/:id" element={<UserDetailsPage />} />
-          <Route path="roles" element={<RolesPermissionsPage />} />
-          <Route path="activity-log" element={<ActivityLogPage />} />
-          <Route path="business-settings" element={<BusinessSettingsPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="access-denied" element={<AccessDeniedPage />} />
+
+          <Route element={<ProtectedRoute permission="sales.create" />}>
+            <Route path="sales/new" element={<NewSalePage />} />
+          </Route>
+          <Route element={<ProtectedRoute anyOf={['sales.view_own', 'sales.view_all']} />}>
+            <Route path="sales/history" element={<SalesHistoryPage />} />
+            <Route path="sales" element={<SalesPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute permission="products.view" />}>
+            <Route path="products" element={<ProductsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="products.manage" />}>
+            <Route path="categories" element={<CategoriesPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="inventory.manage" />}>
+            <Route path="inventory/stock-in" element={<StockInPage />} />
+            <Route path="inventory/stock-out" element={<StockOutPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="inventory.view" />}>
+            <Route path="inventory/movements" element={<InventoryMovementPage />} />
+            <Route path="inventory" element={<InventoryPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="customers.view" />}>
+            <Route path="customers" element={<CustomersPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="suppliers.view" />}>
+            <Route path="suppliers" element={<SuppliersPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="expenses.view" />}>
+            <Route path="expenses" element={<ExpensesPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute permission="analytics.view" />}>
+            <Route path="analytics/business" element={<BusinessAnalyticsPage />} />
+            <Route path="analytics/sales" element={<SalesAnalyticsPage />} />
+            <Route path="analytics/inventory" element={<InventoryAnalyticsPage />} />
+            <Route path="analytics/customers" element={<CustomerAnalyticsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="forecasting.view" />}>
+            <Route path="forecasting" element={<ForecastingPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="recommendations.view" />}>
+            <Route path="recommendations" element={<RecommendationsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="reports.generate" />}>
+            <Route path="reports" element={<ReportsPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute permission="users.view" />}>
+            <Route path="users" element={<UsersPage />} />
+            <Route path="users/:id" element={<UserDetailsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="roles.view" />}>
+            <Route path="roles" element={<RolesPermissionsPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="audit.view" />}>
+            <Route path="activity-log" element={<ActivityLogPage />} />
+          </Route>
+          <Route element={<ProtectedRoute permission="business.settings.manage" />}>
+            <Route path="business-settings" element={<BusinessSettingsPage />} />
+          </Route>
         </Route>
       </Route>
 

@@ -30,7 +30,7 @@ export function StockInPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const { pushToast } = useToast();
-  const canAdjust = hasPermission('inventory.adjust');
+  const canAdjust = hasPermission('inventory.manage');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);

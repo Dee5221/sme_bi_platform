@@ -1,32 +1,40 @@
 import { apiRequest } from '../lib/api';
 
 export type RolePermission = {
-  id: string;
   key: string;
-  description: string | null;
+  group: string;
+  description: string;
 };
 
 export type ManagedRole = {
-  id: string;
-  name: string;
-  description: string | null;
-  isSystem: boolean;
-  permissionKeys: string[];
-  permissions: RolePermission[];
+  id: number | null;
+  role_name: string;
+  display_name: string;
+  description: string;
+  assignable: boolean;
+  permission_keys: string[];
+  member_count: number;
 };
 
-export type RolesData = {
+export type RoleMember = {
+  id: number;
+  name: string;
+  email: string;
+  status: string;
+  role_id: number;
+  role_name: string;
+  display_name: string;
+  assignable: boolean;
+};
+
+export type RolesMatrix = {
   roles: ManagedRole[];
   permissions: RolePermission[];
+  members: RoleMember[];
+  locked: boolean;
+  note: string;
 };
 
 export function fetchRoles() {
-  return apiRequest<RolesData>('/api/roles');
-}
-
-export function updateRolePermissions(roleId: string, permissionKeys: string[]) {
-  return apiRequest<{ role: ManagedRole }>(`/api/roles/${roleId}/permissions`, {
-    method: 'PUT',
-    body: JSON.stringify({ permissionKeys }),
-  });
+  return apiRequest<RolesMatrix>('/api/roles/');
 }

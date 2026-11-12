@@ -15,15 +15,28 @@ from app.models.product import Product
 from app.models.inventory import Inventory
 from app.models.sale import Sale, SaleItem
 from app.models.expense import Expense
+from app.services.product_insights import (
+    inventory_demand_forecasts,
+    product_performance,
+    profitability,
+    resolve_period,
+)
+from app.services.profit_recommendations import (
+    TYPE_AUDIENCE,
+    declining_demand_recommendations,
+    forecast_stockout_recommendations,
+    profit_aware_recommendations,
+    profit_unavailable_limitation,
+)
 
 # Qualifying sale status for revenue calculations
 COMPLETED_STATUS = "completed"
 
 # Global limitations always included in the response
 GLOBAL_LIMITATIONS = [
-    "Recommendations are advisory only and do not automatically modify business records.",
-    "Analysis is based on synthetic demonstration data (DATA-02).",
-    "Heuristic calculations are estimates, not statistically validated predictions.",
+    "Recommendations are advisory only and do not automatically change stock quantities or product prices.",
+    "Heuristic rules are explainable estimates, not statistically validated predictions.",
+    "Supplier lead time is not recorded, so restock figures are cover estimates, not reliable reorder points.",
 ]
 
 SEVERITY_PRIORITY = {
@@ -703,37 +716,67 @@ def generate_recommendations(
     categories: Optional[List[str]] = None,
     severity_filter: Optional[str] = None,
     role_name: str = "Business Owner",
+    include_profit: bool = True,
 ) -> Dict[str, Any]:
     """
     Main entry point. Generates all recommendations, applies role and
     severity filtering, and returns the complete response payload.
+
+    Staff receive no recommendations. Managers receive operational items.
+    Owners receive operational and strategic items. Nothing here writes
+    stock or price changes.
     """
     analysis_start, analysis_end = get_analysis_period(months)
     recommendations: List[Dict[str, Any]] = []
     limitations: List[str] = list(GLOBAL_LIMITATIONS)
+    period_label = f"{analysis_start.isoformat()} to {analysis_end.isoformat()}"
+    demand_horizon = 14
+    product_start, product_end = resolve_period(None, None, 30)
+    product_period = f"{product_start.isoformat()} to {product_end.isoformat()}"
+    forecast_period = f"next {demand_horizon} days"
 
     def _include(cat: str) -> bool:
-        if categories and cat not in categories:
+        if role_name in ("Staff", "Sales Staff"):
             return False
-        if role_name == "Staff" and cat != "inventory":
+        if categories and cat not in categories:
             return False
         return True
 
     # Phase 1 — Inventory
     if _include("inventory"):
         recommendations.extend(check_low_stock(db, business_id))
-        recommendations.extend(check_stockout_risk(db, business_id, analysis_start, analysis_end))
+        forecasts = inventory_demand_forecasts(db, business_id, demand_horizon)
+        recommendations.extend(
+            forecast_stockout_recommendations(forecasts, demand_horizon, forecast_period)
+        )
         recommendations.extend(check_no_recent_sales(db, business_id))
 
     # Phase 2 — Sales
     if _include("sales"):
         recommendations.extend(check_revenue_decline(db, business_id))
         recommendations.extend(check_revenue_concentration(db, business_id, analysis_start, analysis_end))
+        recommendations.extend(declining_demand_recommendations(db, business_id))
 
     # Phase 3 — Expenses
     if _include("expenses"):
         recommendations.extend(check_expense_increase(db, business_id))
         recommendations.extend(check_expense_category_concentration(db, business_id, analysis_start, analysis_end))
+
+    # Phase 4 — Profit-aware (snapshotted unit_cost only)
+    profit_payload = None
+    if include_profit and _include("profitability"):
+        performance = product_performance(db, business_id, product_start, product_end, limit=50)
+        profit_payload = profitability(db, business_id, product_start, product_end, limit=50)
+        recommendations.extend(
+            profit_aware_recommendations(
+                performance["products"],
+                profit_payload,
+                product_period,
+            )
+        )
+        extra = profit_unavailable_limitation(profit_payload)
+        if extra and extra not in limitations:
+            limitations.append(extra)
 
     # Severity filter
     if severity_filter and severity_filter.lower() != "all":
@@ -749,6 +792,13 @@ def generate_recommendations(
     seen_ids: set = set()
     unique: List[Dict[str, Any]] = []
     for r in recommendations:
+        r.setdefault("period", period_label)
+        r.setdefault("reason", r.get("explanation"))
+        r.setdefault("audience", TYPE_AUDIENCE.get(r["type"], "operational"))
+        if role_name == "Manager" and r.get("audience") != "operational":
+            continue
+        if role_name in ("Staff", "Sales Staff"):
+            continue
         if r["id"] not in seen_ids:
             seen_ids.add(r["id"])
             unique.append(r)

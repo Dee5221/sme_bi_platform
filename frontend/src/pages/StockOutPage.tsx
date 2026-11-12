@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import * as inventoryApi from '../services/inventoryService';
@@ -28,19 +28,24 @@ function mapFieldErrors(details: unknown): Record<string, string> {
 
 export function StockOutPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { hasPermission } = useAuth();
   const { pushToast } = useToast();
-  const canAdjust = hasPermission('inventory.adjust');
+  const canAdjust = hasPermission('inventory.manage');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [items, setItems] = useState<InventoryItem[]>([]);
-  const [productId, setProductId] = useState('');
+  const [productId, setProductId] = useState(searchParams.get('product_id') || '');
   const [quantity, setQuantity] = useState('1');
   const [reason, setReason] = useState('');
+  const [newQuantity, setNewQuantity] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [adjusting, setAdjusting] = useState(false);
 
   const loadInventory = useCallback(async () => {
     if (!canAdjust) {
@@ -93,13 +98,13 @@ export function StockOutPage() {
 
     setSaving(true);
     try {
-      await inventoryApi.stockIn({
+      await inventoryApi.stockOut({
         productId: Number(productId),
         quantity: qty,
         reason: reason || undefined,
       });
       pushToast('Stock decreased.', 'success');
-      navigate('/app/inventory');
+      navigate('/app/inventory/movements');
     } catch (err) {
       if (err instanceof ApiClientError) {
         setFormError(err.message);
@@ -109,6 +114,44 @@ export function StockOutPage() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onSubmitAdjust(event: FormEvent) {
+    event.preventDefault();
+    if (!canAdjust) return;
+    setAdjustError(null);
+    setFieldErrors({});
+
+    if (!productId) {
+      setAdjustError('Select a product.');
+      return;
+    }
+
+    const qty = Number(newQuantity);
+    if (Number.isNaN(qty) || qty < 0) {
+      setFieldErrors({ new_quantity: 'Enter a quantity of 0 or more.' });
+      return;
+    }
+
+    setAdjusting(true);
+    try {
+      await inventoryApi.adjustStock({
+        productId: Number(productId),
+        newQuantity: qty,
+        reason: adjustReason || undefined,
+      });
+      pushToast('Stock quantity corrected.', 'success');
+      navigate('/app/inventory/movements');
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setAdjustError(err.message);
+        setFieldErrors(mapFieldErrors(err.details));
+      } else {
+        setAdjustError('Unable to correct stock quantity.');
+      }
+    } finally {
+      setAdjusting(false);
     }
   }
 
@@ -127,8 +170,8 @@ export function StockOutPage() {
   if (loadError) {
     return (
       <div className="inventory-page">
-        <Link className="inventory-back" to="/app/inventory">
-          ← Back to inventory
+        <Link className="inventory-back" to="/app/inventory/movements">
+          ← Back to stock movements
         </Link>
         <Alert tone="error">{loadError}</Alert>
       </div>
@@ -137,12 +180,12 @@ export function StockOutPage() {
 
   return (
     <div className="inventory-page">
-      <Link className="inventory-back" to="/app/inventory">
-        ← Back to inventory
+      <Link className="inventory-back" to="/app/inventory/movements">
+        ← Back to stock movements
       </Link>
       <PageHeader
-        title="Stock out"
-        subtitle="Decrease on-hand quantity for a product. The movement is recorded immediately."
+        title="Stock Out / Adjustments"
+        subtitle="Remove stock or correct the on-hand quantity. Each change is recorded as a movement."
       />
 
       <Card>
@@ -196,7 +239,7 @@ export function StockOutPage() {
               error={fieldErrors.reason}
             />
             <div className="inventory-form__actions inventory-form__actions--split">
-              <Button type="button" variant="secondary" onClick={() => navigate('/app/inventory')}>
+              <Button type="button" variant="secondary" onClick={() => navigate('/app/inventory/movements')}>
                 Cancel
               </Button>
               <Button type="submit" loading={saving}>
@@ -206,6 +249,40 @@ export function StockOutPage() {
           </form>
         )}
       </Card>
+
+      {items.length > 0 ? (
+        <Card>
+          <PageHeader
+            title="Quantity correction"
+            subtitle="Set the on-hand quantity to an exact value after a count or data error."
+          />
+          <form className="inventory-form" onSubmit={onSubmitAdjust} noValidate>
+            {adjustError ? <Alert tone="error">{adjustError}</Alert> : null}
+            <Input
+              label="New quantity on hand"
+              name="new_quantity"
+              type="number"
+              min="0"
+              step="1"
+              value={newQuantity}
+              onChange={(e) => setNewQuantity(e.target.value)}
+              error={fieldErrors.new_quantity}
+              required
+            />
+            <Input
+              label="Reason (optional)"
+              name="adjust_reason"
+              value={adjustReason}
+              onChange={(e) => setAdjustReason(e.target.value)}
+            />
+            <div className="inventory-form__actions">
+              <Button type="submit" loading={adjusting}>
+                Save correction
+              </Button>
+            </div>
+          </form>
+        </Card>
+      ) : null}
     </div>
   );
 }

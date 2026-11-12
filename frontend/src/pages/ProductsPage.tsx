@@ -70,9 +70,12 @@ export function ProductsPage() {
   const { pushToast } = useToast();
 
   const canView = hasPermission('products.view');
-  const canCreate = hasPermission('products.create');
-  const canUpdate = hasPermission('products.update');
-  const canDelete = hasPermission('products.delete');
+  const canManage = hasPermission('products.manage');
+  const canCreate = canManage;
+  const canUpdate = canManage;
+  const canDelete = canManage;
+  const canViewCosts = hasPermission('products.costs.view');
+  const canManagePrices = hasPermission('products.prices.manage');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -164,7 +167,7 @@ export function ProductsPage() {
     setProductForm({
       name: product.name,
       sku: product.sku,
-      cost_price: String(product.cost_price),
+      cost_price: String(product.cost_price ?? 0),
       selling_price: String(product.selling_price),
       reorder_level: String(product.reorder_level),
       categoryId: String(product.category_id),
@@ -185,11 +188,11 @@ export function ProductsPage() {
     const reorderLevel = Number(productForm.reorder_level);
     const categoryId = Number(productForm.categoryId);
 
-    if (Number.isNaN(costPrice) || costPrice < 0) {
+    if (canViewCosts && (Number.isNaN(costPrice) || costPrice < 0)) {
       setFieldErrors({ cost_price: 'Enter a valid cost price.' });
       return;
     }
-    if (Number.isNaN(sellingPrice) || sellingPrice < 0) {
+    if ((!editingProduct || canManagePrices) && (Number.isNaN(sellingPrice) || sellingPrice < 0)) {
       setFieldErrors({ selling_price: 'Enter a valid selling price.' });
       return;
     }
@@ -204,7 +207,7 @@ export function ProductsPage() {
 
     setSaving(true);
     try {
-      const payload = {
+      const payload: productApi.ProductPayload = {
         name: productForm.name,
         sku: productForm.sku,
         cost_price: costPrice,
@@ -213,6 +216,12 @@ export function ProductsPage() {
         category_id: categoryId,
         status: productForm.status,
       };
+      if (editingProduct && !canManagePrices) {
+        delete (payload as Partial<productApi.ProductPayload>).selling_price;
+      }
+      if (!canViewCosts) {
+        delete (payload as Partial<productApi.ProductPayload>).cost_price;
+      }
 
       if (editingProduct) {
         await productApi.updateProduct(editingProduct.id, payload);
@@ -288,8 +297,12 @@ export function ProductsPage() {
   return (
     <div className="products-page">
       <PageHeader
-        title="Products"
-        subtitle="Manage your catalog, categories, and pricing."
+        title={canManage ? 'Products' : 'Product Lookup'}
+        subtitle={
+          canManage
+            ? 'Manage your catalog, categories, and pricing.'
+            : 'Look up product names, SKUs, and selling prices.'
+        }
         actions={
           <>
             {canCreate ? (
@@ -382,6 +395,16 @@ export function ProductsPage() {
                   header: 'Price',
                   render: (row) => formatMoney(row.selling_price),
                 },
+                ...(canViewCosts
+                  ? [
+                      {
+                        key: 'cost_price',
+                        header: 'Cost',
+                        render: (row: Product) =>
+                          row.cost_price == null ? '—' : formatMoney(Number(row.cost_price)),
+                      },
+                    ]
+                  : []),
                 {
                   key: 'status',
                   header: 'Status',
@@ -462,17 +485,19 @@ export function ProductsPage() {
               error={fieldErrors.sku}
               required
             />
-            <Input
-              label="Cost Price"
-              name="cost_price"
-              type="number"
-              min="0"
-              step="0.01"
-              value={productForm.cost_price}
-              onChange={(e) => setProductForm((c) => ({ ...c, cost_price: e.target.value }))}
-              error={fieldErrors.cost_price}
-              required
-            />
+            {canViewCosts ? (
+              <Input
+                label="Cost Price"
+                name="cost_price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={productForm.cost_price}
+                onChange={(e) => setProductForm((c) => ({ ...c, cost_price: e.target.value }))}
+                error={fieldErrors.cost_price}
+                required
+              />
+            ) : null}
             <Input
               label="Selling Price"
               name="selling_price"
@@ -482,7 +507,8 @@ export function ProductsPage() {
               value={productForm.selling_price}
               onChange={(e) => setProductForm((c) => ({ ...c, selling_price: e.target.value }))}
               error={fieldErrors.selling_price}
-              required
+              required={!editingProduct || canManagePrices}
+              disabled={Boolean(editingProduct) && !canManagePrices}
             />
             <Input
               label="Reorder Level"
@@ -530,16 +556,6 @@ export function ProductsPage() {
                 </select>
               </label>
             ) : null}
-            <Input
-              label="Description (Optional)"
-              name="description"
-              value={productForm.name}
-              // Note: Backend doesn't store description in MVP, but we keep the field for UI consistency without sending it
-              onChange={() => {}}
-              className="products-form__full"
-              disabled
-              placeholder="Description field reserved for future enhancement"
-            />
           </div>
           <div className="products-form__actions">
             <Button variant="secondary" type="button" onClick={() => setProductModalOpen(false)}>

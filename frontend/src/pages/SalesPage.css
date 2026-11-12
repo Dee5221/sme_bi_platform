@@ -240,9 +240,20 @@
   color: #0f172a;
 }
 
-.pos-product-sku, .sales-product-stock {
+.pos-product-sku, .sales-product-stock, .pos-product-stock {
   font-size: 12px;
   color: #64748b;
+}
+
+.pos-product-card--unavailable {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.pos-product-card--unavailable:hover {
+  border-color: #e5e7eb;
+  box-shadow: none;
+  transform: none;
 }
 
 .pos-product-price {
@@ -612,13 +623,10 @@
    ========================================================================== */
 
 .sale-modal-overlay {
-  position: fixed;
-  inset: 0;
   background: rgba(15, 23, 42, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
   padding: 24px;
   animation: fadeIn 0.15s ease;
 }
@@ -633,11 +641,12 @@
   border-radius: 12px;
   width: 100%;
   max-width: 720px;
-  max-height: 90vh;
+  max-height: min(90vh, 90dvh);
   display: flex;
   flex-direction: column;
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
   animation: slideUp 0.2s ease;
+  outline: none;
 }
 
 @keyframes slideUp {
@@ -652,6 +661,7 @@
   padding: 22px 24px;
   border-bottom: 1px solid #e5e7eb;
   gap: 16px;
+  flex-shrink: 0;
 }
 
 .sale-modal__title {
@@ -687,7 +697,10 @@
 .sale-modal__body {
   padding: 24px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   flex: 1;
+  min-height: 0;
 }
 
 .sale-modal__info-grid {
@@ -728,6 +741,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 @media (max-width: 640px) {
@@ -737,7 +751,7 @@
   }
 
   .sale-modal {
-    max-height: 95vh;
+    max-height: min(95vh, 95dvh);
   }
 
   .sale-modal__header,

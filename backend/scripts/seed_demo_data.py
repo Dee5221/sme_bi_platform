@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
+from app.core.dev_guard import assert_not_production
 from app.models import (
     Business, Category, Product, Customer, Supplier,
     Inventory, User, StockMovement
@@ -329,6 +330,7 @@ def seed_customers(db: Session, business_id: int):
 # ============================================================================
 
 def main():
+    assert_not_production("Demonstration dataset seeding")
     print("=" * 70)
     print("DATA-01: Seeding SME Retail Dataset")
     print("=" * 70)

@@ -40,6 +40,9 @@ class SaleItem(Base):
     quantity: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     subtotal: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    product_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    sku: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    unit_cost: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")

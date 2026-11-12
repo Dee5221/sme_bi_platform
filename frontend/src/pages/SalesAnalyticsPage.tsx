@@ -1,40 +1,59 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import * as analyticsApi from '../services/analyticsService';
-import type { SalesTrendPoint, SalesByCategoryItem } from '../services/analyticsService';
+import type {
+  SalesTrendPoint,
+  SalesByCategoryItem,
+  ProductPerformanceResponse,
+  ProfitabilityResponse,
+} from '../services/analyticsService';
 import { Card } from '../components/ui/Card';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { Alert } from '../components/ui/Alert';
 import './dashboard.css';
+import './BusinessAnalyticsPage.css';
 
 function formatCurrency(amount: number): string {
   return `K${amount.toLocaleString('en-ZM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function SalesAnalyticsPage() {
+  const { hasPermission } = useAuth();
+  const canViewCosts = hasPermission('products.costs.view');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [trend, setTrend] = useState<SalesTrendPoint[]>([]);
   const [byCategory, setByCategory] = useState<SalesByCategoryItem[]>([]);
+  const [performance, setPerformance] = useState<ProductPerformanceResponse | null>(null);
+  const [profitability, setProfitability] = useState<ProfitabilityResponse | null>(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [groupBy, setGroupBy] = useState<'day' | 'month'>('day');
+  const [period, setPeriod] = useState<7 | 30 | 90>(30);
 
-  async function loadData() {
+  async function loadData(nextPeriod: 7 | 30 | 90 = period) {
     try {
       setLoading(true);
       setError(null);
-      const params: any = {};
+      const params: { start_date?: string; end_date?: string } = {};
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
+      const insightParams = startDate || endDate ? params : { period: nextPeriod };
 
-      const [trendData, categoryData] = await Promise.all([
+      const [trendData, categoryData, performanceData, profitData] = await Promise.all([
         analyticsApi.fetchSalesTrend({ ...params, group_by: groupBy }),
         analyticsApi.fetchSalesByCategory(params),
+        analyticsApi.fetchProductPerformance(insightParams),
+        canViewCosts
+          ? analyticsApi.fetchProfitability(insightParams)
+          : Promise.resolve(null),
       ]);
       setTrend(trendData);
       setByCategory(categoryData);
-    } catch (err: any) {
-      setError(err.message || 'Unable to load sales analytics.');
+      setPerformance(performanceData);
+      setProfitability(profitData);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unable to load sales analytics.');
     } finally {
       setLoading(false);
     }
@@ -42,7 +61,7 @@ export function SalesAnalyticsPage() {
 
   useEffect(() => {
     void loadData();
-  }, [groupBy]);
+  }, [groupBy, period, canViewCosts]);
 
   const maxRevenue = Math.max(...trend.map((t) => t.revenue), 1);
 
@@ -53,6 +72,23 @@ export function SalesAnalyticsPage() {
           <h1 className="dashboard-title">Sales Analytics</h1>
           <p className="dashboard-subtitle">Revenue trends and category performance.</p>
         </div>
+      </div>
+
+      <div className="analytics-period-chips" role="group" aria-label="Product insight period">
+        {([7, 30, 90] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            className={period === value ? 'is-active' : ''}
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+              setPeriod(value);
+            }}
+          >
+            Last {value} days
+          </button>
+        ))}
       </div>
 
       <div style={{ marginBottom: '20px' }}>
@@ -94,7 +130,7 @@ export function SalesAnalyticsPage() {
               </select>
             </div>
             <button
-              onClick={loadData}
+              onClick={() => void loadData()}
               style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
             >
               Apply
@@ -174,6 +210,96 @@ export function SalesAnalyticsPage() {
           </Card>
         </div>
       )}
+
+      {performance ? (
+        <div style={{ marginTop: '20px' }}>
+          <Card>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>
+              Fast-moving products
+            </h2>
+            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '12px' }}>
+              {performance.start} to {performance.end}
+            </p>
+            {performance.products.length === 0 ? (
+              <p style={{ color: '#64748b' }}>No completed product sales in this period.</p>
+            ) : (
+              <div className="forecast-table-wrap">
+                <table className="forecast-table">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Units</th>
+                      <th>Velocity / open day</th>
+                      <th>Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {performance.products.map((item) => (
+                      <tr key={item.product_id}>
+                        <td>
+                          {item.product_name}
+                          <div className="forecast-table__muted">{item.sku}</div>
+                        </td>
+                        <td>{item.units_sold}</td>
+                        <td>{item.sales_velocity}</td>
+                        <td>{formatCurrency(item.revenue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+      ) : null}
+
+      {canViewCosts && profitability ? (
+        <div style={{ marginTop: '20px' }}>
+          <Card>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>
+              Gross profitability
+            </h2>
+            {!profitability.available ? (
+              <Alert tone="warning">Profit data unavailable.</Alert>
+            ) : (
+              <>
+                <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '12px' }}>
+                  Gross profit {formatCurrency(profitability.gross_profit || 0)}
+                  {profitability.gross_margin_pct != null
+                    ? ` · ${profitability.gross_margin_pct}% margin`
+                    : ''}
+                </p>
+                <div className="forecast-table-wrap">
+                  <table className="forecast-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Revenue</th>
+                        <th>COGS</th>
+                        <th>Gross profit</th>
+                        <th>Margin</th>
+                        <th>Class</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {profitability.products.map((item) => (
+                        <tr key={item.product_id}>
+                          <td>{item.product_name}</td>
+                          <td>{formatCurrency(item.revenue)}</td>
+                          <td>{formatCurrency(item.cogs)}</td>
+                          <td>{formatCurrency(item.gross_profit)}</td>
+                          <td>{item.gross_margin_pct == null ? '—' : `${item.gross_margin_pct}%`}</td>
+                          <td>{item.classification.split('_').join(' ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }

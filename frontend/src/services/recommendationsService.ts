@@ -5,7 +5,7 @@ import { apiRequest } from '../lib/api';
 // =============================================================================
 
 export type RecommendationSeverity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
-export type RecommendationCategory = 'inventory' | 'sales' | 'expenses';
+export type RecommendationCategory = 'inventory' | 'sales' | 'expenses' | 'profitability';
 
 export interface AffectedEntity {
   type: string;
@@ -30,8 +30,11 @@ export interface Recommendation {
   suggested_action: string;
   priority: number;
   affected_entity: AffectedEntity;
-  metrics: Record<string, number | string | null>;
+  metrics: Record<string, number | string | boolean | null>;
   data_quality: DataQuality;
+  period?: string | null;
+  reason?: string | null;
+  audience?: 'operational' | 'strategic' | string | null;
 }
 
 export interface AnalysisPeriod {

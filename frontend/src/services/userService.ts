@@ -1,66 +1,72 @@
 import { apiRequest } from '../lib/api';
 
+export type UserRole = {
+  id: number;
+  role_name: string;
+};
+
 export type ManagedUser = {
-  id: string;
+  id: number;
+  name: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  fullName: string;
-  phone: string | null;
-  isActive: boolean;
-  lastLoginAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-  roles: string[];
-  roleIds: string[];
+  status: string;
+  business_id: number;
+  role: UserRole;
+  created_at: string | null;
+  updated_at: string | null;
 };
 
 export type UserActivityEntry = {
-  id: string;
+  id: number;
   action: string;
   entity: string;
-  entityId: string | null;
-  createdAt: string;
-  actorName: string;
-  actorEmail: string | null;
+  entity_id: string | null;
+  result: string;
+  created_at: string;
+  actor_name: string;
+  actor_email: string | null;
 };
 
 export type UserDetails = {
   user: ManagedUser;
-  recentActivity: UserActivityEntry[];
+  recent_activity: UserActivityEntry[];
 };
 
 export type AssignableRole = {
-  id: string;
-  name: string;
+  id: number;
+  role_name: string;
   description: string | null;
 };
 
-export type UserPayload = {
-  firstName: string;
-  lastName: string;
+export type UserCreatePayload = {
+  name: string;
   email: string;
-  phone?: string;
-  password?: string;
-  roleIds: string[];
-  isActive?: boolean;
+  password: string;
+  role_id: number;
+};
+
+export type UserUpdatePayload = {
+  name?: string;
+  email?: string;
+  role_id?: number;
+  status?: string;
 };
 
 type Paginated<T> = {
   items: T[];
   pagination: {
     page: number;
-    pageSize: number;
+    page_size: number;
     total: number;
-    totalPages: number;
+    total_pages: number;
   };
 };
 
 export function listAssignableRoles() {
-  return apiRequest<{ roles: AssignableRole[] }>('/api/users/roles');
+  return apiRequest<AssignableRole[]>('/api/users/roles');
 }
 
-export function fetchUser(id: string) {
+export function fetchUser(id: number | string) {
   return apiRequest<UserDetails>(`/api/users/${id}`);
 }
 
@@ -74,27 +80,34 @@ export function listUsers(params: {
   if (params.search) query.set('search', params.search);
   if (params.status) query.set('status', params.status);
   if (params.page) query.set('page', String(params.page));
-  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  if (params.pageSize) query.set('page_size', String(params.pageSize));
   const suffix = query.toString() ? `?${query.toString()}` : '';
-  return apiRequest<Paginated<ManagedUser>>(`/api/users${suffix}`);
+  return apiRequest<Paginated<ManagedUser>>(`/api/users/${suffix}`);
 }
 
-export function createUser(payload: UserPayload) {
-  return apiRequest<{ user: ManagedUser }>('/api/users', {
+export function createUser(payload: UserCreatePayload) {
+  return apiRequest<ManagedUser>('/api/users/', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export function updateUser(id: string, payload: UserPayload) {
-  return apiRequest<{ user: ManagedUser }>(`/api/users/${id}`, {
-    method: 'PUT',
+export function updateUser(id: number | string, payload: UserUpdatePayload) {
+  return apiRequest<ManagedUser>(`/api/users/${id}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }
 
-export function deactivateUser(id: string) {
-  return apiRequest<{ user: ManagedUser }>(`/api/users/${id}`, {
+export function deactivateUser(id: number | string) {
+  return apiRequest<ManagedUser>(`/api/users/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export function resetUserPassword(id: number | string, newPassword: string) {
+  return apiRequest<{ message: string }>(`/api/users/${id}/reset-password`, {
+    method: 'POST',
+    body: JSON.stringify({ new_password: newPassword }),
   });
 }

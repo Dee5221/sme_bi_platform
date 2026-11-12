@@ -48,7 +48,8 @@ export function CustomersPage() {
 
   const canView = hasPermission('customers.view');
   const canCreate = hasPermission('customers.create');
-  const canUpdate = hasPermission('customers.update');
+  const canUpdate = hasPermission('customers.manage');
+  const canManage = hasPermission('customers.manage');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,8 +158,12 @@ export function CustomersPage() {
   return (
     <div className="customers-page">
       <PageHeader
-        title="Customers"
-        subtitle="Register and manage your customer records."
+        title={canManage ? 'Customers' : 'Customer Lookup'}
+        subtitle={
+          canManage
+            ? 'Register and manage your customer records.'
+            : 'Look up customers and add new records when needed.'
+        }
         actions={canCreate ? <Button onClick={openCreate}>Add customer</Button> : null}
       />
 

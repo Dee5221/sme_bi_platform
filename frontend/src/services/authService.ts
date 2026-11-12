@@ -15,8 +15,6 @@ export function fetchMe() {
 }
 
 export function logout() {
-  // JWT is stateless; backend logout is just a success message.
-  // Actual state clearing happens in AuthContext.
   return apiRequest<{ message: string }>('/api/auth/logout', {
     method: 'POST',
   });

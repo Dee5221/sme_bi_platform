@@ -16,7 +16,6 @@ type ProfileForm = {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
 };
 
 type PasswordForm = {
@@ -31,6 +30,14 @@ const emptyPassword: PasswordForm = {
   confirmPassword: '',
 };
 
+function splitName(name?: string | null): { firstName: string; lastName: string } {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return { firstName: '', lastName: '' };
+  const space = trimmed.indexOf(' ');
+  if (space === -1) return { firstName: trimmed, lastName: '' };
+  return { firstName: trimmed.slice(0, space), lastName: trimmed.slice(space + 1).trim() };
+}
+
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
@@ -43,19 +50,34 @@ function mapFieldErrors(details: unknown): Record<string, string> {
   return next;
 }
 
+function roleLabel(user: {
+  role?: { role_name?: string } | string | null;
+  role_name?: string | null;
+}): string {
+  if (user.role_name) return user.role_name;
+  if (user.role && typeof user.role === 'object' && user.role.role_name) {
+    return user.role.role_name;
+  }
+  if (typeof user.role === 'string') return user.role;
+  return 'Member';
+}
+
 export function ProfilePage() {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, refreshUser, applySessionToken } = useAuth();
   const { pushToast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const initialNames = splitName(user?.name);
   const [profileForm, setProfileForm] = useState<ProfileForm>({
-    firstName: user?.first_name || '',
-    lastName: user?.last_name || '',
+    firstName: initialNames.firstName,
+    lastName: initialNames.lastName,
     email: user?.email || '',
-    phone: '',
   });
+  const [displayName, setDisplayName] = useState(user?.name || user?.email || '');
+  const [accountStatus, setAccountStatus] = useState(user?.status || 'active');
+  const [roleName, setRoleName] = useState(roleLabel(user || {}));
 
   const [passwordForm, setPasswordForm] = useState<PasswordForm>(emptyPassword);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -64,11 +86,9 @@ export function ProfilePage() {
   const [passwordFieldErrors, setPasswordFieldErrors] = useState<Record<string, string>>({});
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [avatarError, setAvatarError] = useState<string | null>(null);
 
-  const canView = hasPermission('profile.view') || hasPermission('all');
-  const canUpdate = hasPermission('profile.update') || hasPermission('all');
+  const canView = hasPermission('profile.manage');
+  const canUpdate = hasPermission('profile.manage');
 
   useEffect(() => {
     let active = true;
@@ -82,32 +102,21 @@ export function ProfilePage() {
         const profileData = await profileApi.fetchProfile();
         if (!active) return;
 
-        // The API user payload may expose camelCase fields even when the auth user
-        // object uses snake_case fields. Support both to avoid a type mismatch.
-        const userData = profileData.user as Partial<{
-          first_name?: string;
-          last_name?: string;
-          firstName?: string;
-          lastName?: string;
-          email?: string;
-          phone?: string;
-        }>;
-
+        const userData = profileData.user;
+        const fromApi = splitName(userData.name);
         setProfileForm({
-          firstName:
-            userData.firstName || userData.first_name || user?.first_name || '',
-          lastName:
-            userData.lastName || userData.last_name || user?.last_name || '',
+          firstName: userData.firstName || userData.first_name || fromApi.firstName,
+          lastName: userData.lastName || userData.last_name || fromApi.lastName,
           email: userData.email || user?.email || '',
-          phone: userData.phone || '',
         });
+        setDisplayName(userData.name || user?.name || userData.email);
+        setAccountStatus(userData.status || 'active');
+        setRoleName(roleLabel(userData));
         setLoadError(null);
       } catch (err) {
         if (!active) return;
         setLoadError(
-          err instanceof ApiClientError
-            ? err.message
-            : 'Unable to load profile.'
+          err instanceof ApiClientError ? err.message : 'Unable to load profile.'
         );
       } finally {
         if (active) setLoading(false);
@@ -125,12 +134,13 @@ export function ProfilePage() {
     setProfileFieldErrors({});
     setSavingProfile(true);
     try {
-      await profileApi.updateProfile({
+      const result = await profileApi.updateProfile({
         firstName: profileForm.firstName,
         lastName: profileForm.lastName,
         email: profileForm.email,
-        phone: profileForm.phone || undefined,
       });
+      setDisplayName(result.user.name);
+      await refreshUser();
       pushToast('Profile updated.', 'success');
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -158,11 +168,14 @@ export function ProfilePage() {
     setPasswordFieldErrors({});
     setSavingPassword(true);
     try {
-      await profileApi.changePassword({
+      const result = await profileApi.changePassword({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
         confirmPassword: passwordForm.confirmPassword,
       });
+      if (result.access_token) {
+        await applySessionToken(result.access_token);
+      }
       setPasswordForm(emptyPassword);
       pushToast('Password updated.', 'success');
     } catch (err) {
@@ -174,22 +187,6 @@ export function ProfilePage() {
       }
     } finally {
       setSavingPassword(false);
-    }
-  }
-
-  async function onAvatarSelected(file: File | null) {
-    if (!file || !canUpdate) return;
-    setAvatarError(null);
-    setUploadingAvatar(true);
-    try {
-      await profileApi.uploadAvatar(file);
-      pushToast('Profile photo updated.', 'success');
-    } catch (err) {
-      setAvatarError(
-        err instanceof ApiClientError ? err.message : 'Unable to upload profile photo.'
-      );
-    } finally {
-      setUploadingAvatar(false);
     }
   }
 
@@ -207,7 +204,11 @@ export function ProfilePage() {
 
   if (!user) return null;
 
-  const initials = `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U';
+  const initials =
+    `${profileForm.firstName?.[0] || ''}${profileForm.lastName?.[0] || ''}`.toUpperCase() ||
+    user.email?.[0]?.toUpperCase() ||
+    'U';
+  const statusTone = accountStatus === 'active' ? 'green' : 'orange';
 
   return (
     <div className="profile-page">
@@ -223,26 +224,8 @@ export function ProfilePage() {
               <span>{initials}</span>
             </div>
             <div className="profile-avatar__meta">
-              <strong>
-                {user.first_name} {user.last_name}
-              </strong>
-              <span>{user.email}</span>
-              {canUpdate ? (
-                <label className="profile-avatar__upload">
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    disabled={uploadingAvatar}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] || null;
-                      event.target.value = '';
-                      void onAvatarSelected(file);
-                    }}
-                  />
-                  <span>{uploadingAvatar ? 'Uploading…' : 'Upload photo'}</span>
-                </label>
-              ) : null}
-              {avatarError ? <Alert tone="error">{avatarError}</Alert> : null}
+              <strong>{displayName}</strong>
+              <span>{profileForm.email}</span>
             </div>
           </div>
           <dl className="profile-summary">
@@ -251,28 +234,15 @@ export function ProfilePage() {
               <dd>{user.business_id || 'N/A'}</dd>
             </div>
             <div>
-              <dt>Roles</dt>
+              <dt>Role</dt>
               <dd className="profile-chips">
-                {user.roles?.map((role, index) => {
-                  const roleName =
-                    typeof role === 'string'
-                      ? role
-                      : role && typeof role === 'object' && 'role_name' in role
-                        ? role.role_name
-                        : `Role ${index + 1}`;
-
-                  return (
-                    <Badge key={roleName || `role-${index}`} tone="blue">
-                      {roleName}
-                    </Badge>
-                  );
-                })}
+                <Badge tone="blue">{roleName}</Badge>
               </dd>
             </div>
             <div>
               <dt>Status</dt>
               <dd>
-                <Badge tone="green">Active</Badge>
+                <Badge tone={statusTone}>{accountStatus}</Badge>
               </dd>
             </div>
           </dl>
@@ -289,7 +259,7 @@ export function ProfilePage() {
                 onChange={(e) =>
                   setProfileForm((current) => ({ ...current, firstName: e.target.value }))
                 }
-                error={profileFieldErrors.firstName}
+                error={profileFieldErrors.firstName || profileFieldErrors.first_name}
                 disabled={!canUpdate}
                 required
               />
@@ -300,7 +270,7 @@ export function ProfilePage() {
                 onChange={(e) =>
                   setProfileForm((current) => ({ ...current, lastName: e.target.value }))
                 }
-                error={profileFieldErrors.lastName}
+                error={profileFieldErrors.lastName || profileFieldErrors.last_name}
                 disabled={!canUpdate}
                 required
               />
@@ -316,16 +286,6 @@ export function ProfilePage() {
               error={profileFieldErrors.email}
               disabled={!canUpdate}
               required
-            />
-            <Input
-              label="Phone"
-              name="phone"
-              value={profileForm.phone}
-              onChange={(e) =>
-                setProfileForm((current) => ({ ...current, phone: e.target.value }))
-              }
-              error={profileFieldErrors.phone}
-              disabled={!canUpdate}
             />
             {canUpdate ? (
               <Button type="submit" loading={savingProfile}>
@@ -353,7 +313,7 @@ export function ProfilePage() {
                     currentPassword: e.target.value,
                   }))
                 }
-                error={passwordFieldErrors.currentPassword}
+                error={passwordFieldErrors.currentPassword || passwordFieldErrors.current_password}
                 disabled={!canUpdate}
                 required
               />
@@ -369,7 +329,7 @@ export function ProfilePage() {
                     newPassword: e.target.value,
                   }))
                 }
-                error={passwordFieldErrors.newPassword}
+                error={passwordFieldErrors.newPassword || passwordFieldErrors.new_password}
                 hint="At least 8 characters with a letter and a number."
                 disabled={!canUpdate}
                 required
@@ -386,7 +346,7 @@ export function ProfilePage() {
                     confirmPassword: e.target.value,
                   }))
                 }
-                error={passwordFieldErrors.confirmPassword}
+                error={passwordFieldErrors.confirmPassword || passwordFieldErrors.confirm_password}
                 disabled={!canUpdate}
                 required
               />

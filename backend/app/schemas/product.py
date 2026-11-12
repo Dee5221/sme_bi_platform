@@ -24,11 +24,17 @@ class ProductUpdate(BaseModel):
     supplier_id: Optional[int] = None
     status: Optional[str] = None
 
-class ProductResponse(ProductBase):
+class ProductResponse(BaseModel):
     id: int
     business_id: int
     category_id: int
     supplier_id: Optional[int] = None
+    sku: str
+    name: str
+    selling_price: Decimal
+    reorder_level: Decimal = Decimal("0.00")
+    status: str = "active"
+    cost_price: Optional[Decimal] = None
 
     class Config:
         from_attributes = True

@@ -4,6 +4,8 @@ Pydantic schemas for forecasting API responses.
 from pydantic import BaseModel
 from typing import Optional, List
 
+from app.schemas.analytics import ProductPerformanceItem, ProfitabilityResponse
+
 
 class MonthlyDataPoint(BaseModel):
     """Monthly aggregated data point."""
@@ -27,6 +29,20 @@ class InventoryForecastItem(BaseModel):
     estimatedDaysUntilStockout: Optional[int]
     suggestedRestockQuantity: int
     urgency: str  # HIGH, MEDIUM, LOW, NONE
+    forecastDailyDemand: Optional[float] = None
+    horizonDemand: Optional[float] = None
+    demandHorizonDays: Optional[int] = None
+    selectedMethod: Optional[str] = None
+    selectedMethodLabel: Optional[str] = None
+    reorderReliable: bool = False
+    reorderNote: Optional[str] = None
+    safetyStock: Optional[float] = None
+    forecastPath: List[float] = []
+    openDaysUsed: Optional[int] = None
+    dataSufficient: bool = True
+    evaluationMae: Optional[float] = None
+    expectedRevenue: Optional[float] = None
+    fallback: bool = False
 
 
 class ForecastingSummary(BaseModel):
@@ -63,6 +79,16 @@ class DataQualityInfo(BaseModel):
     hasEnoughHistory: bool
 
 
+class MethodCandidate(BaseModel):
+    method: str
+    label: str
+    eligible: bool
+    mae: Optional[float] = None
+    rmse: Optional[float] = None
+    origins: int = 0
+    note: Optional[str] = None
+
+
 class EvaluationMetrics(BaseModel):
     """Evaluation metrics for the forecast model."""
     train_periods: int
@@ -74,6 +100,19 @@ class EvaluationMetrics(BaseModel):
     naive_mae: Optional[float]
     beats_baseline: bool
     mase_note: Optional[str] = None
+    selected_method: Optional[str] = None
+    selected_label: Optional[str] = None
+    fallback: bool = False
+    candidates: List[MethodCandidate] = []
+
+
+class ForecastInsightNote(BaseModel):
+    productName: Optional[str] = None
+    period: str
+    metric: str
+    reason: str
+    suggestedAction: str
+    dataSufficient: bool
 
 
 class ForecastingResponse(BaseModel):
@@ -87,6 +126,10 @@ class ForecastingResponse(BaseModel):
     inventoryForecasts: List[InventoryForecastItem]
     dataQuality: DataQualityInfo
     evaluation: EvaluationMetrics
+    demandHorizonDays: int = 7
+    productPerformance: List[ProductPerformanceItem] = []
+    profitability: Optional[ProfitabilityResponse] = None
+    insights: List[ForecastInsightNote] = []
 
 
 class ForecastingErrorResponse(BaseModel):

@@ -7,7 +7,7 @@ from typing import Optional
 from pydantic import BaseModel, Field # Fixed typo: 'field' -> 'Field'
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import require_permission
 from app.models.user import User
 from app.models.product import Product
 from app.models.inventory import Inventory, StockMovement
@@ -18,6 +18,7 @@ from app.schemas.inventory import (
     StockOperationRequest, 
     StockAdjustmentRequest
 )
+from app.services.audit import audit_actor
 
 router = APIRouter(prefix="/api/inventory", tags=["Inventory"])
 
@@ -32,7 +33,7 @@ def get_stock_status(qty: Decimal, reorder_level: Decimal) -> str:
 def list_inventory(
     low_stock_only: bool = Query(False),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("inventory.view"))
 ):
     query = db.query(
         Product.id.label("product_id"),
@@ -70,11 +71,41 @@ def list_inventory(
         ))
     return response
 
+@router.get("/movements", response_model=list[StockMovementResponse])
+def get_all_movements(
+    product_id: Optional[int] = Query(None),
+    movement_type: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("inventory.view"))
+):
+    query = db.query(
+        StockMovement.id,
+        StockMovement.product_id,
+        Product.name.label("product_name"),
+        Product.sku,
+        StockMovement.user_id,
+        User.name.label("user_name"),
+        StockMovement.movement_type,
+        StockMovement.quantity,
+        StockMovement.reference,
+        StockMovement.reason,
+        StockMovement.created_at
+    ).join(Product, StockMovement.product_id == Product.id)\
+     .join(User, StockMovement.user_id == User.id)\
+     .filter(Product.business_id == current_user.business_id)
+
+    if product_id:
+        query = query.filter(StockMovement.product_id == product_id)
+    if movement_type:
+        query = query.filter(StockMovement.movement_type == movement_type)
+
+    return query.order_by(StockMovement.created_at.desc()).all()
+
 @router.get("/{product_id}", response_model=InventoryResponse)
 def get_product_inventory(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission("inventory.view"))
 ):
     product = db.query(Product).filter(
         Product.id == product_id, 
@@ -98,71 +129,6 @@ def get_product_inventory(
         updated_at=updated_at
     )
 
-@router.get("/{product_id}/movements", response_model=list[StockMovementResponse])
-def get_stock_movements(
-    product_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    product = db.query(Product).filter(
-        Product.id == product_id, 
-        Product.business_id == current_user.business_id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-        
-    movements = db.query(
-        StockMovement.id,
-        StockMovement.product_id,
-        Product.name.label("product_name"),
-        Product.sku,
-        StockMovement.user_id,
-        User.name.label("user_name"),
-        StockMovement.movement_type,
-        StockMovement.quantity,
-        StockMovement.reference,
-        StockMovement.reason,
-        StockMovement.created_at
-    ).join(Product, StockMovement.product_id == Product.id)\
-     .join(User, StockMovement.user_id == User.id)\
-     .filter(StockMovement.product_id == product_id, Product.business_id == current_user.business_id)\
-     .order_by(StockMovement.created_at.desc()).all()
-    
-    return movements
-
-# ==============================================================================
-# NEW: Global movements endpoint for the frontend movement history page
-# ==============================================================================
-@router.get("/movements", response_model=list[StockMovementResponse])
-def get_all_movements(
-    product_id: Optional[int] = Query(None),
-    movement_type: Optional[str] = Query(None),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    query = db.query(
-        StockMovement.id,
-        StockMovement.product_id,
-        Product.name.label("product_name"),
-        Product.sku,
-        StockMovement.user_id,
-        User.name.label("user_name"),
-        StockMovement.movement_type,
-        StockMovement.quantity,
-        StockMovement.reference,
-        StockMovement.reason,
-        StockMovement.created_at
-    ).join(Product, StockMovement.product_id == Product.id)\
-     .join(User, StockMovement.user_id == User.id)\
-     .filter(Product.business_id == current_user.business_id)
-     
-    if product_id:
-        query = query.filter(StockMovement.product_id == product_id)
-    if movement_type:
-        query = query.filter(StockMovement.movement_type == movement_type)
-        
-    return query.order_by(StockMovement.created_at.desc()).all()
-
 # ==============================================================================
 # NEW: Threshold update endpoint to map frontend's lowStockThreshold to backend's Product.reorder_level
 # ==============================================================================
@@ -175,7 +141,7 @@ def update_threshold(
     product_id: int,
     payload: ThresholdUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager"]))
+    current_user: User = Depends(require_permission("inventory.manage"))
 ):
     product = db.query(Product).filter(
         Product.id == product_id,
@@ -198,7 +164,7 @@ def stock_in(
     product_id: int,
     operation: StockOperationRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager"]))
+    current_user: User = Depends(require_permission("inventory.manage"))
 ):
     product = db.query(Product).filter(
         Product.id == product_id, 
@@ -225,6 +191,14 @@ def stock_in(
         reason=operation.reason
     )
     db.add(movement)
+    audit_actor(
+        db,
+        current_user,
+        action="inventory.stock_in",
+        entity="product",
+        target_id=product.id,
+        metadata={"sku": product.sku, "quantity": operation.quantity, "reference": operation.reference},
+    )
     db.commit()
     db.refresh(inventory)
     
@@ -244,7 +218,7 @@ def stock_out(
     product_id: int,
     operation: StockOperationRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager"]))
+    current_user: User = Depends(require_permission("inventory.manage"))
 ):
     product = db.query(Product).filter(
         Product.id == product_id, 
@@ -270,6 +244,14 @@ def stock_out(
         reason=operation.reason
     )
     db.add(movement)
+    audit_actor(
+        db,
+        current_user,
+        action="inventory.stock_out",
+        entity="product",
+        target_id=product.id,
+        metadata={"sku": product.sku, "quantity": operation.quantity, "reference": operation.reference},
+    )
     db.commit()
     db.refresh(inventory)
     
@@ -289,7 +271,7 @@ def stock_adjust(
     product_id: int,
     operation: StockAdjustmentRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["Business Owner", "Manager"]))
+    current_user: User = Depends(require_permission("inventory.manage"))
 ):
     product = db.query(Product).filter(
         Product.id == product_id, 
@@ -319,6 +301,19 @@ def stock_adjust(
         db.add(movement)
         inventory.quantity_on_hand = operation.new_quantity
         inventory.updated_at = func.now()
+        audit_actor(
+            db,
+            current_user,
+            action="inventory.adjust",
+            entity="product",
+            target_id=product.id,
+            metadata={
+                "sku": product.sku,
+                "from": current_qty,
+                "to": operation.new_quantity,
+                "reason": operation.reason,
+            },
+        )
         db.commit()
         db.refresh(inventory)
     

@@ -80,9 +80,9 @@ export function ExpensesPage() {
   const { pushToast } = useToast();
 
   const canView = hasPermission('expenses.view');
-  const canCreate = hasPermission('expenses.create');
-  const canUpdate = hasPermission('expenses.update');
-  const canDelete = hasPermission('expenses.delete');
+  const canCreate = hasPermission('expenses.manage');
+  const canUpdate = hasPermission('expenses.manage');
+  const canDelete = hasPermission('expenses.manage');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

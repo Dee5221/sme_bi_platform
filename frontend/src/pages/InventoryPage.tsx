@@ -5,7 +5,7 @@ import { StaffInventoryPage } from './StaffInventoryPage';
 export function InventoryPage() {
   const { hasPermission } = useAuth();
 
-  if (hasPermission('expenses.view')) {
+  if (hasPermission('inventory.manage')) {
     return <OwnerInventoryPage />;
   }
 

@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Button } from './Button';
+import { DialogLayer } from './DialogLayer';
 import './ConfirmDialog.css';
 
 type Props = {
@@ -25,18 +26,24 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: Props) {
-  if (!open) return null;
+  const titleId = useId();
 
   return (
-    <div className="ui-dialog-backdrop" role="presentation" onClick={onCancel}>
+    <DialogLayer
+      open={open}
+      onClose={onCancel}
+      closeOnBackdrop={!danger && !loading}
+      closeOnEscape={!loading}
+      className="ui-dialog-backdrop"
+    >
       <div
         className="ui-dialog"
-        role="dialog"
+        role="alertdialog"
         aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        onClick={(event) => event.stopPropagation()}
+        aria-labelledby={titleId}
+        tabIndex={-1}
       >
-        <h2 id="confirm-dialog-title">{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <div className="ui-dialog__body">{children}</div>
         <div className="ui-dialog__actions">
           <Button variant="secondary" onClick={onCancel} disabled={loading}>
@@ -51,6 +58,6 @@ export function ConfirmDialog({
           </Button>
         </div>
       </div>
-    </div>
+    </DialogLayer>
   );
 }

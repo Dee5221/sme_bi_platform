@@ -30,6 +30,9 @@ class Recommendation(BaseModel):
     affected_entity: AffectedEntity
     metrics: Dict[str, Any]
     data_quality: DataQuality
+    period: Optional[str] = None
+    reason: Optional[str] = None
+    audience: Optional[str] = None
 
 
 class AnalysisPeriod(BaseModel):

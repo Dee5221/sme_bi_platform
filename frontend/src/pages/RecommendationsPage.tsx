@@ -36,6 +36,7 @@ const CATEGORY_LABELS: Record<RecommendationCategory, string> = {
   inventory: 'Inventory',
   sales: 'Sales',
   expenses: 'Expenses',
+  profitability: 'Profitability',
 };
 
 const CATEGORY_OPTIONS = [
@@ -43,6 +44,7 @@ const CATEGORY_OPTIONS = [
   { value: 'inventory', label: 'Inventory' },
   { value: 'sales', label: 'Sales' },
   { value: 'expenses', label: 'Expenses' },
+  { value: 'profitability', label: 'Profitability' },
 ];
 
 const SEVERITY_FILTER_OPTIONS = [
@@ -114,7 +116,7 @@ export function RecommendationsPage() {
         <div className="recommendations-header">
           <div>
             <h1 className="recommendations-title">Decision Support &amp; Recommendations</h1>
-            <p className="recommendations-subtitle">Loading advisory insights...</p>
+            <p className="recommendations-subtitle">Loading recommendations…</p>
           </div>
         </div>
         <LoadingSkeleton rows={8} />
@@ -131,9 +133,7 @@ export function RecommendationsPage() {
         <div className="recommendations-header">
           <div>
             <h1 className="recommendations-title">Decision Support &amp; Recommendations</h1>
-            <p className="recommendations-subtitle">
-              Rule-based advisory analysis for inventory, sales, and expenses.
-            </p>
+            <p className="recommendations-subtitle">Suggested actions for inventory, sales, and expenses.</p>
           </div>
         </div>
         <Alert tone="error">
@@ -167,7 +167,7 @@ export function RecommendationsPage() {
   // ==========================================================================
   // Render: Main Content
   // ==========================================================================
-  const { recommendations, summary, analysis_period, generated_at, limitations } = data;
+  const { recommendations, summary, analysis_period, generated_at } = data;
 
   return (
     <div className="recommendations-page">
@@ -176,9 +176,7 @@ export function RecommendationsPage() {
         <div>
           <h1 className="recommendations-title">Decision Support &amp; Recommendations</h1>
           <p className="recommendations-subtitle">
-            Rule-based advisory analysis identifying potential inventory, sales, and expense
-            considerations. Recommendations are advisory and do not automatically modify
-            business records.
+            Suggested actions for inventory, sales, and expenses.
           </p>
         </div>
         <div className="recommendations-meta">
@@ -189,15 +187,6 @@ export function RecommendationsPage() {
             Generated: {new Date(generated_at).toLocaleString()}
           </span>
         </div>
-      </div>
-
-      {/* Data Limitations Notice */}
-      <div className="recommendations-limitations">
-        <Alert tone="warning">
-          <strong>Advisory Notice:</strong> These recommendations are generated from synthetic
-          demonstration data using heuristic rules. They are estimates, not statistically
-          validated predictions. The current calendar month is excluded from analysis.
-        </Alert>
       </div>
 
       {/* Filters */}
@@ -284,15 +273,8 @@ export function RecommendationsPage() {
       {recommendations.length === 0 ? (
         <Card className="recommendations-empty">
           <div className="empty-state">
-            <h3>No Recommendations Generated</h3>
-            <p>
-              No advisory recommendations were identified for the selected filters and
-              analysis period. This may indicate that your current data does not trigger
-              any rule-based alerts, or that insufficient historical data is available.
-            </p>
-            <p className="empty-note">
-              The absence of recommendations does not necessarily indicate optimal performance.
-            </p>
+            <h3>No recommendations</h3>
+            <p>Nothing to show for the selected filters and period.</p>
           </div>
         </Card>
       ) : (
@@ -303,17 +285,6 @@ export function RecommendationsPage() {
         </div>
       )}
 
-      {/* Global Limitations */}
-      {limitations.length > 0 && (
-        <Card className="recommendations-global-limitations">
-          <h3 className="limitations-title">Analysis Limitations</h3>
-          <ul className="limitations-list">
-            {limitations.map((lim, idx) => (
-              <li key={idx}>{lim}</li>
-            ))}
-          </ul>
-        </Card>
-      )}
     </div>
   );
 }
@@ -323,7 +294,17 @@ export function RecommendationsPage() {
 // =============================================================================
 
 function RecommendationCard({ recommendation }: { recommendation: Recommendation }) {
-  const { severity, category, title, explanation, suggested_action, affected_entity, metrics, data_quality } = recommendation;
+  const {
+    severity,
+    category,
+    title,
+    explanation,
+    suggested_action,
+    affected_entity,
+    metrics,
+    period,
+    audience,
+  } = recommendation;
 
   return (
     <Card className={`recommendation-card ${SEVERITY_COLORS[severity]}`}>
@@ -335,14 +316,25 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
           <span className="badge badge-category">
             {CATEGORY_LABELS[category] || category}
           </span>
+          {audience ? (
+            <span className="badge badge-category">
+              {audience === 'strategic' ? 'Strategic' : 'Operational'}
+            </span>
+          ) : null}
         </div>
         <h3 className="recommendation-card-title">{title}</h3>
       </div>
 
       <div className="recommendation-card-body">
-        {/* Explanation */}
+        {period ? (
+          <div className="recommendation-section">
+            <h4 className="section-label">Time period</h4>
+            <p className="section-content">{period}</p>
+          </div>
+        ) : null}
+
         <div className="recommendation-section">
-          <h4 className="section-label">Issue Identified</h4>
+          <h4 className="section-label">Reason</h4>
           <p className="section-content">{explanation}</p>
         </div>
 
@@ -379,20 +371,6 @@ function RecommendationCard({ recommendation }: { recommendation: Recommendation
           </div>
         )}
 
-        {/* Data Quality */}
-        {data_quality && (
-          <div className="recommendation-section recommendation-data-quality">
-            <h4 className="section-label">Data Quality</h4>
-            <p className="section-content data-quality-text">
-              {data_quality.has_sufficient_data
-                ? `Sufficient data available${data_quality.months_of_history ? ` (${data_quality.months_of_history} months of history)` : ''}.`
-                : 'Insufficient data for reliable analysis.'}
-            </p>
-            <p className="section-content data-quality-limitation">
-              {data_quality.limitations}
-            </p>
-          </div>
-        )}
       </div>
     </Card>
   );
@@ -408,8 +386,9 @@ function formatMetricLabel(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function formatMetricValue(value: number | string | null): string {
+function formatMetricValue(value: number | string | boolean | null): string {
   if (value === null || value === undefined) return 'N/A';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'number') {
     if (Number.isInteger(value)) return value.toString();
     return value.toFixed(2);

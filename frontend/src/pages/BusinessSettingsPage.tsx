@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
-import * as authApi from '../services/authService';
 import * as businessApi from '../services/businessService';
 import type { BusinessSettings } from '../services/businessService';
 import { Alert } from '../components/ui/Alert';
@@ -14,13 +13,53 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { useToast } from '../components/ui/Toast';
 import './BusinessSettingsPage.css';
 
+const CURRENCIES = [
+  { value: 'ZMW', label: 'Zambian Kwacha (ZMW)' },
+  { value: 'USD', label: 'US Dollar (USD)' },
+  { value: 'ZAR', label: 'South African Rand (ZAR)' },
+  { value: 'EUR', label: 'Euro (EUR)' },
+  { value: 'GBP', label: 'British Pound (GBP)' },
+];
+
 type BusinessForm = {
   name: string;
+  type: string;
+  contact: string;
   email: string;
   phone: string;
   address: string;
-  usdToZmwRate: string;
+  currency: string;
+  report_header: string;
+  receipt_footer: string;
 };
+
+function emptyForm(): BusinessForm {
+  return {
+    name: '',
+    type: '',
+    contact: '',
+    email: '',
+    phone: '',
+    address: '',
+    currency: 'ZMW',
+    report_header: '',
+    receipt_footer: '',
+  };
+}
+
+function toForm(business: BusinessSettings): BusinessForm {
+  return {
+    name: business.name || '',
+    type: business.type || '',
+    contact: business.contact || '',
+    email: business.email || '',
+    phone: business.phone || '',
+    address: business.address || '',
+    currency: business.currency || 'ZMW',
+    report_header: business.report_header || '',
+    receipt_footer: business.receipt_footer || '',
+  };
+}
 
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
@@ -34,26 +73,22 @@ function mapFieldErrors(details: unknown): Record<string, string> {
   return next;
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
+function formatDate(value: string | null) {
+  if (!value) return 'Not recorded';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Not recorded';
+  return parsed.toLocaleString();
 }
 
 export function BusinessSettingsPage() {
-  const { setUser, hasPermission } = useAuth() as any;
+  const { hasPermission } = useAuth();
   const { pushToast } = useToast();
-  const canView = hasPermission('business.view') || hasPermission('all');
-  const canUpdate = hasPermission('business.update') || hasPermission('all');
+  const canManage = hasPermission('business.settings.manage');
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [business, setBusiness] = useState<BusinessSettings | null>(null);
-  const [form, setForm] = useState<BusinessForm>({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    usdToZmwRate: '18.5',
-  });
+  const [form, setForm] = useState<BusinessForm>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -61,7 +96,7 @@ export function BusinessSettingsPage() {
   useEffect(() => {
     let active = true;
     (async () => {
-      if (!canView) {
+      if (!canManage) {
         setLoadError('You do not have permission to view business settings.');
         setLoading(false);
         return;
@@ -69,14 +104,8 @@ export function BusinessSettingsPage() {
       try {
         const result = await businessApi.fetchBusiness();
         if (!active) return;
-        setBusiness(result.business);
-        setForm({
-          name: result.business.name,
-          email: result.business.email || '',
-          phone: result.business.phone || '',
-          address: result.business.address || '',
-          usdToZmwRate: String(result.business.usdToZmwRate ?? 18.5),
-        });
+        setBusiness(result);
+        setForm(toForm(result));
         setLoadError(null);
       } catch (err) {
         if (!active) return;
@@ -90,51 +119,28 @@ export function BusinessSettingsPage() {
     return () => {
       active = false;
     };
-  }, [canView]);
+  }, [canManage]);
 
   async function onSave(event: FormEvent) {
     event.preventDefault();
-    if (!canUpdate) return;
+    if (!canManage) return;
     setFormError(null);
     setFieldErrors({});
     setSaving(true);
     try {
-      const rate = Number(form.usdToZmwRate);
-      if (!Number.isFinite(rate) || rate <= 0) {
-        setFieldErrors({ usdToZmwRate: 'Enter a valid exchange rate greater than zero.' });
-        setSaving(false);
-        return;
-      }
       const result = await businessApi.updateBusiness({
-        name: form.name,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        address: form.address || undefined,
-        usdToZmwRate: rate,
+        name: form.name.trim(),
+        type: form.type.trim(),
+        contact: form.contact.trim(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        address: form.address.trim(),
+        currency: form.currency,
+        report_header: form.report_header.trim() || null,
+        receipt_footer: form.receipt_footer.trim() || null,
       });
-      setBusiness(result.business);
-
-      // Refresh the user data in auth context
-      const session: any = await authApi.fetchMe();
-      const nameParts = session.name.split(' ');
-      setUser({
-        ...session,
-        businessId: session.business_id,
-        firstName: nameParts[0] || session.name,
-        lastName: nameParts.slice(1).join(' ') || '',
-        phone: null,
-        avatarUrl: null,
-        accountType: session.role?.role_name || '',
-        isActive: session.status === 'active',
-        roles: session.role?.role_name ? [session.role.role_name] : [],
-        permissions: [],
-        business: {
-          id: session.business_id,
-          name: result.business.name
-        },
-        _raw: session
-      } as any);
-
+      setBusiness(result);
+      setForm(toForm(result));
       pushToast('Business settings updated.', 'success');
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -148,7 +154,7 @@ export function BusinessSettingsPage() {
     }
   }
 
-  if (!canView) {
+  if (!canManage) {
     return <Alert tone="error">You do not have permission to view business settings.</Alert>;
   }
 
@@ -168,35 +174,38 @@ export function BusinessSettingsPage() {
     <div className="business-settings-page">
       <PageHeader
         title="Business Settings"
-        subtitle="Update the workspace profile used across this tenant."
+        subtitle="Name and contact details used on receipts and reports."
       />
 
       <div className="business-settings-grid">
-        <Card title="Workspace status">
+        <Card title="Workspace profile">
           <dl className="business-settings-summary">
             <div>
-              <dt>Status</dt>
+              <dt>Business</dt>
+              <dd>{business.name}</dd>
+            </div>
+            <div>
+              <dt>Currency display</dt>
               <dd>
-                <Badge tone={business.isActive ? 'green' : 'orange'}>
-                  {business.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+                <Badge tone="blue">{business.currency || 'ZMW'}</Badge>
               </dd>
             </div>
             <div>
               <dt>Created</dt>
-              <dd>{formatDate(business.createdAt)}</dd>
+              <dd>{formatDate(business.created_at)}</dd>
             </div>
             <div>
               <dt>Last updated</dt>
-              <dd>{formatDate(business.updatedAt)}</dd>
+              <dd>{formatDate(business.updated_at)}</dd>
             </div>
           </dl>
           <p className="business-settings-hint">
-            The signed-in workspace cannot be deactivated from this screen.
+            Only the Business Owner can change these settings. Amounts already recorded are not
+            converted when the display currency changes.
           </p>
         </Card>
 
-        <Card title="Business profile">
+        <Card title="Business details">
           <form className="business-settings-form" onSubmit={onSave} noValidate>
             {formError ? <Alert tone="error">{formError}</Alert> : null}
             <Input
@@ -205,9 +214,26 @@ export function BusinessSettingsPage() {
               value={form.name}
               onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
               error={fieldErrors.name}
-              disabled={!canUpdate}
               required
             />
+            <div className="business-settings-form__row">
+              <Input
+                label="Business type"
+                name="type"
+                value={form.type}
+                onChange={(e) => setForm((current) => ({ ...current, type: e.target.value }))}
+                error={fieldErrors.type}
+                required
+              />
+              <Input
+                label="Primary contact"
+                name="contact"
+                value={form.contact}
+                onChange={(e) => setForm((current) => ({ ...current, contact: e.target.value }))}
+                error={fieldErrors.contact}
+                required
+              />
+            </div>
             <div className="business-settings-form__row">
               <Input
                 label="Email"
@@ -216,7 +242,6 @@ export function BusinessSettingsPage() {
                 value={form.email}
                 onChange={(e) => setForm((current) => ({ ...current, email: e.target.value }))}
                 error={fieldErrors.email}
-                disabled={!canUpdate}
               />
               <Input
                 label="Phone"
@@ -224,7 +249,6 @@ export function BusinessSettingsPage() {
                 value={form.phone}
                 onChange={(e) => setForm((current) => ({ ...current, phone: e.target.value }))}
                 error={fieldErrors.phone}
-                disabled={!canUpdate}
               />
             </div>
             <Input
@@ -233,30 +257,53 @@ export function BusinessSettingsPage() {
               value={form.address}
               onChange={(e) => setForm((current) => ({ ...current, address: e.target.value }))}
               error={fieldErrors.address}
-              disabled={!canUpdate}
-            />
-            <Input
-              label="USD to Kwacha rate (ZMW per 1 USD)"
-              name="usdToZmwRate"
-              type="number"
-              min="0.0001"
-              step="0.01"
-              value={form.usdToZmwRate}
-              onChange={(e) =>
-                setForm((current) => ({ ...current, usdToZmwRate: e.target.value }))
-              }
-              error={fieldErrors.usdToZmwRate}
-              disabled={!canUpdate}
-              hint="Customers can switch display currency using this rate. Example: 18.5 means K18.50 = $1."
               required
             />
-            {canUpdate ? (
-              <Button type="submit" loading={saving}>
-                Save settings
-              </Button>
-            ) : (
-              <Alert tone="info">You can view these settings but cannot change them.</Alert>
-            )}
+            <label className="business-settings-select">
+              <span>Display currency</span>
+              <select
+                name="currency"
+                value={form.currency}
+                onChange={(e) => setForm((current) => ({ ...current, currency: e.target.value }))}
+              >
+                {CURRENCIES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.currency ? (
+                <span className="ui-field__error">{fieldErrors.currency}</span>
+              ) : (
+                <span className="business-settings-hint">
+                  Labels amounts on reports. It does not convert historical figures or apply an
+                  exchange rate.
+                </span>
+              )}
+            </label>
+            <Input
+              label="Report header"
+              name="report_header"
+              value={form.report_header}
+              onChange={(e) =>
+                setForm((current) => ({ ...current, report_header: e.target.value }))
+              }
+              error={fieldErrors.report_header}
+              hint="Shown at the top of PDF reports. The business name is used if this is empty."
+            />
+            <Input
+              label="Receipt footer"
+              name="receipt_footer"
+              value={form.receipt_footer}
+              onChange={(e) =>
+                setForm((current) => ({ ...current, receipt_footer: e.target.value }))
+              }
+              error={fieldErrors.receipt_footer}
+              hint="Printed in the footer of generated reports."
+            />
+            <Button type="submit" loading={saving}>
+              Save settings
+            </Button>
           </form>
         </Card>
       </div>

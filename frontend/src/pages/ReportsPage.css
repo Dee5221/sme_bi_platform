@@ -4,6 +4,25 @@
   gap: 0.75rem;
 }
 
+.reports-filters label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reports-filters input {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0b233f;
+}
+
 .reports-presets {
   display: flex;
   flex-wrap: wrap;

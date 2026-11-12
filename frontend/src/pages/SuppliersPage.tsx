@@ -51,8 +51,8 @@ export function SuppliersPage() {
   const { pushToast } = useToast();
 
   const canView = hasPermission('suppliers.view');
-  const canCreate = hasPermission('suppliers.create');
-  const canUpdate = hasPermission('suppliers.update');
+  const canCreate = hasPermission('suppliers.manage');
+  const canUpdate = hasPermission('suppliers.manage');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

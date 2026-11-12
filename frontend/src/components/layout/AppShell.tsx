@@ -8,6 +8,8 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   end?: boolean;
+  permission?: string;
+  anyOf?: string[];
 }
 
 interface NavSection {
@@ -42,59 +44,112 @@ const icons = {
   chevronRight: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
 };
 
-// Navigation sections grouped by business function
-const NAV_SECTIONS: NavSection[] = [
+const STAFF_NAV_SECTIONS: NavSection[] = [
   {
     title: 'Overview',
-    items: [
-      { to: '/app', label: 'Dashboard', icon: icons.dashboard, end: true },
-    ],
+    items: [{ to: '/app', label: 'My Sales Overview', icon: icons.dashboard, end: true }],
   },
   {
     title: 'Sales',
     items: [
-      { to: '/app/sales/new', label: 'New Sale', icon: icons.plus },
-      { to: '/app/sales', label: 'Sales', icon: icons.cart },
-      { to: '/app/sales/history', label: 'Sales History', icon: icons.history },
+      { to: '/app/sales/new', label: 'New Sale', icon: icons.plus, permission: 'sales.create' },
+      {
+        to: '/app/sales/history',
+        label: 'My Sales History',
+        icon: icons.history,
+        anyOf: ['sales.view_own', 'sales.view_all'],
+      },
     ],
   },
   {
-    title: 'Operations',
+    title: 'Lookup',
     items: [
-      { to: '/app/products', label: 'Products', icon: icons.box },
-      { to: '/app/inventory', label: 'Inventory', icon: icons.warehouse },
-      { to: '/app/customers', label: 'Customers', icon: icons.users },
-      { to: '/app/suppliers', label: 'Suppliers', icon: icons.truck },
-      { to: '/app/expenses', label: 'Expenses', icon: icons.receipt },
+      { to: '/app/products', label: 'Product Lookup', icon: icons.box, permission: 'products.view' },
+      { to: '/app/customers', label: 'Customer Lookup', icon: icons.users, permission: 'customers.view' },
     ],
+  },
+];
+
+const MANAGEMENT_NAV_SECTIONS: NavSection[] = [
+  {
+    title: 'Overview',
+    items: [{ to: '/app', label: 'Dashboard', icon: icons.dashboard, end: true }],
+  },
+  {
+    title: 'Sales',
+    items: [
+      { to: '/app/sales/new', label: 'New Sale', icon: icons.plus, permission: 'sales.create' },
+      {
+        to: '/app/sales/history',
+        label: 'Sales History',
+        icon: icons.history,
+        anyOf: ['sales.view_own', 'sales.view_all'],
+      },
+    ],
+  },
+  {
+    title: 'Products & Stock',
+    items: [
+      { to: '/app/products', label: 'Products', icon: icons.box, permission: 'products.view' },
+      { to: '/app/categories', label: 'Categories', icon: icons.list, permission: 'products.manage' },
+      { to: '/app/inventory/stock-in', label: 'Stock In', icon: icons.plus, permission: 'inventory.manage' },
+      {
+        to: '/app/inventory/stock-out',
+        label: 'Stock Out / Adjustments',
+        icon: icons.warehouse,
+        permission: 'inventory.manage',
+      },
+      {
+        to: '/app/inventory/movements',
+        label: 'Stock Movements',
+        icon: icons.activity,
+        permission: 'inventory.view',
+      },
+    ],
+  },
+  {
+    title: 'People',
+    items: [
+      { to: '/app/customers', label: 'Customers', icon: icons.users, permission: 'customers.view' },
+      { to: '/app/suppliers', label: 'Suppliers', icon: icons.truck, permission: 'suppliers.view' },
+    ],
+  },
+  {
+    title: 'Finance',
+    items: [{ to: '/app/expenses', label: 'Expenses', icon: icons.receipt, permission: 'expenses.view' }],
   },
   {
     title: 'Business Intelligence',
     items: [
-      { to: '/app/analytics/business', label: 'Business Analytics', icon: icons.chart },
-      { to: '/app/analytics/sales', label: 'Sales Analytics', icon: icons.trendUp },
-      { to: '/app/analytics/inventory', label: 'Inventory Analytics', icon: icons.package },
-      { to: '/app/analytics/customers', label: 'Customer Analytics', icon: icons.userCheck },
+      { to: '/app/analytics/business', label: 'Business Analytics', icon: icons.chart, permission: 'analytics.view' },
+      { to: '/app/analytics/sales', label: 'Sales Analytics', icon: icons.trendUp, permission: 'analytics.view' },
+      { to: '/app/analytics/inventory', label: 'Inventory Analytics', icon: icons.package, permission: 'analytics.view' },
+      { to: '/app/analytics/customers', label: 'Customer Analytics', icon: icons.userCheck, permission: 'analytics.view' },
     ],
   },
   {
     title: 'Decision Support',
     items: [
-      { to: '/app/forecasting', label: 'Forecasting', icon: icons.brain },
-      { to: '/app/recommendations', label: 'Recommendations', icon: icons.lightbulb },
-      { to: '/app/reports', label: 'Reports', icon: icons.fileText },
+      { to: '/app/forecasting', label: 'Forecasting', icon: icons.brain, permission: 'forecasting.view' },
+      { to: '/app/recommendations', label: 'Recommendations', icon: icons.lightbulb, permission: 'recommendations.view' },
+      { to: '/app/reports', label: 'Reports', icon: icons.fileText, permission: 'reports.generate' },
     ],
   },
   {
     title: 'Administration',
     items: [
-      { to: '/app/users', label: 'Users', icon: icons.users },
-      { to: '/app/roles', label: 'Roles & Permissions', icon: icons.shield },
-      { to: '/app/activity-log', label: 'Activity Log', icon: icons.activity },
-      { to: '/app/business-settings', label: 'Business Settings', icon: icons.settings },
+      { to: '/app/users', label: 'User Management', icon: icons.users, permission: 'users.view' },
+      { to: '/app/roles', label: 'Roles & Permissions', icon: icons.shield, permission: 'roles.view' },
+      { to: '/app/activity-log', label: 'Activity Log', icon: icons.activity, permission: 'audit.view' },
+      { to: '/app/business-settings', label: 'Business Settings', icon: icons.settings, permission: 'business.settings.manage' },
     ],
   },
 ];
+
+function getNavSections(hasPermission: (permission: string) => boolean): NavSection[] {
+  const isStaff = hasPermission('sales.create') && !hasPermission('analytics.view');
+  return isStaff ? STAFF_NAV_SECTIONS : MANAGEMENT_NAV_SECTIONS;
+}
 
 // Map routes to human-readable section/page names for the header
 const ROUTE_LABELS: Record<string, { section: string; page: string }> = {
@@ -102,14 +157,15 @@ const ROUTE_LABELS: Record<string, { section: string; page: string }> = {
   '/app/sales/new': { section: 'Sales', page: 'New Sale' },
   '/app/sales': { section: 'Sales', page: 'Sales' },
   '/app/sales/history': { section: 'Sales', page: 'Sales History' },
-  '/app/products': { section: 'Operations', page: 'Products' },
-  '/app/inventory': { section: 'Operations', page: 'Inventory' },
-  '/app/inventory/stock-in': { section: 'Operations', page: 'Stock In' },
-  '/app/inventory/stock-out': { section: 'Operations', page: 'Stock Out' },
-  '/app/inventory/movements': { section: 'Operations', page: 'Stock Movements' },
-  '/app/customers': { section: 'Operations', page: 'Customers' },
-  '/app/suppliers': { section: 'Operations', page: 'Suppliers' },
-  '/app/expenses': { section: 'Operations', page: 'Expenses' },
+  '/app/products': { section: 'Products & Stock', page: 'Products' },
+  '/app/categories': { section: 'Products & Stock', page: 'Categories' },
+  '/app/inventory': { section: 'Products & Stock', page: 'Inventory' },
+  '/app/inventory/stock-in': { section: 'Products & Stock', page: 'Stock In' },
+  '/app/inventory/stock-out': { section: 'Products & Stock', page: 'Stock Out / Adjustments' },
+  '/app/inventory/movements': { section: 'Products & Stock', page: 'Stock Movements' },
+  '/app/customers': { section: 'People', page: 'Customers' },
+  '/app/suppliers': { section: 'People', page: 'Suppliers' },
+  '/app/expenses': { section: 'Finance', page: 'Expenses' },
   '/app/analytics/business': { section: 'Business Intelligence', page: 'Business Analytics' },
   '/app/analytics/sales': { section: 'Business Intelligence', page: 'Sales Analytics' },
   '/app/analytics/inventory': { section: 'Business Intelligence', page: 'Inventory Analytics' },
@@ -117,14 +173,24 @@ const ROUTE_LABELS: Record<string, { section: string; page: string }> = {
   '/app/forecasting': { section: 'Decision Support', page: 'Forecasting' },
   '/app/recommendations': { section: 'Decision Support', page: 'Recommendations' },
   '/app/reports': { section: 'Decision Support', page: 'Reports' },
-  '/app/users': { section: 'Administration', page: 'Users' },
+  '/app/users': { section: 'Administration', page: 'User Management' },
   '/app/roles': { section: 'Administration', page: 'Roles & Permissions' },
   '/app/activity-log': { section: 'Administration', page: 'Activity Log' },
   '/app/business-settings': { section: 'Administration', page: 'Business Settings' },
   '/app/profile': { section: 'Account', page: 'Profile' },
 };
 
-function getRouteLabel(pathname: string): { section: string; page: string } {
+function getRouteLabel(
+  pathname: string,
+  hasPermission: (permission: string) => boolean
+): { section: string; page: string } {
+  const isStaff = hasPermission('sales.create') && !hasPermission('analytics.view');
+  if (isStaff) {
+    if (pathname === '/app') return { section: 'Overview', page: 'My Sales Overview' };
+    if (pathname === '/app/sales/history') return { section: 'Sales', page: 'My Sales History' };
+    if (pathname === '/app/products') return { section: 'Lookup', page: 'Product Lookup' };
+    if (pathname === '/app/customers') return { section: 'Lookup', page: 'Customer Lookup' };
+  }
   if (ROUTE_LABELS[pathname]) return ROUTE_LABELS[pathname];
   if (pathname.startsWith('/app/users/')) {
     return { section: 'Administration', page: 'User Details' };
@@ -133,24 +199,38 @@ function getRouteLabel(pathname: string): { section: string; page: string } {
 }
 
 function getUserDisplayName(user: any): string {
-  return user?.email || 'User';
+  return user?.name || user?.email || 'User';
 }
 
 function getUserRoles(user: any): string {
-  if (!user?.roles) return 'Member';
-  if (Array.isArray(user.roles)) {
+  if (user?.role_name) return user.role_name;
+  if (user?.role && typeof user.role === 'object' && user.role.role_name) {
+    return user.role.role_name;
+  }
+  if (typeof user?.role === 'string') return user.role;
+  if (Array.isArray(user?.roles)) {
     return user.roles.map((r: any) => r.role_name || r.name || r).join(', ');
   }
   return 'Member';
 }
 
+function canSeeNavItem(
+  item: NavItem,
+  hasPermission: (permission: string) => boolean
+): boolean {
+  if (item.permission) return hasPermission(item.permission);
+  if (item.anyOf) return item.anyOf.some((permission) => hasPermission(permission));
+  return true;
+}
+
 export function AppShell() {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const { section, page } = getRouteLabel(location.pathname);
+  const { section, page } = getRouteLabel(location.pathname, hasPermission);
+  const navSections = getNavSections(hasPermission);
 
   function handleLogout() {
     logout();
@@ -165,6 +245,9 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       {mobileOpen && (
         <div
           className="app-shell__overlay"
@@ -188,11 +271,14 @@ export function AppShell() {
         </div>
 
         <nav className="sidebar__nav" aria-label="Main navigation">
-          {NAV_SECTIONS.map((navSection) => (
+          {navSections.map((navSection) => {
+            const items = navSection.items.filter((item) => canSeeNavItem(item, hasPermission));
+            if (items.length === 0) return null;
+            return (
             <div key={navSection.title} className="sidebar__section">
               <div className="sidebar__section-title">{navSection.title}</div>
               <ul className="sidebar__list">
-                {navSection.items.map((item) => (
+                {items.map((item) => (
                   <li key={item.to}>
                     <NavLink
                       to={item.to}
@@ -209,7 +295,8 @@ export function AppShell() {
                 ))}
               </ul>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         <div className="sidebar__footer">
@@ -270,7 +357,7 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="app-shell__content">
+        <main id="main-content" className="app-shell__content" tabIndex={-1}>
           <Outlet />
         </main>
       </div>

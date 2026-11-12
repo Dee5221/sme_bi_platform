@@ -3,11 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiClientError } from '../lib/api';
 import * as userApi from '../services/userService';
-import type {
-  AssignableRole,
-  ManagedUser,
-  UserActivityEntry,
-} from '../services/userService';
+import type { AssignableRole, ManagedUser, UserActivityEntry } from '../services/userService';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -24,37 +20,39 @@ import './UserDetailsPage.css';
 import './UsersPage.css';
 
 type EditForm = {
-  firstName: string;
-  lastName: string;
+  name: string;
   email: string;
-  phone: string;
-  roleIds: string[];
-  isActive: boolean;
+  roleId: number;
+  status: string;
 };
 
 function mapFieldErrors(details: unknown): Record<string, string> {
   const next: Record<string, string> = {};
   if (!Array.isArray(details)) return next;
-  for (const item of details as { path?: string; message?: string }[]) {
-    if (item.path && item.message) next[item.path] = item.message;
+  for (const item of details as { loc?: string[]; msg?: string }[]) {
+    if (item.loc && item.msg) {
+      next[String(item.loc[item.loc.length - 1])] = item.msg;
+    }
   }
   return next;
 }
 
 function formatRoleName(name: string) {
-  return name
-    .split('_')
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(' / ');
+  if (name === 'Staff') return 'Sales Staff';
+  return name;
 }
 
 function formatDate(value: string | null) {
-  if (!value) return 'Never';
+  if (!value) return '—';
   return new Date(value).toLocaleString();
 }
 
 function formatAction(action: string) {
-  return action.replace(/\./g, ' · ').replace(/_/g, ' ').toLowerCase();
+  return action.replace(/\./g, ' · ').replace(/_/g, ' ');
+}
+
+function isActiveStatus(status: string) {
+  return status === 'active';
 }
 
 export function UserDetailsPage() {
@@ -63,8 +61,7 @@ export function UserDetailsPage() {
   const { pushToast } = useToast();
 
   const canView = hasPermission('users.view');
-  const canUpdate = hasPermission('users.update');
-  const canDelete = hasPermission('users.delete');
+  const canManage = hasPermission('users.manage');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +76,10 @@ export function UserDetailsPage() {
   const [saving, setSaving] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const loadDetails = useCallback(async () => {
     if (!canView || !id) {
@@ -90,7 +91,7 @@ export function UserDetailsPage() {
     try {
       const result = await userApi.fetchUser(id);
       setManagedUser(result.user);
-      setRecentActivity(result.recentActivity);
+      setRecentActivity(result.recent_activity);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Unable to load user details.');
       setManagedUser(null);
@@ -106,33 +107,20 @@ export function UserDetailsPage() {
 
   useEffect(() => {
     if (!canView) return;
-    void userApi.listAssignableRoles().then((result) => setRoles(result.roles));
+    void userApi.listAssignableRoles().then((result) => setRoles(result));
   }, [canView]);
 
   function openEdit() {
     if (!managedUser) return;
     setForm({
-      firstName: managedUser.firstName,
-      lastName: managedUser.lastName,
+      name: managedUser.name,
       email: managedUser.email,
-      phone: managedUser.phone || '',
-      roleIds: managedUser.roleIds,
-      isActive: managedUser.isActive,
+      roleId: managedUser.role.id,
+      status: managedUser.status,
     });
     setFormError(null);
     setFieldErrors({});
     setModalOpen(true);
-  }
-
-  function toggleRole(roleId: string) {
-    setForm((current) => {
-      if (!current) return current;
-      const exists = current.roleIds.includes(roleId);
-      const roleIds = exists
-        ? current.roleIds.filter((value) => value !== roleId)
-        : [...current.roleIds, roleId];
-      return { ...current, roleIds };
-    });
   }
 
   async function onSave(event: FormEvent) {
@@ -143,14 +131,12 @@ export function UserDetailsPage() {
     setFieldErrors({});
     try {
       const result = await userApi.updateUser(id, {
-        firstName: form.firstName,
-        lastName: form.lastName,
+        name: form.name,
         email: form.email,
-        phone: form.phone || undefined,
-        roleIds: form.roleIds,
-        isActive: form.isActive,
+        role_id: form.roleId,
+        status: form.status,
       });
-      setManagedUser(result.user);
+      setManagedUser(result);
       setModalOpen(false);
       pushToast('User updated.', 'success');
       setLoading(true);
@@ -183,6 +169,25 @@ export function UserDetailsPage() {
     }
   }
 
+  async function onResetPassword(event: FormEvent) {
+    event.preventDefault();
+    if (!id) return;
+    setResetting(true);
+    setResetError(null);
+    try {
+      await userApi.resetUserPassword(id, newPassword);
+      pushToast('Password reset. The previous password will no longer work.', 'success');
+      setResetOpen(false);
+      setNewPassword('');
+      setLoading(true);
+      await loadDetails();
+    } catch (err) {
+      setResetError(err instanceof ApiClientError ? err.message : 'Unable to reset password.');
+    } finally {
+      setResetting(false);
+    }
+  }
+
   if (!canView) {
     return <Alert tone="error">You do not have permission to view user details.</Alert>;
   }
@@ -206,7 +211,8 @@ export function UserDetailsPage() {
     );
   }
 
-  const isSelf = String(managedUser.id) === String(currentUser?.id);
+  const isSelf = managedUser.id === currentUser?.id;
+  const isOwnerAccount = managedUser.role.role_name === 'Business Owner';
 
   return (
     <div className="user-details-page">
@@ -215,16 +221,21 @@ export function UserDetailsPage() {
       </Link>
 
       <PageHeader
-        title={managedUser.fullName}
+        title={managedUser.name}
         subtitle={managedUser.email}
         actions={
           <div className="user-details-actions">
-            {canUpdate ? (
+            {canManage ? (
               <Button variant="secondary" onClick={openEdit}>
                 Edit user
               </Button>
             ) : null}
-            {canDelete && managedUser.isActive && !isSelf ? (
+            {canManage && !isSelf ? (
+              <Button variant="secondary" onClick={() => { setResetError(null); setResetOpen(true); }}>
+                Reset password
+              </Button>
+            ) : null}
+            {canManage && isActiveStatus(managedUser.status) && !isSelf ? (
               <Button variant="secondary" onClick={() => setConfirmDeactivate(true)}>
                 Deactivate
               </Button>
@@ -238,39 +249,25 @@ export function UserDetailsPage() {
           <Card title="Account profile">
             <div className="user-details-grid">
               <div className="user-details-field">
-                <span>First name</span>
-                <strong>{managedUser.firstName}</strong>
-              </div>
-              <div className="user-details-field">
-                <span>Last name</span>
-                <strong>{managedUser.lastName}</strong>
+                <span>Name</span>
+                <strong>{managedUser.name}</strong>
               </div>
               <div className="user-details-field">
                 <span>Email</span>
                 <strong>{managedUser.email}</strong>
               </div>
               <div className="user-details-field">
-                <span>Phone</span>
-                <strong>{managedUser.phone || '—'}</strong>
+                <span>Role</span>
+                <Badge tone="neutral">{formatRoleName(managedUser.role.role_name)}</Badge>
               </div>
             </div>
           </Card>
 
-          <Card title="Assigned roles">
-            <div className="users-role-badges">
-              {managedUser.roles.map((role) => (
-                <Badge key={role} tone="neutral">
-                  {formatRoleName(role)}
-                </Badge>
-              ))}
-            </div>
-          </Card>
-
-          <Card title="Recent activity">
+          <Card title="Account activity">
             {recentActivity.length === 0 ? (
               <EmptyState
                 title="No activity recorded"
-                description="Actions performed by or on this user will appear here."
+                description="Administrative changes to this account will appear here."
               />
             ) : (
               <ul className="recent-list">
@@ -283,11 +280,11 @@ export function UserDetailsPage() {
                       <strong>{formatAction(entry.action)}</strong>
                       <span>
                         {entry.entity}
-                        {entry.entityId ? ` · ${entry.entityId}` : ''} · {entry.actorName}
+                        {entry.entity_id ? ` · ${entry.entity_id}` : ''} · {entry.actor_name}
                       </span>
                     </div>
                     <div className="recent-list__meta">
-                      <span>{formatDate(entry.createdAt)}</span>
+                      <span>{formatDate(entry.created_at)}</span>
                     </div>
                   </li>
                 ))}
@@ -301,21 +298,17 @@ export function UserDetailsPage() {
             <div className="user-details-grid">
               <div className="user-details-field">
                 <span>Status</span>
-                <Badge tone={managedUser.isActive ? 'green' : 'neutral'}>
-                  {managedUser.isActive ? 'ACTIVE' : 'INACTIVE'}
+                <Badge tone={isActiveStatus(managedUser.status) ? 'green' : 'neutral'}>
+                  {managedUser.status.toUpperCase()}
                 </Badge>
               </div>
               <div className="user-details-field">
-                <span>Last login</span>
-                <strong>{formatDate(managedUser.lastLoginAt)}</strong>
-              </div>
-              <div className="user-details-field">
                 <span>Created</span>
-                <strong>{formatDate(managedUser.createdAt)}</strong>
+                <strong>{formatDate(managedUser.created_at)}</strong>
               </div>
               <div className="user-details-field">
                 <span>Last updated</span>
-                <strong>{formatDate(managedUser.updatedAt)}</strong>
+                <strong>{formatDate(managedUser.updated_at)}</strong>
               </div>
             </div>
           </Card>
@@ -323,7 +316,7 @@ export function UserDetailsPage() {
           {isSelf ? (
             <Card title="Your account">
               <p className="users-muted">
-                You are viewing your own user record. Status and deactivation controls are
+                You are viewing your own user record. Status and password-reset controls are
                 limited here to prevent locking yourself out.
               </p>
               <div className="side-link">
@@ -340,19 +333,11 @@ export function UserDetailsPage() {
             {formError ? <Alert tone="error">{formError}</Alert> : null}
             <div className="users-form__grid">
               <Input
-                label="First name"
-                name="firstName"
-                value={form.firstName}
-                onChange={(e) => setForm((current) => current && { ...current, firstName: e.target.value })}
-                error={fieldErrors.firstName}
-                required
-              />
-              <Input
-                label="Last name"
-                name="lastName"
-                value={form.lastName}
-                onChange={(e) => setForm((current) => current && { ...current, lastName: e.target.value })}
-                error={fieldErrors.lastName}
+                label="Full name"
+                name="name"
+                value={form.name}
+                onChange={(e) => setForm((current) => current && { ...current, name: e.target.value })}
+                error={fieldErrors.name}
                 required
               />
               <Input
@@ -364,50 +349,50 @@ export function UserDetailsPage() {
                 error={fieldErrors.email}
                 required
               />
-              <Input
-                label="Phone"
-                name="phone"
-                value={form.phone}
-                onChange={(e) => setForm((current) => current && { ...current, phone: e.target.value })}
-                error={fieldErrors.phone}
-              />
               <label className="users-select users-form__full">
                 <span>Status</span>
                 <select
-                  value={form.isActive ? 'ACTIVE' : 'INACTIVE'}
+                  value={form.status}
                   onChange={(e) =>
                     setForm((current) =>
-                      current
-                        ? { ...current, isActive: e.target.value === 'ACTIVE' }
-                        : current
+                      current ? { ...current, status: e.target.value } : current
                     )
                   }
                   disabled={isSelf}
                 >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </label>
               <div className="users-form__full">
                 <label className="users-select">
-                  <span>Roles</span>
+                  <span>Role</span>
                 </label>
-                {fieldErrors.roleIds ? <Alert tone="error">{fieldErrors.roleIds}</Alert> : null}
-                <div className="users-role-list">
-                  {roles.map((role) => (
-                    <label key={role.id} className="users-role-option">
-                      <input
-                        type="checkbox"
-                        checked={form.roleIds.includes(role.id)}
-                        onChange={() => toggleRole(role.id)}
-                      />
-                      <div>
-                        <strong>{formatRoleName(role.name)}</strong>
-                        {role.description ? <span>{role.description}</span> : null}
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                {fieldErrors.role_id ? <Alert tone="error">{fieldErrors.role_id}</Alert> : null}
+                {isOwnerAccount ? (
+                  <p className="users-muted">
+                    The last active Business Owner cannot be demoted from this screen.
+                  </p>
+                ) : (
+                  <div className="users-role-list">
+                    {roles.map((role) => (
+                      <label key={role.id} className="users-role-option">
+                        <input
+                          type="radio"
+                          name="role_id"
+                          checked={form.roleId === role.id}
+                          onChange={() =>
+                            setForm((current) => current && { ...current, roleId: role.id })
+                          }
+                        />
+                        <div>
+                          <strong>{formatRoleName(role.role_name)}</strong>
+                          {role.description ? <span>{role.description}</span> : null}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <div className="users-form__actions">
@@ -422,6 +407,34 @@ export function UserDetailsPage() {
         ) : null}
       </Modal>
 
+      <Modal
+        open={resetOpen}
+        title="Reset password"
+        onClose={() => setResetOpen(false)}
+        width="md"
+      >
+        <form className="users-form" onSubmit={onResetPassword} noValidate>
+          {resetError ? <Alert tone="error">{resetError}</Alert> : null}
+          <Input
+            label="New password"
+            name="new_password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            hint="At least 8 characters, with a letter and a number. The current password is never shown."
+            required
+          />
+          <div className="users-form__actions">
+            <Button type="button" variant="secondary" onClick={() => setResetOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={resetting}>
+              Reset password
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
       <ConfirmDialog
         open={confirmDeactivate}
         title="Deactivate user?"
@@ -431,7 +444,7 @@ export function UserDetailsPage() {
         onCancel={() => setConfirmDeactivate(false)}
         onConfirm={() => void onConfirmDeactivate()}
       >
-        {managedUser.fullName} will lose access until reactivated.
+        {managedUser.name} will lose access until reactivated. Existing sessions will be rejected.
       </ConfirmDialog>
     </div>
   );

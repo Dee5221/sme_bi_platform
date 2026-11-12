@@ -1,12 +1,14 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as productService from '../services/productService';
 import * as customerService from '../services/customerService';
+import * as inventoryService from '../services/inventoryService';
 import * as saleService from '../services/saleService';
 import { useToast } from '../components/ui/Toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { LoadingSkeleton } from '../components/ui/LoadingSkeleton';
 import { ApiClientError } from '../lib/api';
 import './SalesPage.css';
@@ -22,6 +24,7 @@ export function NewSalePage() {
 
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [stockByProduct, setStockByProduct] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -31,20 +34,28 @@ export function NewSalePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [clearOpen, setClearOpen] = useState(false);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [prods, custs] = await Promise.all([
+        const [prods, custs, inventory] = await Promise.all([
           productService.listProducts({ status: 'active' }).catch(() => []),
           customerService.listCustomers().catch(() => []),
+          inventoryService.listInventory({}).catch(() => ({ items: [] })),
         ]);
 
         const prodList = Array.isArray(prods) ? prods : (prods as any)?.items || [];
         const custList = Array.isArray(custs) ? custs : (custs as any)?.items || [];
+        const stock: Record<number, number> = {};
+        for (const item of inventory.items || []) {
+          stock[item.product_id] = Number(item.quantity_on_hand || 0);
+        }
 
         setProducts(prodList);
         setCustomers(custList);
+        setStockByProduct(stock);
       } catch (err) {
         console.error('Failed to load POS data', err);
       } finally {
@@ -77,14 +88,27 @@ export function NewSalePage() {
     [cart]
   );
 
+  function availableStock(productId: number): number {
+    return stockByProduct[productId] ?? 0;
+  }
+
   function addToCart(product: any) {
+    if (inFlightRef.current) return;
+    const stock = availableStock(product.id);
+    if (stock <= 0) {
+      pushToast(`${product.name} is out of stock.`, 'error');
+      return;
+    }
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
+      const nextQty = existing ? existing.quantity + 1 : 1;
+      if (nextQty > stock) {
+        pushToast(`Only ${stock} of ${product.name} available.`, 'error');
+        return prev;
+      }
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
+          item.product.id === product.id ? { ...item, quantity: nextQty } : item
         );
       }
       return [...prev, { product, quantity: 1 }];
@@ -92,9 +116,15 @@ export function NewSalePage() {
   }
 
   function updateQuantity(productId: number, quantity: number) {
+    if (inFlightRef.current) return;
     if (isNaN(quantity) || quantity <= 0) {
       removeFromCart(productId);
       return;
+    }
+    const stock = availableStock(productId);
+    if (quantity > stock) {
+      pushToast(`Only ${stock} available in stock.`, 'error');
+      quantity = stock;
     }
     setCart((prev) =>
       prev.map((item) =>
@@ -104,6 +134,7 @@ export function NewSalePage() {
   }
 
   function removeFromCart(productId: number) {
+    if (inFlightRef.current) return;
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
   }
 
@@ -112,9 +143,11 @@ export function NewSalePage() {
     setSelectedCustomerId(null);
     setPaymentMethod('Cash');
     setSubmitError(null);
+    setClearOpen(false);
   }
 
   async function handleCheckout() {
+    if (inFlightRef.current) return;
     setSubmitError(null);
 
     if (cart.length === 0) {
@@ -132,6 +165,7 @@ export function NewSalePage() {
       return;
     }
 
+    inFlightRef.current = true;
     setSubmitting(true);
     try {
       // Build payload — matches backend contract exactly
@@ -148,7 +182,11 @@ export function NewSalePage() {
         payload.customer_id = Number(selectedCustomerId);
       }
 
-      await saleService.createSale(payload);
+      const idempotencyKey =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `sale-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      await saleService.createSale(payload, idempotencyKey);
 
       pushToast('Sale completed successfully.', 'success');
       // Clear cart only AFTER success
@@ -182,6 +220,7 @@ export function NewSalePage() {
       setSubmitError(message);
       pushToast(message, 'error');
     } finally {
+      inFlightRef.current = false;
       setSubmitting(false);
     }
   }
@@ -210,7 +249,7 @@ export function NewSalePage() {
           <p className="page-subtitle">Select products and complete the transaction.</p>
         </div>
         <div className="page-header__actions">
-          <Button onClick={() => navigate('/app/sales/history')}>
+          <Button variant="secondary" onClick={() => navigate('/app/sales/history')}>
             Sales History
           </Button>
         </div>
@@ -222,30 +261,44 @@ export function NewSalePage() {
           <Card>
             <div className="pos-search">
               <Input
-                type="text"
+                type="search"
+                name="product-search"
+                label="Search products"
                 placeholder="Search products by name or SKU..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)} label={''}              />
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
 
             <div className="pos-product-grid">
               {filteredProducts.length === 0 ? (
                 <div className="pos-empty">No products match your search.</div>
               ) : (
-                filteredProducts.map((product) => (
-                  <button
-                    key={product.id}
-                    type="button"
-                    className="pos-product-card"
-                    onClick={() => addToCart(product)}
-                  >
-                    <div className="pos-product-name">{product.name}</div>
-                    <div className="pos-product-sku">{product.sku}</div>
-                    <div className="pos-product-price">
-                      K{Number(product.selling_price || 0).toFixed(2)}
-                    </div>
-                  </button>
-                ))
+                filteredProducts.map((product) => {
+                  const stock = availableStock(product.id);
+                  const unavailable = stock <= 0;
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      className={`pos-product-card ${unavailable ? 'pos-product-card--unavailable' : ''}`}
+                      onClick={() => addToCart(product)}
+                      disabled={unavailable || submitting}
+                      aria-label={`${product.name}, SKU ${product.sku || 'none'}, ${
+                        unavailable ? 'out of stock' : `${stock} in stock`
+                      }`}
+                    >
+                      <div className="pos-product-name">{product.name}</div>
+                      <div className="pos-product-sku">{product.sku}</div>
+                      <div className="pos-product-stock">
+                        {unavailable ? 'Out of stock' : `${stock} in stock`}
+                      </div>
+                      <div className="pos-product-price">
+                        K{Number(product.selling_price || 0).toFixed(2)}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
           </Card>
@@ -272,7 +325,8 @@ export function NewSalePage() {
                     <div className="pos-cart-item-info">
                       <div className="pos-cart-item-name">{item.product.name}</div>
                       <div className="pos-cart-item-price">
-                        K{Number(item.product.selling_price || 0).toFixed(2)} each
+                        K{Number(item.product.selling_price || 0).toFixed(2)} each ·{' '}
+                        {availableStock(item.product.id)} in stock
                       </div>
                     </div>
                     <div className="pos-cart-item-controls">
@@ -282,7 +336,8 @@ export function NewSalePage() {
                         onClick={() =>
                           updateQuantity(item.product.id, item.quantity - 1)
                         }
-                        aria-label="Decrease quantity"
+                        disabled={submitting}
+                        aria-label={`Decrease quantity of ${item.product.name}`}
                       >
                         −
                       </button>
@@ -294,6 +349,7 @@ export function NewSalePage() {
                           updateQuantity(item.product.id, Number(e.target.value))
                         }
                         min="1"
+                        disabled={submitting}
                         aria-label={`Quantity for ${item.product.name}`}
                       />
                       <button
@@ -302,7 +358,8 @@ export function NewSalePage() {
                         onClick={() =>
                           updateQuantity(item.product.id, item.quantity + 1)
                         }
-                        aria-label="Increase quantity"
+                        disabled={submitting}
+                        aria-label={`Increase quantity of ${item.product.name}`}
                       >
                         +
                       </button>
@@ -310,6 +367,7 @@ export function NewSalePage() {
                         type="button"
                         className="pos-remove-btn"
                         onClick={() => removeFromCart(item.product.id)}
+                        disabled={submitting}
                         aria-label={`Remove ${item.product.name}`}
                       >
                         ✕
@@ -348,6 +406,7 @@ export function NewSalePage() {
                   id="pos-customer"
                   className="pos-form-select"
                   value={selectedCustomerId ?? ''}
+                  disabled={submitting}
                   onChange={(e) =>
                     setSelectedCustomerId(
                       e.target.value ? Number(e.target.value) : null
@@ -371,6 +430,7 @@ export function NewSalePage() {
                   id="pos-payment"
                   className="pos-form-select"
                   value={paymentMethod}
+                  disabled={submitting}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                 >
                   <option value="Cash">Cash</option>
@@ -387,23 +447,38 @@ export function NewSalePage() {
 
               <div className="pos-checkout-actions">
                 <Button
-                  onClick={clearCart}
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setClearOpen(true)}
                   disabled={submitting || cart.length === 0}
                 >
                   Clear
                 </Button>
                 <Button
-                  onClick={handleCheckout}
+                  type="button"
+                  onClick={() => void handleCheckout()}
                   loading={submitting}
                   disabled={cart.length === 0}
+                  aria-busy={submitting}
                 >
-                  {submitting ? 'Processing...' : 'Complete Sale'}
+                  Complete Sale
                 </Button>
               </div>
             </div>
           </Card>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={clearOpen}
+        title="Clear this sale?"
+        confirmLabel="Clear cart"
+        cancelLabel="Keep items"
+        onCancel={() => setClearOpen(false)}
+        onConfirm={clearCart}
+      >
+        Products in the cart will be removed. This does not record a sale.
+      </ConfirmDialog>
     </div>
   );
 }

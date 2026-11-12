@@ -21,6 +21,17 @@
   transform: translateY(-1px);
 }
 
+.ui-btn:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-btn:not(:disabled):hover {
+    transform: none;
+  }
+}
+
 .ui-btn--primary {
   background: #1e4c8a;
   color: #ffffff;

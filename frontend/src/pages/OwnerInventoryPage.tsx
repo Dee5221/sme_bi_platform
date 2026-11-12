@@ -224,7 +224,7 @@ export function OwnerInventoryPage() {
           <Link to="/app/inventory/movements">
             <Button>View All Movements</Button>
           </Link>
-          <Link to="/app/inventory/adjust">
+          <Link to="/app/inventory/stock-out">
             <Button>Adjust Stock</Button>
           </Link>
         </div>
@@ -365,7 +365,7 @@ export function OwnerInventoryPage() {
                           </td>
                           <td>
                             <Link
-                              to={`/app/inventory/adjust?product_id=${item.product_id}`}
+                              to={`/app/inventory/stock-out?product_id=${item.product_id}`}
                               className="inventory-action-link"
                             >
                               Adjust

@@ -1,4 +1,5 @@
-﻿const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+﻿const API_BASE = String(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const TOKEN_KEY = 'token';
 
 export class ApiClientError extends Error {
   status: number;
@@ -12,26 +13,57 @@ export class ApiClientError extends Error {
   }
 }
 
+function stripQuotes(value: string): string {
+  return value.replace(/^"|"$/g, '');
+}
+
+export function readStoredToken(): string | null {
+  const session = sessionStorage.getItem(TOKEN_KEY);
+  if (session) return stripQuotes(session);
+  const legacy = localStorage.getItem(TOKEN_KEY);
+  if (legacy) {
+    const token = stripQuotes(legacy);
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
+    return token;
+  }
+  return null;
+}
+
+export function persistSessionToken(token: string | null): void {
+  if (token) {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } else {
+    sessionStorage.removeItem(TOKEN_KEY);
+  }
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+export function clearStoredToken(): void {
+  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const rawToken = localStorage.getItem('token');
-  const token = rawToken ? rawToken.replace(/^"|"$/g, '') : null;
-
+  const token = readStoredToken();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(options.headers as Record<string, string> | undefined),
   };
 
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
   }
 
-  console.log(`📡 [API] ${options.method || 'GET'} ${endpoint}`, token ? '(with token)' : '(no token)');
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
+    credentials: 'include',
     headers,
   });
 
@@ -48,12 +80,16 @@ export async function apiRequest<T>(
     } else {
       data = await response.text();
     }
-  } catch (parseError) {
-    console.error('❌ [API] Failed to parse response:', parseError);
+  } catch {
     throw new ApiClientError(response.status, 'Failed to parse response');
   }
 
   if (!response.ok) {
+    if (response.status === 401 && endpoint !== '/api/auth/login' && endpoint !== '/api/auth/logout') {
+      clearStoredToken();
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
+
     let message = `Request failed with status ${response.status}`;
     let details: unknown;
 
@@ -75,6 +111,5 @@ export async function apiRequest<T>(
     throw new ApiClientError(response.status, message, details);
   }
 
-  console.log(`✅ [API] Response received:`, typeof data === 'object' ? JSON.stringify(data).substring(0, 100) : data);
   return data as T;
 }

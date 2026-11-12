@@ -98,6 +98,16 @@ export function stockOut(payload: { productId: number; quantity: number; reason?
   });
 }
 
+export function adjustStock(payload: { productId: number; newQuantity: number; reason?: string }) {
+  return apiRequest<InventoryItem>(`/api/inventory/${payload.productId}/adjust`, {
+    method: 'POST',
+    body: JSON.stringify({
+      new_quantity: payload.newQuantity,
+      reason: payload.reason,
+    }),
+  });
+}
+
 export function updateThreshold(productId: number, lowStockThreshold: number) {
   return apiRequest<{ message: string; reorder_level: number }>(`/api/inventory/${productId}/threshold`, {
     method: 'PUT',

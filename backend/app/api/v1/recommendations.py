@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import require_permission
+from app.core.permissions import has_permission
 from app.models.user import User
 from app.schemas.recommendations import RecommendationsResponse
 from app.services.recommendations import generate_recommendations
@@ -35,14 +36,15 @@ def get_recommendations(
         description="Number of complete calendar months to analyse",
     ),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("recommendations.view")),
 ):
     """
     Generate advisory decision-support recommendations.
 
     - Business isolation: derived from the authenticated user's business_id.
-    - Role filtering: Staff receives inventory recommendations only.
-    - Recommendations never modify business records.
+    - Staff cannot access this module.
+    - Managers receive operational recommendations; owners also receive strategic ones.
+    - Recommendations never modify stock quantities or product prices.
     """
     business_id = current_user.business_id
     role_name = current_user.role.role_name if current_user.role else "Staff"
@@ -58,6 +60,7 @@ def get_recommendations(
         categories=category_list,
         severity_filter=severity,
         role_name=role_name,
+        include_profit=has_permission(current_user, "products.costs.view"),
     )
 
     return result

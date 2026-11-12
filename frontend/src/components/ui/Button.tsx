@@ -21,6 +21,7 @@ export function Button({
     <button
       className={`ui-btn ui-btn--${variant} ${className}`.trim()}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...rest}
     >
       {loading ? 'Please wait…' : children}

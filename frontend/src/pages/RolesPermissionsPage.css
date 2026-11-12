@@ -67,10 +67,6 @@
   background: #f0f3f8;
 }
 
-.roles-permission input {
-  margin-top: 0.2rem;
-}
-
 .roles-permission strong {
   display: block;
   font-size: 0.92rem;
@@ -93,6 +89,53 @@
 .roles-toolbar__meta {
   color: var(--text-secondary);
   font-size: 0.88rem;
+}
+
+.roles-compare-wrap {
+  overflow-x: auto;
+}
+
+.roles-compare {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.roles-compare th,
+.roles-compare td {
+  text-align: left;
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
+.roles-compare th {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.roles-compare__hint {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  margin-top: 0.15rem;
+}
+
+.roles-compare__cell {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.roles-assign {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.roles-assign select {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.55rem 0.75rem;
+  background: #f0f3f8;
 }
 
 @media (max-width: 860px) {

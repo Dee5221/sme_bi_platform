@@ -77,8 +77,15 @@ export function BusinessAnalyticsPage() {
             </Card>
             <Card className="dashboard-kpi-card">
               <div className="dashboard-kpi-label">Net Cash Flow</div>
-              <div className={`dashboard-kpi-value ${summary.net_cash_flow >= 0 ? 'text-success' : 'text-error'}`}>
+              <div
+                className={`dashboard-kpi-value ${
+                  summary.net_cash_flow >= 0 ? 'text-success' : 'text-warning'
+                }`}
+              >
                 {formatCurrency(summary.net_cash_flow)}
+              </div>
+              <div className="dashboard-kpi-trend">
+                {summary.net_cash_flow >= 0 ? 'Net inflow' : 'Net outflow'} — not net profit
               </div>
             </Card>
             <Card className="dashboard-kpi-card">
@@ -91,16 +98,19 @@ export function BusinessAnalyticsPage() {
             </Card>
             <Card className="dashboard-kpi-card">
               <div className="dashboard-kpi-label">Low Stock Alerts</div>
-              <div className="dashboard-kpi-value">{summary.low_stock_count}</div>
+              <div
+                className={`dashboard-kpi-value ${
+                  summary.low_stock_count > 0 ? 'text-warning' : ''
+                }`}
+              >
+                {summary.low_stock_count}
+              </div>
+              <div className="dashboard-kpi-trend">
+                {summary.low_stock_count > 0 ? 'Needs restock' : 'None below reorder level'}
+              </div>
             </Card>
           </div>
 
-          <div style={{ marginTop: '16px' }}>
-            <Alert tone="warning">
-              Net Cash Flow is a limited proxy metric (Revenue − Expenses). It excludes COGS,
-              taxes, and other deductions. Period-specific inventory state is not tracked.
-            </Alert>
-          </div>
         </>
       )}
     </div>

@@ -12,12 +12,14 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from app.core.database import SessionLocal
+from app.core.dev_guard import assert_not_production
 from app.models.business import Business
 from app.models.role import Role
 from app.models.user import User
 from app.core.security import get_password_hash
 
 def seed_database():
+    assert_not_production("Demonstration account seeding")
     db: Session = SessionLocal()
     try:
         print("Starting database seeding...\n")
@@ -45,13 +47,25 @@ def seed_database():
                 type="Retail",
                 contact="Kondwani Banda",
                 address="Plot 1010, Great East Road, Lusaka",
-                currency="ZMW"
+                currency="ZMW",
+                email="owner@lusakawholesale.zm",
+                phone="+260 211 000 000",
+                report_header="Lusaka Wholesale & Retail",
+                receipt_footer="Thank you for your business.",
             )
             db.add(business)
             db.flush()
             print(f"[CREATED] Business: {business.name}")
         else:
             print(f"[EXISTS] Business already exists: {business.name}")
+            if not business.email:
+                business.email = "owner@lusakawholesale.zm"
+            if not business.phone:
+                business.phone = "+260 211 000 000"
+            if not business.report_header:
+                business.report_header = business.name
+            if not business.receipt_footer:
+                business.receipt_footer = "Thank you for your business."
             
         # 3. Seed Users
         users_to_seed = [

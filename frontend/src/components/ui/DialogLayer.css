@@ -1,0 +1,10 @@
+.ui-dialog-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+html[data-dialog-open] {
+  overflow: hidden;
+}

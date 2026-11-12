@@ -33,7 +33,7 @@ export function StaffInventoryPage() {
   const { pushToast } = useToast();
 
   const canView = hasPermission('inventory.view');
-  const canAdjust = hasPermission('inventory.adjust');
+  const canAdjust = hasPermission('inventory.manage');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

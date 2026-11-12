@@ -86,3 +86,32 @@ img {
   background: rgba(30, 76, 138, 0.18);
   color: var(--text-primary);
 }
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.ui-field__input:focus-visible,
+.filter-bar__input:focus-visible,
+.filter-bar__select:focus-visible,
+.pos-form-select:focus-visible,
+.pos-qty-input:focus-visible {
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

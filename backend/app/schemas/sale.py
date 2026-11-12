@@ -20,6 +20,7 @@ class SaleItemResponse(BaseModel):
     quantity: Decimal
     unit_price: Decimal
     subtotal: Decimal
+    unit_cost: Optional[Decimal] = None
 
     class Config:
         from_attributes = True

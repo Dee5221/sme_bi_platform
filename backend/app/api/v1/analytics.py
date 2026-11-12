@@ -6,8 +6,10 @@ from sqlalchemy import func, case, extract
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import FORBIDDEN_DETAIL, require_permission
+from app.core.permissions import has_permission
 from app.models.user import User
+from app.services.product_insights import product_performance, profitability, resolve_period
 from app.models.sale import Sale, SaleItem
 from app.models.product import Product
 from app.models.category import Category
@@ -18,6 +20,9 @@ from app.schemas.analytics import (
     SalesTrendPoint,
     SalesByCategoryItem,
     InventoryHealthResponse,
+    TopProductItem,
+    ProductPerformanceResponse,
+    ProfitabilityResponse,
 )
 
 router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
@@ -59,7 +64,7 @@ def get_business_summary(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("analytics.view")),
 ):
     """
     Returns KPI summary for the authenticated user's business.
@@ -142,7 +147,7 @@ def get_sales_trend(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("analytics.view")),
 ):
     """
     Returns sales trend grouped by day or month.
@@ -200,7 +205,7 @@ def get_sales_by_category(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("analytics.view")),
 ):
     """
     Returns sales revenue and units sold grouped by product category.
@@ -252,7 +257,7 @@ def get_sales_by_category(
 @router.get("/inventory/health", response_model=InventoryHealthResponse)
 def get_inventory_health(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission("analytics.view")),
 ):
     """
     Returns current inventory health metrics.
@@ -316,4 +321,103 @@ def get_inventory_health(
         low_stock_items=low_stock_items,
         total_inventory_value=total_inventory_value,
         note=note,
+    )
+
+
+@router.get("/top-products", response_model=list[TopProductItem])
+def get_top_products(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    limit: int = Query(5, ge=1, le=20),
+    sort_by: str = Query("revenue", regex="^(revenue|units)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("analytics.view")),
+):
+    """Rank products by completed sale-item revenue or units. Does not compute profit."""
+    start, end = _validate_dates(start_date, end_date)
+    business_id = current_user.business_id
+    end_exclusive = datetime.combine(end + timedelta(days=1), datetime.min.time())
+    start_inclusive = datetime.combine(start, datetime.min.time())
+
+    order_expr = func.sum(SaleItem.subtotal) if sort_by == "revenue" else func.sum(SaleItem.quantity)
+
+    results = (
+        db.query(
+            Product.id.label("product_id"),
+            Product.name.label("product_name"),
+            Product.sku.label("sku"),
+            func.coalesce(func.sum(SaleItem.quantity), 0).label("units_sold"),
+            func.coalesce(func.sum(SaleItem.subtotal), 0).label("revenue"),
+        )
+        .select_from(SaleItem)
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .join(Product, SaleItem.product_id == Product.id)
+        .filter(
+            Sale.business_id == business_id,
+            Product.business_id == business_id,
+            Sale.status == COMPLETED_STATUS,
+            Sale.sale_datetime >= start_inclusive,
+            Sale.sale_datetime < end_exclusive,
+        )
+        .group_by(Product.id, Product.name, Product.sku)
+        .order_by(order_expr.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        TopProductItem(
+            product_id=row.product_id,
+            product_name=row.product_name,
+            sku=row.sku,
+            units_sold=float(row.units_sold),
+            revenue=round(float(row.revenue), 2),
+        )
+        for row in results
+    ]
+
+
+@router.get("/product-performance", response_model=ProductPerformanceResponse)
+def get_product_performance(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    period: Optional[int] = Query(None, description="Shortcut: 7, 30, or 90 days ending today"),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("analytics.view")),
+):
+    """Rank products by units, shop-open-day velocity, and revenue. Does not compute profit."""
+    if period is not None and period not in (7, 30, 90):
+        raise HTTPException(status_code=422, detail="period must be 7, 30, or 90")
+    start, end = resolve_period(start_date, end_date, period)
+    if start > end:
+        raise HTTPException(status_code=422, detail="start_date cannot be after end_date")
+    payload = product_performance(db, current_user.business_id, start, end, limit=limit)
+    return ProductPerformanceResponse(**payload)
+
+
+@router.get("/profitability", response_model=ProfitabilityResponse)
+def get_profitability(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    period: Optional[int] = Query(None, description="Shortcut: 7, 30, or 90 days ending today"),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("analytics.view")),
+):
+    """
+    Gross profit from snapshotted sale-item unit costs only.
+
+    Does not apply current product cost_price to historical sales.
+    Does not calculate net profit.
+    """
+    if not has_permission(current_user, "products.costs.view"):
+        raise HTTPException(status_code=403, detail=FORBIDDEN_DETAIL)
+    if period is not None and period not in (7, 30, 90):
+        raise HTTPException(status_code=422, detail="period must be 7, 30, or 90")
+    start, end = resolve_period(start_date, end_date, period)
+    if start > end:
+        raise HTTPException(status_code=422, detail="start_date cannot be after end_date")
+    return ProfitabilityResponse(
+        **profitability(db, current_user.business_id, start, end, limit=limit)
     )
